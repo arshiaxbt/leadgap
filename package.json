@@ -2,16 +2,33 @@
   "name": "poly-event-terminal",
   "version": "0.1.0",
   "private": true,
+  "engines": {
+    "node": "24.x"
+  },
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev --port 3000 --experimental-https",
+    "dev:http": "next dev --port 3000",
+    "dev:all": "next dev --port 3000 --experimental-https",
     "build": "next build",
     "start": "next start",
     "lint": "eslint"
   },
   "dependencies": {
+    "@polymarket/client": "^0.6.0",
+    "@privy-io/react-auth": "^3.37.1",
+    "@privy-io/wagmi": "^4.0.16",
+    "@solana-program/memo": "^0.12.0",
+    "@solana-program/system": "^0.13.0",
+    "@solana-program/token": "^0.15.0",
+    "@solana/kit": "^7.0.0",
+    "@stripe/stripe-js": "^9.13.0",
+    "@tanstack/react-query": "^5.101.4",
     "next": "16.3.0",
     "react": "19.2.8",
-    "react-dom": "19.2.8"
+    "react-dom": "19.2.8",
+    "rss-parser": "^3.13.0",
+    "viem": "^2.55.15",
+    "wagmi": "^2.16.9"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

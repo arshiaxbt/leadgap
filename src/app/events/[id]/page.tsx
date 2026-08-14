@@ -1,5 +1,9 @@
 import type { Metadata } from "next";
-import { EventView } from "@/components/EventView";
+import { redirect } from "next/navigation";
+import { PageShell } from "@/components/PageShell";
+import { getEvent } from "@/lib/store";
+
+export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "Event",
@@ -7,5 +11,14 @@ export const metadata: Metadata = {
 
 export default async function EventPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  return <EventView id={id} />;
+  const data = await getEvent(id);
+  const symbol = data?.event.perps[0]?.symbol;
+  if (!data || !symbol) {
+    return (
+      <PageShell>
+        <p className="py-16 text-sm text-[#8b93a7]">Event not found or not ingested yet.</p>
+      </PageShell>
+    );
+  }
+  redirect(`/markets/${encodeURIComponent(symbol)}?event=${encodeURIComponent(data.event.id)}`);
 }

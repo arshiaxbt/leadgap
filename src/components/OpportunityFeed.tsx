@@ -99,7 +99,7 @@ export function OpportunityFeed() {
               {shown.map((row) => (
                 <tr key={`${row.eventId}-${row.symbol}`} className="border-t border-[#1e2636] hover:bg-white/[0.03]">
                   <td className="px-4 py-3">
-                    <Link href={`/events/${row.eventId}`} className="font-medium text-zinc-100 hover:text-white">
+                    <Link href={`/markets/${row.symbol}?event=${row.eventId}`} className="font-medium text-zinc-100 hover:text-white">
                       {row.title}
                     </Link>
                     <div className="mt-0.5 max-w-sm truncate text-xs text-[#5c6478]">{row.question}</div>
@@ -137,8 +137,11 @@ export function OpportunityFeed() {
         <section>
           <h2 className="mb-3 text-sm font-medium text-zinc-200">Linked events</h2>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {events.slice(0, 12).map((event) => (
-              <Link key={event.id} href={`/events/${event.id}`}>
+            {events
+              .filter((event) => event.perps[0]?.symbol)
+              .slice(0, 12)
+              .map((event) => (
+              <Link key={event.id} href={`/markets/${event.perps[0]!.symbol}?event=${event.id}`}>
                 <Panel className="h-full p-4 transition hover:border-[#3ee0a8]/30">
                   <div className="flex items-center justify-between gap-2">
                     <span className="num text-xs text-[#3ee0a8]">{fmtOdds(event.yesPrice)}</span>

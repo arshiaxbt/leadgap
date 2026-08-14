@@ -1,6 +1,6 @@
-import type { PerpsInstrument, PerpsTicker } from "./types";
+import type { Candle, KlineInterval, PerpsBook, PerpsInstrument, PerpsTicker } from "./types";
 
-const PERPS_API = "https://api.perpetuals.polymarket.com";
+export const PERPS_API = "https://api.perpetuals.polymarket.com";
 
 async function getJson<T>(path: string): Promise<T> {
   const res = await fetch(`${PERPS_API}${path}`, {
@@ -123,6 +123,55 @@ export async function fetchHourlyKlines(instrumentId: number): Promise<{
 export async function fetchHourlyChange(instrumentId: number): Promise<number | null> {
   const { change1h } = await fetchHourlyKlines(instrumentId);
   return change1h;
+}
+
+export async function fetchBook(instrumentId: number, depth = 10): Promise<PerpsBook> {
+  const raw = await getJson<{
+    instrument_id: number;
+    bids: [string, string][];
+    asks: [string, string][];
+    timestamp: number;
+  }>(`/v1/info/book?instrument_id=${instrumentId}&depth=${depth}`);
+  const levels = (rows: [string, string][]) =>
+    (rows ?? [])
+      .map(([price, quantity]) => ({ price: Number(price), quantity: Number(quantity) }))
+      .filter((row) => Number.isFinite(row.price) && Number.isFinite(row.quantity));
+  return {
+    instrumentId: raw.instrument_id,
+    bids: levels(raw.bids),
+    asks: levels(raw.asks),
+    timestamp: raw.timestamp,
+  };
+}
+
+const KLINE_LOOKBACK: Record<KlineInterval, number> = {
+  "1m": 8 * 60 * 60 * 1000,
+  "5m": 36 * 60 * 60 * 1000,
+  "15m": 4 * 24 * 60 * 60 * 1000,
+  "1h": 21 * 24 * 60 * 60 * 1000,
+};
+
+export async function fetchCandles(
+  instrumentId: number,
+  interval: KlineInterval = "5m",
+): Promise<Candle[]> {
+  const start = Date.now() - (KLINE_LOOKBACK[interval] ?? KLINE_LOOKBACK["5m"]);
+  const res = await fetch(
+    `${PERPS_API}/v1/info/klines?instrument_id=${instrumentId}&interval=${interval}&start_timestamp=${start}`,
+    { cache: "no-store", signal: AbortSignal.timeout(20_000) },
+  );
+  if (!res.ok) return [];
+  const body = (await res.json()) as { data?: [number, string, string, string, string, string, number][] };
+  return (body.data ?? [])
+    .map((row) => ({
+      time: Math.floor(row[0] / 1000),
+      open: Number(row[1]),
+      high: Number(row[2]),
+      low: Number(row[3]),
+      close: Number(row[4]),
+      volume: Number(row[5]),
+    }))
+    .filter((c) => Number.isFinite(c.open) && Number.isFinite(c.close) && c.close > 0);
 }
 
 export async function fetchExchange() {

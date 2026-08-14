@@ -368,7 +368,26 @@ export async function getAsset(symbol: string) {
   const events = s.events.filter((e) => e.perps.some((p) => p.symbol === symbol));
   const news = s.news.filter((n) => n.symbols.includes(symbol));
   const mapping = mapBySymbol().get(symbol) ?? null;
-  return { instrument, ticker, events, news, mapping, markHistory: s.markHistory[symbol] ?? [], asOf: s.lastIngest };
+  const gaps = computeGaps({
+    events,
+    tickers: s.tickers,
+    oddsHistory: s.oddsHistory,
+    markHistory: s.markHistory,
+    window: "15m",
+  }).filter((row) => row.symbol === symbol);
+  const oddsHistory = Object.fromEntries(events.map((event) => [event.id, s.oddsHistory[event.id] ?? []]));
+  return {
+    instrument,
+    ticker,
+    events,
+    news,
+    mapping,
+    markHistory: s.markHistory[symbol] ?? [],
+    oddsHistory,
+    gaps,
+    instruments: s.instruments,
+    asOf: s.lastIngest,
+  };
 }
 
 export async function getNews(filter?: { symbol?: string; eventId?: string }) {

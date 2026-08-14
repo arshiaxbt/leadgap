@@ -2,14 +2,6 @@ import type { GapRow } from "./types";
 
 export type InterpretSource = "model" | "rules";
 
-type Provider = {
-  id: string;
-  url: string;
-  key: string;
-  model: string;
-  extraHeaders?: Record<string, string>;
-};
-
 export function deterministicNote(args: {
   title: string;
   question: string;
@@ -39,57 +31,35 @@ export function deterministicNote(args: {
   ].join(" ");
 }
 
-function providers(): Provider[] {
-  const out: Provider[] = [];
-  if (process.env.GROQ_API_KEY) {
-    out.push({
-      id: "groq",
-      url: "https://api.groq.com/openai/v1/chat/completions",
-      key: process.env.GROQ_API_KEY,
-      model: process.env.GROQ_MODEL ?? "openai/gpt-oss-120b",
-    });
-  }
-  if (process.env.GEMINI_API_KEY) {
-    out.push({
-      id: "gemini",
-      url: "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
-      key: process.env.GEMINI_API_KEY,
-      model: process.env.GEMINI_MODEL ?? "gemini-3.5-flash-lite",
-    });
-  }
-  if (process.env.OPENROUTER_API_KEY) {
-    out.push({
-      id: "openrouter",
-      url: "https://openrouter.ai/api/v1/chat/completions",
-      key: process.env.OPENROUTER_API_KEY,
-      model: process.env.OPENROUTER_MODEL ?? "openai/gpt-oss-120b:free",
-      extraHeaders: {
-        "HTTP-Referer": process.env.OPENROUTER_REFERER ?? "http://localhost:3000",
-        "X-Title": "Leadgap",
-      },
-    });
-  }
-  return out;
-}
-
-export function interpretStatus() {
-  const configured = providers().map((p) => ({ id: p.id, model: p.model }));
+function gemini() {
+  const key = process.env.GEMINI_API_KEY?.trim();
+  if (!key) return null;
   return {
-    configured,
-    recommended: "groq",
-    model: configured[0]?.model ?? null,
-    ready: configured.length > 0,
+    url: "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
+    key,
+    model: process.env.GEMINI_MODEL ?? "gemini-3.5-flash-lite",
   };
 }
 
-async function chat(provider: Provider, args: object): Promise<string | null> {
+export function interpretStatus() {
+  const g = gemini();
+  return {
+    configured: g ? [{ id: "gemini", model: g.model }] : [],
+    recommended: "gemini",
+    model: g?.model ?? null,
+    ready: Boolean(g),
+  };
+}
+
+async function chat(args: object): Promise<string | null> {
+  const provider = gemini();
+  if (!provider) return null;
   const res = await fetch(provider.url, {
     method: "POST",
     signal: AbortSignal.timeout(20_000),
     headers: {
       authorization: `Bearer ${provider.key}`,
       "content-type": "application/json",
-      ...provider.extraHeaders,
     },
     body: JSON.stringify({
       model: provider.model,
@@ -124,15 +94,11 @@ export async function interpretGap(args: {
   signedBeta: number;
 }): Promise<{ text: string; source: InterpretSource; model: string; provider: string }> {
   const fallback = deterministicNote(args);
-  for (const provider of providers()) {
-    try {
-      const text = await chat(provider, args);
-      if (text) {
-        return { text, source: "model", model: provider.model, provider: provider.id };
-      }
-    } catch {
-      // try next provider
-    }
+  try {
+    const text = await chat(args);
+    if (text) return { text, source: "model", model: gemini()!.model, provider: "gemini" };
+  } catch {
+    // fall through
   }
   return { text: fallback, source: "rules", model: "rules", provider: "rules" };
 }

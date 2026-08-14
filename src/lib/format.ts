@@ -51,6 +51,24 @@ export function mmr(maxLeverage: number): number {
   return 0.5 / maxLeverage;
 }
 
+export function estLiq(mark: number, leverage: number, maint: number, side: "BUY" | "SELL"): number | null {
+  if (!(mark > 0) || !(leverage > 0)) return null;
+  const move = 1 / leverage - maint;
+  if (move <= 0) return mark;
+  return side === "BUY" ? mark * (1 - move) : mark * (1 + move);
+}
+
+export function fmtCountdown(ts: number): string {
+  if (!Number.isFinite(ts) || ts <= 0) return "—";
+  const abs = ts < 1e12 ? ts * 1000 : ts;
+  const ms = abs - Date.now();
+  if (ms <= 0) return "now";
+  const total = Math.floor(ms / 60_000);
+  const h = Math.floor(total / 60);
+  const m = total % 60;
+  return h > 0 ? `${h}h ${m}m` : `${m}m`;
+}
+
 export function shortAddr(addr: string): string {
   if (addr.length < 12) return addr;
   return `${addr.slice(0, 6)}…${addr.slice(-4)}`;

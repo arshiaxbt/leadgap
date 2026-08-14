@@ -15,7 +15,7 @@ export function Header() {
   const path = usePathname();
   return (
     <header className="sticky top-0 z-30 border-b border-[#1e2636] bg-[#07080c]/80 backdrop-blur-md">
-      <div className="mx-auto flex h-14 max-w-[1280px] items-center justify-between gap-4 px-4">
+      <div className="flex h-14 w-full items-center justify-between gap-4 px-4">
         <div className="flex items-center gap-8">
           <Link href="/" className="flex items-center gap-2.5 text-sm font-semibold tracking-tight text-white">
             <Image src={APP_LOGO} alt="" width={28} height={28} className="rounded-lg" />

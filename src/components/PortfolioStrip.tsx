@@ -157,7 +157,7 @@ function ConnectedPortfolio() {
 
   return (
     <div className="border-b border-[#1e2636] bg-[#0c1018]/90">
-      <div className="mx-auto flex max-w-[1280px] flex-col gap-2 px-4 py-2">
+      <div className="flex w-full flex-col gap-2 px-4 py-2">
         <div className="flex flex-wrap items-center gap-x-5 gap-y-1 text-xs">
           {busy && !state.funded && !state.needsSignature ? (
             <span className="text-[#8b93a7]">Loading account…</span>

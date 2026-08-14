@@ -108,3 +108,23 @@ export type NewsItem = {
 };
 
 export type SessionLabel = "RTH" | "overnight" | "24h";
+
+export type KlineInterval = "1m" | "5m" | "15m" | "1h";
+
+export type PerpsBookLevel = { price: number; quantity: number };
+
+export type PerpsBook = {
+  instrumentId: number;
+  bids: PerpsBookLevel[];
+  asks: PerpsBookLevel[];
+  timestamp: number;
+};
+
+export type Candle = {
+  time: number;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number;
+};

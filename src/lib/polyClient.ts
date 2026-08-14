@@ -19,6 +19,9 @@ export async function createTradingClient(
     hasKeys?: boolean;
   };
   const address = walletClient.account?.address;
+  if (!address) {
+    throw new Error("Wallet client is missing an account.");
+  }
   return createSecureClient({
     signer: signerFrom(walletClient),
     ...(status.hasKeys

@@ -1,6 +1,7 @@
 "use client";
 
 import { usePrivy, useWallets } from "@privy-io/react-auth";
+import { resetPerpsSession } from "@/lib/perpsSession";
 
 function short(addr: string) {
   return `${addr.slice(0, 6)}…${addr.slice(-4)}`;
@@ -9,8 +10,8 @@ function short(addr: string) {
 export function PrivyLogin() {
   const { ready, authenticated, login, logout, user } = usePrivy();
   const { wallets } = useWallets();
-  const embedded = wallets.find((w) => w.walletClientType === "privy");
-  const address = embedded?.address ?? wallets[0]?.address ?? user?.wallet?.address;
+  const injected = wallets.find((w) => w.walletClientType !== "privy");
+  const address = injected?.address ?? wallets[0]?.address ?? user?.wallet?.address;
   const email = user?.email?.address;
 
   if (!ready) {
@@ -25,7 +26,10 @@ export function PrivyLogin() {
         </span>
         <button
           type="button"
-          onClick={() => void logout()}
+          onClick={() => {
+            resetPerpsSession();
+            void logout();
+          }}
           className="rounded border border-zinc-700 px-3 py-1.5 text-xs text-zinc-200 hover:bg-zinc-800"
         >
           Log out

@@ -1,8 +1,10 @@
 "use client";
 
 import { useAccount, useWalletClient } from "wagmi";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { polygon } from "viem/chains";
 import { explainPerpsError } from "@/lib/perpsAccess";
+import { resetPerpsSession } from "@/lib/perpsSession";
 import { usePrivyMount } from "@/lib/usePrivyMount";
 
 type PortfolioState = {
@@ -30,13 +32,19 @@ export function PortfolioStrip() {
 
 function ConnectedPortfolio() {
   const { address, isConnected } = useAccount();
-  const { data: walletClient } = useWalletClient();
+  const { data: walletClient } = useWalletClient({ chainId: polygon.id });
+  const walletClientRef = useRef(walletClient);
+  walletClientRef.current = walletClient;
+  const signerReady = Boolean(walletClient?.account?.address);
+  const [retry, setRetry] = useState(0);
   const [state, setState] = useState<PortfolioState>({
     note: "Log in to load Perps equity, available order margin, and positions.",
   });
 
   useEffect(() => {
-    if (!isConnected || !address || !walletClient) {
+    const wc = walletClientRef.current;
+    if (!isConnected || !address || !wc?.account?.address) {
+      resetPerpsSession();
       setState({
         note: "Log in to load Perps equity, available order margin, and positions.",
       });
@@ -45,9 +53,8 @@ function ConnectedPortfolio() {
     let stop = false;
     (async () => {
       try {
-        const { createTradingClient } = await import("@/lib/polyClient");
-        const client = await createTradingClient(walletClient);
-        const session = await client.openPerpsSession();
+        const { openCachedPerpsSession } = await import("@/lib/perpsSession");
+        const { client, session } = await openCachedPerpsSession(wc);
         const portfolio = await session.fetchPortfolio();
         if (stop) return;
         const margin = portfolio.margin as {
@@ -82,7 +89,7 @@ function ConnectedPortfolio() {
     return () => {
       stop = true;
     };
-  }, [address, isConnected, walletClient]);
+  }, [address, isConnected, retry, signerReady]);
 
   return (
     <div className="border-b border-zinc-800 bg-[#101318] px-4 py-2 text-xs text-zinc-400">
@@ -93,6 +100,18 @@ function ConnectedPortfolio() {
         {state.positions ? <span>{state.positions}</span> : null}
         {state.liquidation ? <span className="text-rose-400">Liquidation</span> : null}
         <span className="text-zinc-500">{state.note}</span>
+        {state.note.startsWith("The wallet must approve") ? (
+          <button
+            type="button"
+            onClick={() => {
+              resetPerpsSession();
+              setRetry((n) => n + 1);
+            }}
+            className="text-zinc-300 underline"
+          >
+            Retry signature
+          </button>
+        ) : null}
         {state.href ? (
           <a href={state.href} target="_blank" rel="noreferrer" className="text-zinc-300 underline">
             polymarket.com/perps

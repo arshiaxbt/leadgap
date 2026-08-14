@@ -1,8 +1,9 @@
 "use client";
 
-import { PrivyProvider, useWallets } from "@privy-io/react-auth";
+import { PrivyProvider, usePrivy, useWallets } from "@privy-io/react-auth";
 import { WagmiProvider, useSetActiveWallet } from "@privy-io/wagmi";
 import { useEffect, type ReactNode } from "react";
+import { useAccount } from "wagmi";
 import { getPrivyConfig, isSecureOrigin, privyAppId } from "@/lib/privy";
 import { walletConfig } from "@/lib/wagmi";
 
@@ -25,12 +26,21 @@ export function PrivyTree({ children }: { children: ReactNode }) {
 function SyncActiveWallet() {
   const { wallets } = useWallets();
   const { setActiveWallet } = useSetActiveWallet();
+  const { user } = usePrivy();
+  const { address } = useAccount();
 
   useEffect(() => {
-    const embedded = wallets.find((w) => w.walletClientType === "privy");
-    const preferred = embedded ?? wallets[0];
-    if (preferred) void setActiveWallet(preferred);
-  }, [setActiveWallet, wallets]);
+    if (!wallets.length) return;
+    const loginAddr = user?.wallet?.address?.toLowerCase();
+    const byLogin = loginAddr
+      ? wallets.find((w) => w.address.toLowerCase() === loginAddr)
+      : undefined;
+    const injected = wallets.find((w) => w.walletClientType !== "privy");
+    const preferred = byLogin ?? injected ?? wallets[0];
+    if (!preferred) return;
+    if (address && preferred.address.toLowerCase() === address.toLowerCase()) return;
+    void setActiveWallet(preferred);
+  }, [address, setActiveWallet, user?.wallet?.address, wallets]);
 
   return null;
 }

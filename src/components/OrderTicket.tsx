@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useAccount, useWalletClient } from "wagmi";
+import { polygon } from "viem/chains";
 import { BUILDER_CODE } from "@/lib/builder";
 import { fmtFunding, fmtPx, mmr } from "@/lib/format";
 import { explainPerpsError, type PerpsAccess } from "@/lib/perpsAccess";
@@ -48,7 +49,7 @@ function ConnectedTicket({
   ticker?: PerpsTicker;
 }) {
   const { address, isConnected } = useAccount();
-  const { data: walletClient } = useWalletClient();
+  const { data: walletClient } = useWalletClient({ chainId: polygon.id });
   const [geo, setGeo] = useState<Geo | null>(null);
   const [side, setSide] = useState<"BUY" | "SELL">("BUY");
   const [tif, setTif] = useState<"IOC" | "GTC">("IOC");
@@ -72,27 +73,6 @@ function ConnectedTicket({
     if (ticker && !price) setPrice(String(ticker.markPrice));
   }, [ticker, price]);
 
-  useEffect(() => {
-    if (!isConnected || !walletClient) {
-      setPerpsAccess(null);
-      return;
-    }
-    let stop = false;
-    (async () => {
-      try {
-        const { createTradingClient } = await import("@/lib/polyClient");
-        const client = await createTradingClient(walletClient);
-        await client.openPerpsSession();
-        if (!stop) setPerpsAccess(null);
-      } catch (err) {
-        if (!stop) setPerpsAccess(explainPerpsError(err));
-      }
-    })();
-    return () => {
-      stop = true;
-    };
-  }, [isConnected, walletClient]);
-
   const blocked = geo?.blocked ?? true;
   const inviteBlocked = perpsAccess?.kind === "invite";
   const canTrade = isConnected && !!walletClient && !blocked && !inviteBlocked;
@@ -112,9 +92,8 @@ function ConnectedTicket({
     setStatus(null);
     try {
       const { OrderSide, PerpsTimeInForce } = await import("@polymarket/client");
-      const { createTradingClient } = await import("@/lib/polyClient");
-      const client = await createTradingClient(walletClient);
-      const session = await client.openPerpsSession();
+      const { openCachedPerpsSession } = await import("@/lib/perpsSession");
+      const { session } = await openCachedPerpsSession(walletClient);
       const request: Record<string, unknown> = {
         instrumentId: instrument.instrumentId,
         side: side === "BUY" ? OrderSide.BUY : OrderSide.SELL,
@@ -144,9 +123,8 @@ function ConnectedTicket({
     if (!walletClient || !address) return;
     setBusy(true);
     try {
-      const { createTradingClient } = await import("@/lib/polyClient");
-      const client = await createTradingClient(walletClient);
-      const session = await client.openPerpsSession();
+      const { openCachedPerpsSession } = await import("@/lib/perpsSession");
+      const { session } = await openCachedPerpsSession(walletClient);
       await session.cancelAllOrders({ instrumentId: instrument.instrumentId });
       setStatus("Canceled open orders on this instrument.");
     } catch (err) {

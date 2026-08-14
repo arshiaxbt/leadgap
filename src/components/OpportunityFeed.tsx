@@ -4,17 +4,10 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { ExpectedActual } from "@/components/desk/ExpectedActual";
 import { LiveDot, Panel, Pill, Segmented, TextInput } from "@/components/ui";
-import { eventTitleKey } from "@/lib/divergence";
+import { eventTitleKey, GAP_WINDOWS } from "@/lib/divergence";
 import { fmtOdds, fmtOddsDelta, fmtPct, fmtScore, leaderCopy, signedClass } from "@/lib/format";
 import { biasCopy, isActionable, scoreClass } from "@/lib/score";
 import type { GapRow, GapWindow } from "@/lib/types";
-
-const WINDOWS: { id: GapWindow; label: string }[] = [
-  { id: "1m", label: "1m" },
-  { id: "5m", label: "5m" },
-  { id: "15m", label: "15m" },
-  { id: "1h", label: "1h" },
-];
 
 type Filter = "actionable" | "odds" | "all";
 
@@ -132,11 +125,16 @@ export function OpportunityFeed() {
             Top <span className={`num ${scoreClass(summary.topScore)}`}>{fmtScore(summary.topScore)}</span>
           </span>
           <LiveDot label={asOf ? new Date(asOf).toLocaleTimeString() : "Live"} />
-          <Segmented options={WINDOWS} value={window} onChange={setWindow} />
         </div>
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
+        <Segmented
+          compact
+          options={GAP_WINDOWS.map((id) => ({ id, label: id }))}
+          value={window}
+          onChange={setWindow}
+        />
         <Segmented
           options={[
             { id: "actionable", label: `Actionable ${summary.actionable}` },
@@ -154,7 +152,7 @@ export function OpportunityFeed() {
       {error ? <p className="text-sm text-amber-200">{error}</p> : null}
 
       {loading ? (
-        <div className="h-64 animate-pulse rounded-xl bg-white/5" />
+        <div className="h-16 animate-pulse rounded-md bg-white/5" />
       ) : shown.length === 0 ? (
         <p className="text-[12px] text-[#7d8699]">
           {filter === "all"

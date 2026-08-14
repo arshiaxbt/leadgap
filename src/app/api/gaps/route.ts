@@ -5,7 +5,7 @@ import type { GapWindow } from "@/lib/types";
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
-const WINDOWS = new Set<GapWindow>(["1m", "5m", "15m", "1h"]);
+const WINDOWS = new Set<GapWindow>(["1m", "5m", "15m", "30m", "1h", "4h", "12h", "1d"]);
 
 export async function GET(req: Request) {
   const window = new URL(req.url).searchParams.get("window") ?? "15m";

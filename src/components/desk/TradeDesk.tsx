@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { useSearchParams } from "next/navigation";
+import { Group, Panel, Separator, useDefaultLayout } from "react-resizable-panels";
 import { Blotter } from "@/components/desk/Blotter";
 import { EventIntel } from "@/components/desk/EventIntel";
 import { OrderBookPanel } from "@/components/desk/OrderBookPanel";
@@ -38,6 +39,18 @@ type Payload = {
   asOf: number;
 };
 
+const XL = "(min-width: 1280px)";
+
+function subscribeXl(onStoreChange: () => void) {
+  const mq = window.matchMedia(XL);
+  mq.addEventListener("change", onStoreChange);
+  return () => mq.removeEventListener("change", onStoreChange);
+}
+
+function xlMatches() {
+  return window.matchMedia(XL).matches;
+}
+
 export function TradeDesk({ symbol }: { symbol: string }) {
   const search = useSearchParams();
   const eventParam = search.get("event");
@@ -49,6 +62,17 @@ export function TradeDesk({ symbol }: { symbol: string }) {
   const [book, setBook] = useState<PerpsBook | null>(null);
   const [clickPrice, setClickPrice] = useState<string | undefined>();
   const [chartOdds, setChartOdds] = useState<Snapshot[] | undefined>();
+  const wide = useSyncExternalStore(subscribeXl, xlMatches, () => false);
+  const cols = useDefaultLayout({
+    id: "leadgap-desk-h",
+    panelIds: ["intel", "chart", "book", "ticket"],
+    onlySaveAfterUserInteractions: true,
+  });
+  const rows = useDefaultLayout({
+    id: "leadgap-desk-v",
+    panelIds: ["main", "blotter"],
+    onlySaveAfterUserInteractions: true,
+  });
 
   useEffect(() => {
     let stop = false;
@@ -151,53 +175,125 @@ export function TradeDesk({ symbol }: { symbol: string }) {
 
   const { instrument, ticker, events, news, gaps, oddsHistory, instruments, markHistory, windows, tape } = data;
 
+  const tickerStrip = (
+    <TickerStrip
+      instrument={instrument}
+      ticker={ticker}
+      instruments={instruments}
+      interval={klineInterval}
+      onInterval={setKlineInterval}
+    />
+  );
+  const intelPanel = (
+    <EventIntel
+      symbol={instrument.symbol}
+      events={events}
+      selectedId={eventId}
+      onSelect={setEventId}
+      gaps={gaps}
+      windows={windows}
+      oddsHistory={oddsHistory}
+      markHistory={markHistory}
+      tape={tape}
+      news={news}
+    />
+  );
+  const chartPanel = (
+    <PriceChart
+      key={`${instrument.instrumentId}-${klineInterval}`}
+      candles={candles}
+      odds={selectedOdds}
+      interval={klineInterval}
+      oddsLabel={events.find((e) => e.id === eventId)?.title ?? "Yes ¢"}
+    />
+  );
+  const bookPanel = (
+    <OrderBookPanel book={book} decimals={instrument.priceDecimals} onPrice={(p) => setClickPrice(String(p))} />
+  );
+  const ticketPanel = <OrderTicket instrument={instrument} ticker={ticker} price={clickPrice} />;
+  const blotterPanel = <Blotter instrumentId={instrument.instrumentId} />;
+
+  if (wide) {
+    return (
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+        {tickerStrip}
+        <Group
+          id="leadgap-desk-v"
+          orientation="vertical"
+          className="min-h-0 flex-1"
+          defaultLayout={rows.defaultLayout}
+          onLayoutChanged={rows.onLayoutChanged}
+        >
+          <Panel id="main" minSize={240} className="min-h-0 overflow-hidden">
+            <Group
+              id="leadgap-desk-h"
+              orientation="horizontal"
+              className="h-full"
+              defaultLayout={cols.defaultLayout}
+              onLayoutChanged={cols.onLayoutChanged}
+            >
+              <Panel
+                id="intel"
+                defaultSize={200}
+                minSize={148}
+                maxSize={420}
+                groupResizeBehavior="preserve-pixel-size"
+                className="min-h-0 overflow-hidden"
+              >
+                {intelPanel}
+              </Panel>
+              <Separator className="desk-handle" />
+              <Panel id="chart" minSize={280} className="min-h-0 overflow-hidden">
+                {chartPanel}
+              </Panel>
+              <Separator className="desk-handle" />
+              <Panel
+                id="book"
+                defaultSize={184}
+                minSize={140}
+                maxSize={360}
+                groupResizeBehavior="preserve-pixel-size"
+                className="min-h-0 overflow-hidden"
+              >
+                {bookPanel}
+              </Panel>
+              <Separator className="desk-handle" />
+              <Panel
+                id="ticket"
+                defaultSize={252}
+                minSize={200}
+                maxSize={420}
+                groupResizeBehavior="preserve-pixel-size"
+                className="min-h-0 overflow-hidden"
+              >
+                {ticketPanel}
+              </Panel>
+            </Group>
+          </Panel>
+          <Separator className="desk-handle" />
+          <Panel
+            id="blotter"
+            defaultSize={92}
+            minSize={64}
+            maxSize={280}
+            groupResizeBehavior="preserve-pixel-size"
+            className="min-h-0 overflow-hidden"
+          >
+            {blotterPanel}
+          </Panel>
+        </Group>
+      </div>
+    );
+  }
+
   return (
-    <div className="grid min-h-0 flex-1 grid-cols-1 overflow-hidden xl:grid-cols-[200px_minmax(0,1fr)_184px_252px] xl:grid-rows-[32px_minmax(0,1fr)_92px]">
-      <div className="order-1 xl:col-span-4 xl:row-start-1">
-        <TickerStrip
-          instrument={instrument}
-          ticker={ticker}
-          instruments={instruments}
-          interval={klineInterval}
-          onInterval={setKlineInterval}
-        />
-      </div>
-      <div className="order-2 min-h-[280px] border-b border-[#1a2030] xl:col-start-2 xl:row-start-2 xl:min-h-0 xl:border-b-0">
-        <PriceChart
-          key={`${instrument.instrumentId}-${klineInterval}`}
-          candles={candles}
-          odds={selectedOdds}
-          interval={klineInterval}
-          oddsLabel={events.find((e) => e.id === eventId)?.title ?? "Yes ¢"}
-        />
-      </div>
-      <div className="order-3 min-h-[200px] border-b border-[#1a2030] xl:col-start-1 xl:row-start-2 xl:min-h-0 xl:border-b-0 xl:border-r">
-        <EventIntel
-          symbol={instrument.symbol}
-          events={events}
-          selectedId={eventId}
-          onSelect={setEventId}
-          gaps={gaps}
-          windows={windows}
-          oddsHistory={oddsHistory}
-          markHistory={markHistory}
-          tape={tape}
-          news={news}
-        />
-      </div>
-      <div className="order-4 min-h-[240px] border-b border-[#1a2030] xl:col-start-3 xl:row-start-2 xl:min-h-0 xl:border-b-0 xl:border-l">
-        <OrderBookPanel
-          book={book}
-          decimals={instrument.priceDecimals}
-          onPrice={(p) => setClickPrice(String(p))}
-        />
-      </div>
-      <div className="order-5 min-h-[240px] xl:col-start-4 xl:row-start-2 xl:min-h-0 xl:border-l xl:border-[#1a2030]">
-        <OrderTicket instrument={instrument} ticker={ticker} price={clickPrice} />
-      </div>
-      <div className="order-6 min-h-[92px] xl:col-span-4 xl:row-start-3 xl:min-h-0 xl:border-t xl:border-[#1a2030]">
-        <Blotter instrumentId={instrument.instrumentId} />
-      </div>
+    <div className="grid min-h-0 flex-1 grid-cols-1 overflow-auto">
+      {tickerStrip}
+      <div className="min-h-[280px] border-b border-[#1a2030]">{chartPanel}</div>
+      <div className="min-h-[200px] border-b border-[#1a2030]">{intelPanel}</div>
+      <div className="min-h-[240px] border-b border-[#1a2030]">{bookPanel}</div>
+      <div className="min-h-[240px] border-b border-[#1a2030]">{ticketPanel}</div>
+      <div className="min-h-[92px]">{blotterPanel}</div>
     </div>
   );
 }

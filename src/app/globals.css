@@ -31,3 +31,25 @@ body {
   font-variant-numeric: tabular-nums;
   font-feature-settings: "tnum" 1;
 }
+
+.desk-handle {
+  background-color: #1a2030;
+  transition: background-color 120ms ease;
+}
+
+.desk-handle:hover,
+.desk-handle:focus-visible,
+.desk-handle[data-active],
+.desk-handle[data-separator][data-state="active"] {
+  background-color: #3ee0a8;
+}
+
+[data-group][data-orientation="horizontal"] > .desk-handle {
+  width: 4px;
+  min-width: 4px;
+}
+
+[data-group][data-orientation="vertical"] > .desk-handle {
+  height: 4px;
+  min-height: 4px;
+}

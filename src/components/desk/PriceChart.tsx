@@ -72,7 +72,7 @@ export function PriceChart({
   const stepRef = useRef(STEP[interval]);
   stepRef.current = STEP[interval];
   const [tool, setTool] = useState<Tool>("cursor");
-  const [style, setStyle] = useState<Style>("candle");
+  const [style, setStyle] = useState<Style>("line");
   const [oddsOn, setOddsOn] = useState(true);
   const [log, setLog] = useState(false);
   const [hover, setHover] = useState<{
@@ -143,11 +143,12 @@ export function PriceChart({
       borderDownColor: "#fb7185",
       wickUpColor: "#3ee0a8",
       wickDownColor: "#fb7185",
+      visible: false,
     });
     const closeSeries = chart.addSeries(LineSeries, {
       color: "#3ee0a8",
       lineWidth: 2,
-      visible: false,
+      visible: true,
       lastValueVisible: true,
     });
     const oddsPane = chart.addPane(true);
@@ -380,7 +381,7 @@ export function PriceChart({
   }
 
   return (
-    <div className="flex h-full min-h-[240px] flex-col">
+    <div className="flex h-full min-h-0 flex-col">
       <div className="flex flex-wrap items-center gap-1 border-b border-[#1a2030] px-2 py-0.5 text-[10px]">
         {hover ? (
           <span className="num mr-2 text-[#7d8699]">

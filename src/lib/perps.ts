@@ -117,7 +117,7 @@ export async function fetchHourlyKlines(instrumentId: number): Promise<{
   change1h: number | null;
   closes: { t: number; v: number }[];
 }> {
-  return fetchKlineCloses(instrumentId, "5m", 3 * 60 * 60 * 1000);
+  return fetchKlineCloses(instrumentId, "1h", 48 * 60 * 60 * 1000);
 }
 
 export async function fetchHourlyChange(instrumentId: number): Promise<number | null> {

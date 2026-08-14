@@ -23,10 +23,13 @@
     "@solana/kit": "^7.0.0",
     "@stripe/stripe-js": "^9.13.0",
     "@tanstack/react-query": "^5.101.4",
+    "@vercel/analytics": "^2.0.1",
+    "@vercel/speed-insights": "^2.0.0",
     "lightweight-charts": "^5.2.1",
     "next": "16.3.0",
     "react": "19.2.8",
     "react-dom": "19.2.8",
+    "react-resizable-panels": "^4.12.2",
     "rss-parser": "^3.13.0",
     "viem": "^2.55.15",
     "wagmi": "^2.16.9"

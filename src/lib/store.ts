@@ -22,7 +22,7 @@ const INGEST_MS = 20_000;
 const MAP_MS = 3 * 60_000;
 const KLINE_MS = 4 * 60_000;
 const NEWS_MS = 5 * 60_000;
-const HISTORY_MS = 3 * 60 * 60_000;
+const HISTORY_MS = 48 * 60 * 60_000;
 const DATA_DIR = process.env.VERCEL ? "/tmp" : join(process.cwd(), ".data");
 const DATA_PATH = join(DATA_DIR, "store.json");
 

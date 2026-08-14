@@ -3,7 +3,7 @@
 import { Spark } from "@/components/Spark";
 import { ResidualSpark } from "@/components/desk/ResidualSpark";
 import { Pill } from "@/components/ui";
-import { eventTitleKey, residualPath, WINDOW_MS } from "@/lib/divergence";
+import { eventTitleKey, GAP_WINDOWS, residualPath, WINDOW_MS } from "@/lib/divergence";
 import { fmtOdds, fmtOddsDelta, fmtPct, fmtScore, leaderCopy, signedClass } from "@/lib/format";
 import {
   biasCopy,
@@ -13,8 +13,6 @@ import {
   scoreClass,
 } from "@/lib/score";
 import type { GapRow, GapTapePoint, GapWindow, NewsItem, ResidualPoint, ResolvedEvent, Snapshot } from "@/lib/types";
-
-const WINDOWS: GapWindow[] = ["1m", "5m", "15m", "1h"];
 
 export function EventIntel({
   symbol,
@@ -136,7 +134,7 @@ export function EventIntel({
         </p>
 
         <div className="grid grid-cols-4 gap-px overflow-hidden rounded border border-[#1a2030] bg-[#1a2030]">
-          {WINDOWS.map((w) => {
+          {GAP_WINDOWS.map((w) => {
             const row = windows?.[w]?.find((g) => g.eventId === event.id);
             return (
               <div key={w} className="bg-[#0e1118] py-1 text-center">

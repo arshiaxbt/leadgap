@@ -39,19 +39,21 @@ export function Segmented<T extends string>({
   options,
   value,
   onChange,
+  compact,
 }: {
   options: { id: T; label: string }[];
   value: T;
   onChange: (id: T) => void;
+  compact?: boolean;
 }) {
   return (
-    <div className="inline-flex rounded-lg border border-[#1e2636] bg-[#0b0e14] p-0.5">
+    <div className="inline-flex flex-wrap rounded-lg border border-[#1e2636] bg-[#0b0e14] p-0.5">
       {options.map((opt) => (
         <button
           key={opt.id}
           type="button"
           onClick={() => onChange(opt.id)}
-          className={`rounded-md px-2.5 py-1 text-xs capitalize ${
+          className={`rounded-md capitalize ${compact ? "px-1.5 py-0.5 text-[10px]" : "px-2.5 py-1 text-xs"} ${
             value === opt.id ? "bg-white text-[#07080c]" : "text-[#8b93a7] hover:text-white"
           }`}
         >

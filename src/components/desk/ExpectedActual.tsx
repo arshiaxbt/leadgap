@@ -10,10 +10,10 @@ export function ExpectedActual({
   const residual = expected - actual;
   const scale = Math.max(Math.abs(expected), Math.abs(actual), Math.abs(residual), 0.004);
   return (
-    <div className="space-y-1.5">
+    <div className="space-y-1">
       <Bar label="Expected" value={expected} scale={scale} />
       <Bar label="Actual" value={actual} scale={scale} />
-      <Bar label="Residual" value={residual} scale={scale} emphasize />
+      <Bar label="Gap" value={residual} scale={scale} emphasize />
     </div>
   );
 }
@@ -32,7 +32,7 @@ function Bar({
   const pct = Math.min(100, (Math.abs(value) / scale) * 100);
   const pos = value >= 0;
   return (
-    <div className="grid grid-cols-[64px_minmax(0,1fr)_52px] items-center gap-2 text-[11px]">
+    <div className="grid grid-cols-[52px_minmax(0,1fr)_48px] items-center gap-1.5 text-[11px]">
       <span className="text-[#5c6478]">{label}</span>
       <div className="relative h-2 overflow-hidden rounded-full bg-white/5">
         <div className="absolute inset-y-0 left-1/2 w-px bg-white/10" />

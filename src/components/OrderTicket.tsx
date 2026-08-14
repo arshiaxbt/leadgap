@@ -7,6 +7,7 @@ import { BUILDER_CODE } from "@/lib/builder";
 import { estLiq, fmtPx, fmtUsd, mmr } from "@/lib/format";
 import { explainPerpsError, type PerpsAccess } from "@/lib/perpsAccess";
 import { usePrivyMount } from "@/lib/usePrivyMount";
+import type { Bias } from "@/lib/score";
 import type { PerpsInstrument, PerpsTicker } from "@/lib/types";
 
 type Geo = { blocked: boolean; country: string; reason: string };
@@ -15,10 +16,14 @@ export function OrderTicket({
   instrument,
   ticker,
   price: priceOverride,
+  thesis,
+  bias,
 }: {
   instrument: PerpsInstrument;
   ticker?: PerpsTicker;
   price?: string;
+  thesis?: string;
+  bias?: Bias;
 }) {
   const mount = usePrivyMount();
   const { address, isConnected } = useAccount();
@@ -51,6 +56,11 @@ export function OrderTicket({
   useEffect(() => {
     if (ticker && !price) setPrice(String(ticker.markPrice));
   }, [ticker, price]);
+
+  useEffect(() => {
+    if (bias === "long") setSide("BUY");
+    else if (bias === "short") setSide("SELL");
+  }, [bias]);
 
   useEffect(() => {
     if (!walletClient || mount !== "ready") return;
@@ -170,6 +180,13 @@ export function OrderTicket({
         <p className="text-[10px] uppercase tracking-wide text-[#5c6478]">Order</p>
         <span className="num text-[10px] text-[#8b93a7]">{free != null ? `Free ${fmtUsd(free)}` : "—"}</span>
       </div>
+
+      {thesis ? (
+        <div className="rounded-md border border-[#1a2030] bg-[#07080c] px-2 py-1.5">
+          <p className="text-[9px] uppercase tracking-wide text-[#5c6478]">Trade thesis</p>
+          <p className="text-[11px] leading-4 text-zinc-200">{thesis}</p>
+        </div>
+      ) : null}
 
       <div className="grid grid-cols-2 gap-px overflow-hidden rounded-md border border-[#1a2030]">
         <button
@@ -292,7 +309,7 @@ export function OrderTicket({
           <div className="num text-zinc-200">{fmtPx(marginEst, 2)}</div>
         </div>
         <div>
-          Liq
+          Est. liq
           <div className="num text-zinc-200">{liq != null ? fmtPx(liq, instrument.priceDecimals) : "—"}</div>
         </div>
         <div className="text-right">

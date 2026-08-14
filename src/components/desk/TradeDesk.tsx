@@ -9,6 +9,7 @@ import { OrderBookPanel } from "@/components/desk/OrderBookPanel";
 import { PriceChart } from "@/components/desk/PriceChart";
 import { TickerStrip } from "@/components/desk/TickerStrip";
 import { OrderTicket } from "@/components/OrderTicket";
+import { chartStory, thesisLine } from "@/lib/signal";
 import type {
   Candle,
   GapRow,
@@ -174,6 +175,8 @@ export function TradeDesk({ symbol }: { symbol: string }) {
   if (!data) return <div className="m-4 h-full animate-pulse rounded-xl bg-white/5" />;
 
   const { instrument, ticker, events, news, gaps, oddsHistory, instruments, markHistory, windows, tape } = data;
+  const selectedGap = eventId ? gaps.find((g) => g.eventId === eventId) : gaps[0];
+  const story = selectedGap ? chartStory(selectedGap.leader) : undefined;
 
   const tickerStrip = (
     <TickerStrip
@@ -205,12 +208,22 @@ export function TradeDesk({ symbol }: { symbol: string }) {
       odds={selectedOdds}
       interval={klineInterval}
       oddsLabel={events.find((e) => e.id === eventId)?.title ?? "Yes ¢"}
+      gapMarks={(tape ?? []).filter((p) => p.symbol === instrument.symbol && (!eventId || p.eventId === eventId))}
+      story={story}
     />
   );
   const bookPanel = (
     <OrderBookPanel book={book} decimals={instrument.priceDecimals} onPrice={(p) => setClickPrice(String(p))} />
   );
-  const ticketPanel = <OrderTicket instrument={instrument} ticker={ticker} price={clickPrice} />;
+  const ticketPanel = (
+    <OrderTicket
+      instrument={instrument}
+      ticker={ticker}
+      price={clickPrice}
+      thesis={selectedGap ? thesisLine(selectedGap) : undefined}
+      bias={selectedGap?.bias}
+    />
+  );
   const blotterPanel = <Blotter instrumentId={instrument.instrumentId} />;
 
   if (wide) {
@@ -234,8 +247,8 @@ export function TradeDesk({ symbol }: { symbol: string }) {
             >
               <Panel
                 id="intel"
-                defaultSize={200}
-                minSize={148}
+                defaultSize={220}
+                minSize={168}
                 maxSize={420}
                 groupResizeBehavior="preserve-pixel-size"
                 className="min-h-0 overflow-hidden"

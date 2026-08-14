@@ -1,18 +1,25 @@
 "use client";
 
-import { Spark } from "@/components/Spark";
+import { SignalCard } from "@/components/SignalCard";
 import { ResidualSpark } from "@/components/desk/ResidualSpark";
-import { Pill } from "@/components/ui";
 import { eventTitleKey, GAP_WINDOWS, residualPath, WINDOW_MS } from "@/lib/divergence";
-import { fmtOdds, fmtOddsDelta, fmtPct, fmtScore, leaderCopy, signedClass } from "@/lib/format";
-import {
-  biasCopy,
-  catchupCopy,
-  decisionLine,
-  residualTrend,
-  scoreClass,
-} from "@/lib/score";
+import { fmtPct, fmtScore, signedClass } from "@/lib/format";
+import { residualTrend, scoreClass } from "@/lib/score";
+import { catalystImpact } from "@/lib/signal";
 import type { GapRow, GapTapePoint, GapWindow, NewsItem, ResidualPoint, ResolvedEvent, Snapshot } from "@/lib/types";
+
+function horizonCopy(windows: Record<GapWindow, GapRow[]> | undefined, eventId: string): string | null {
+  if (!windows) return null;
+  const score = (w: GapWindow) => windows[w]?.find((g) => g.eventId === eventId)?.score ?? 0;
+  const s1m = score("1m");
+  const s15 = score("15m");
+  const s1h = score("1h");
+  const s1d = score("1d");
+  if (s1m > s15 + 8) return "Building on the 1m print — the residual is still opening.";
+  if (s1d > s15 + 8 && s1m < s15) return "Larger on the 1d than 15m — this move is older than the current window.";
+  if (s1h > 0 && s1m > 0 && Math.abs(s1h - s1m) < 8) return "Same setup across 1m–1h. Not a one-print spike.";
+  return null;
+}
 
 export function EventIntel({
   symbol,
@@ -64,6 +71,12 @@ export function EventIntel({
   const headlines = news
     .filter((n) => (event && n.eventIds.includes(event.id)) || n.symbols.includes(symbol))
     .slice(0, 2);
+  const prints = (tape ?? [])
+    .filter((p) => p.eventId === event?.id && p.symbol === symbol && p.score >= 12)
+    .slice(-5)
+    .reverse();
+  const impact = catalystImpact(gap);
+  const horizon = event ? horizonCopy(windows, event.id) : null;
 
   if (!event) {
     return (
@@ -73,18 +86,10 @@ export function EventIntel({
     );
   }
 
-  const score = gap?.score ?? 0;
-  const bias = gap?.bias ?? "none";
-
   return (
     <div className="flex h-full min-h-0 flex-col overflow-auto text-[11px]">
       <div className="border-b border-[#1a2030] px-2 py-1">
-        <div className="flex items-baseline justify-between gap-2">
-          <p className="truncate text-[10px] uppercase tracking-wide text-[#7d8699]">Event</p>
-          <span className={`num text-sm font-semibold ${scoreClass(score)}`}>
-            {gap ? fmtScore(score) : "—"}
-          </span>
-        </div>
+        <p className="text-[10px] uppercase tracking-wide text-[#7d8699]">Event intel</p>
         {uniqueEvents.length > 1 ? (
           <div className="mt-1 max-h-14 overflow-auto">
             {uniqueEvents.slice(0, 5).map((item) => (
@@ -104,34 +109,16 @@ export function EventIntel({
       </div>
 
       <div className="space-y-1.5 px-2 py-1.5">
-        <div>
+        {gap ? <SignalCard row={gap} compact trade={false} /> : (
           <p className="text-[13px] font-medium leading-4 text-zinc-100">{event.title}</p>
-          <div className="mt-1.5 flex items-center justify-between">
-            <span className="num text-lg font-semibold text-[#3ee0a8]">{fmtOdds(event.yesPrice)}</span>
-            <div className="flex flex-wrap justify-end gap-1">
-              <Pill tone={bias === "long" ? "long" : bias === "short" ? "short" : "mute"}>
-                {biasCopy(bias, symbol)}
-              </Pill>
-              {gap ? (
-                <Pill tone={gap.leader === "odds" ? "lead" : gap.leader === "perp" ? "perp" : "mute"}>
-                  {leaderCopy(gap.leader)}
-                </Pill>
-              ) : null}
-            </div>
-          </div>
-        </div>
+        )}
 
-        <p className="leading-4 text-zinc-200">
-          {gap
-            ? decisionLine({
-                bias,
-                leader: gap.leader,
-                symbol,
-                catchup: gap.catchup,
-                score,
-              })
-            : "Waiting on a 15m odds/mark sample."}
-        </p>
+        {link?.mappingReason ? (
+          <div>
+            <p className="text-[9px] uppercase tracking-wide text-[#7d8699]">Why this perp</p>
+            <p className="leading-4 text-zinc-300">{link.mappingReason}</p>
+          </div>
+        ) : null}
 
         <div className="grid grid-cols-4 gap-px overflow-hidden rounded border border-[#1a2030] bg-[#1a2030]">
           {GAP_WINDOWS.map((w) => {
@@ -146,38 +133,24 @@ export function EventIntel({
             );
           })}
         </div>
+        {horizon ? <p className="leading-4 text-[#8b93a7]">{horizon}</p> : null}
 
         <div>
           <div className="mb-0.5 flex justify-between text-[9px] uppercase tracking-wide text-[#7d8699]">
-            <span>Implied vs mark</span>
+            <span>Expected vs actual</span>
             <span className={trend === "expanding" ? "text-amber-200" : "text-[#7d8699]"}>
-              {trend === "expanding" ? "Expanding" : trend === "closing" ? "Closing" : "Stable"}
+              {trend === "expanding" ? "Gap expanding" : trend === "closing" ? "Gap closing" : "Stable"}
             </span>
           </div>
           <ResidualSpark points={path} />
         </div>
-
-        <dl className="grid grid-cols-2 gap-x-2 gap-y-1 text-[#7d8699]">
-          <dt>Odds 15m</dt>
-          <dd className={`num text-right ${gap ? signedClass(gap.oddsMove) : ""}`}>
-            {gap ? fmtOddsDelta(gap.oddsMove) : "—"}
-          </dd>
-          <dt>Mark 15m</dt>
-          <dd className={`num text-right ${gap ? signedClass(gap.perpMove) : ""}`}>
-            {gap ? fmtPct(gap.perpMove) : "—"}
-          </dd>
-          <dt>Catch-up</dt>
-          <dd className="num text-right text-zinc-300">{gap ? catchupCopy(gap.catchup) : "—"}</dd>
-          <dt>Beta</dt>
-          <dd className="num text-right">{link ? link.signedBeta.toFixed(2) : "—"}</dd>
-        </dl>
-        <Spark points={oddsHistory[event.id] ?? []} className="h-8" />
       </div>
 
       <div className="border-t border-[#1a2030] px-2 py-1.5">
         <p className="mb-1 text-[9px] uppercase tracking-wide text-[#7d8699]">Catalyst</p>
+        {impact ? <p className="mb-1.5 leading-4 text-zinc-200">{impact}</p> : null}
         {headlines.length === 0 ? (
-          <p className="text-[#7d8699]">No headlines.</p>
+          <p className="text-[#7d8699]">No mapped headline. Impact above is from odds, not a news summary.</p>
         ) : (
           <ul className="space-y-1.5">
             {headlines.map((item) => (
@@ -190,6 +163,21 @@ export function EventIntel({
           </ul>
         )}
       </div>
+
+      {prints.length > 0 ? (
+        <div className="border-t border-[#1a2030] px-2 py-1.5">
+          <p className="mb-1 text-[9px] uppercase tracking-wide text-[#7d8699]">Recent prints</p>
+          <ul className="space-y-0.5">
+            {prints.map((p, i) => (
+              <li key={`${p.t}-${i}`} className="flex justify-between gap-2 text-[#8b93a7]">
+                <span className="num">{new Date(p.t).toLocaleTimeString()}</span>
+                <span className={`num ${scoreClass(p.score)}`}>{fmtScore(p.score)}</span>
+                <span className={`num ${signedClass(p.gap)}`}>{fmtPct(p.gap)}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
     </div>
   );
 }

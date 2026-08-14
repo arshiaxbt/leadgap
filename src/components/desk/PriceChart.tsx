@@ -10,14 +10,17 @@ import {
   LineStyle,
   PriceScaleMode,
   createChart,
+  createSeriesMarkers,
   type IChartApi,
   type IPriceLine,
   type ISeriesApi,
+  type ISeriesMarkersPluginApi,
   type MouseEventParams,
+  type SeriesMarker,
   type Time,
   type UTCTimestamp,
 } from "lightweight-charts";
-import type { Candle, KlineInterval, Snapshot } from "@/lib/types";
+import type { Candle, GapTapePoint, KlineInterval, Snapshot } from "@/lib/types";
 
 type Tool = "cursor" | "hline" | "trend";
 type Style = "candle" | "line";
@@ -47,22 +50,76 @@ function fmtN(n: number): string {
   return n.toLocaleString("en-US", { maximumFractionDigits: 4 });
 }
 
+function gapMarkerShape(bias: GapTapePoint["bias"]): SeriesMarker<UTCTimestamp>["shape"] {
+  switch (bias) {
+    case "long":
+      return "arrowUp";
+    case "short":
+      return "arrowDown";
+    case "none":
+      return "circle";
+    default: {
+      const _never: never = bias;
+      return _never;
+    }
+  }
+}
+
+function buildGapMarkers(
+  packed: { logical: UTCTimestamp; real: number }[],
+  marks: GapTapePoint[] | undefined,
+): SeriesMarker<UTCTimestamp>[] {
+  if (!packed.length || !marks?.length) return [];
+  const byLogical = new Map<number, GapTapePoint>();
+  for (const mark of marks) {
+    if (mark.score < 20 || mark.leader !== "odds") continue;
+    const real = mark.t > 1e12 ? Math.floor(mark.t / 1000) : Math.floor(mark.t);
+    let best = packed[0]!;
+    let bestD = Math.abs(best.real - real);
+    for (const bar of packed) {
+      const d = Math.abs(bar.real - real);
+      if (d < bestD) {
+        best = bar;
+        bestD = d;
+      }
+    }
+    const prev = byLogical.get(best.logical);
+    if (!prev || mark.score > prev.score) byLogical.set(best.logical, mark);
+  }
+  return [...byLogical.entries()]
+    .sort((a, b) => a[0] - b[0])
+    .slice(-16)
+    .map(([logical, mark]) => ({
+      time: logical as UTCTimestamp,
+      position: mark.bias === "short" ? "aboveBar" : "belowBar",
+      shape: gapMarkerShape(mark.bias),
+      color: mark.bias === "short" ? "#fb7185" : "#3ee0a8",
+      text: String(Math.round(mark.score)),
+      size: 1,
+    }));
+}
+
 export function PriceChart({
   candles,
   odds,
   interval = "5m",
   oddsLabel = "Yes ¢",
+  gapMarks,
+  story,
 }: {
   candles: Candle[];
   odds?: Snapshot[];
   interval?: KlineInterval;
   oddsLabel?: string;
+  gapMarks?: GapTapePoint[];
+  story?: string;
 }) {
   const host = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const candleRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
   const closeRef = useRef<ISeriesApi<"Line"> | null>(null);
   const oddsRef = useRef<ISeriesApi<"Area"> | null>(null);
+  const markersRef = useRef<ISeriesMarkersPluginApi<Time> | null>(null);
   const fitted = useRef(false);
   const pendingTrend = useRef<{ time: UTCTimestamp; value: number } | null>(null);
   const linesRef = useRef<IPriceLine[]>([]);
@@ -107,7 +164,8 @@ export function PriceChart({
       },
       rightPriceScale: {
         borderColor: "#1e2636",
-        scaleMargins: { top: 0.04, bottom: 0.06 },
+        scaleMargins: { top: 0.08, bottom: 0.1 },
+        minimumWidth: 56,
       },
       leftPriceScale: {
         visible: false,
@@ -120,7 +178,9 @@ export function PriceChart({
         borderColor: "#1e2636",
         timeVisible: true,
         secondsVisible: false,
-        rightOffset: 4,
+        rightOffset: 8,
+        barSpacing: 7,
+        minBarSpacing: 3,
         tickMarkFormatter: (t: Time) => clock(realByLogical.current.get(Number(t)) ?? Number(t)),
       },
       crosshair: {
@@ -173,11 +233,12 @@ export function PriceChart({
     });
     chart.panes()[0]?.setStretchFactor(1);
     oddsPane.setStretchFactor(0.22);
-    oddsPane.setHeight(84);
+    oddsPane.setHeight(96);
     chartRef.current = chart;
     candleRef.current = candlesSeries;
     closeRef.current = closeSeries;
     oddsRef.current = oddsSeries;
+    markersRef.current = createSeriesMarkers(closeSeries, []);
 
     const onClick = (param: MouseEventParams) => {
       const active = toolRef.current;
@@ -245,6 +306,7 @@ export function PriceChart({
       candleRef.current = null;
       closeRef.current = null;
       oddsRef.current = null;
+      markersRef.current = null;
       linesRef.current = [];
       trendsRef.current = [];
       pendingTrend.current = null;
@@ -324,7 +386,13 @@ export function PriceChart({
   useEffect(() => {
     candleRef.current?.applyOptions({ visible: style === "candle" });
     closeRef.current?.applyOptions({ visible: style === "line" });
+    const series = style === "candle" ? candleRef.current : closeRef.current;
+    if (series) markersRef.current = createSeriesMarkers(series, []);
   }, [style]);
+
+  useEffect(() => {
+    markersRef.current?.setMarkers(buildGapMarkers(packedRef.current, gapMarks));
+  }, [gapMarks, candles, interval, style]);
 
   useEffect(() => {
     oddsRef.current?.applyOptions({ visible: oddsOn, title: oddsLabel.slice(0, 28) || "Yes ¢" });
@@ -423,6 +491,9 @@ export function PriceChart({
           </span>
         ) : null}
       </div>
+      {story ? (
+        <p className="border-b border-[#1a2030] px-2 py-0.5 text-[10px] text-[#8b93a7]">{story}</p>
+      ) : null}
       <div ref={host} className="min-h-0 flex-1" />
     </div>
   );

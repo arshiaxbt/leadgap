@@ -18,6 +18,10 @@ export function fmtOdds(n: number): string {
   return `${(n * 100).toFixed(1)}¢`;
 }
 
+export function fmtOddsRange(from: number, to: number): string {
+  return `${fmtOdds(from)} → ${fmtOdds(to)}`;
+}
+
 export function fmtOddsDelta(n: number): string {
   if (!Number.isFinite(n)) return "—";
   const sign = n > 0 ? "+" : "";

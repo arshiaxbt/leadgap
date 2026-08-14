@@ -119,7 +119,7 @@ export function decisionLine(args: {
     return `Perp already led. ${name} moved first — this is not a Leadgap setup.`;
   }
   if (args.bias === "none" || args.score < 12) {
-    return `Odds and ${name} are in line. Residual is too small to act on.`;
+    return `Odds and ${name} are in line. Gap is too small to act on.`;
   }
   const caught =
     args.catchup != null && Number.isFinite(args.catchup)

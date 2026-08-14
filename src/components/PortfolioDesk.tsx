@@ -12,7 +12,7 @@ import { explainPerpsError } from "@/lib/perpsAccess";
 import { fmtPx, fmtUsd, fmtUsdSigned, signedClass } from "@/lib/format";
 import { ERC20_BALANCE_ABI, formatPusd, PUSD_TOKEN } from "@/lib/pusd";
 import { usePrivyMount } from "@/lib/usePrivyMount";
-import type { PerpsTicker } from "@/lib/types";
+import type { GapRow, PerpsTicker } from "@/lib/types";
 
 type Pos = {
   instrumentId: number;
@@ -92,6 +92,7 @@ export function PortfolioDesk() {
   const [retry, setRetry] = useState(0);
   const [busy, setBusy] = useState(false);
   const [marks, setMarks] = useState<Record<string, PerpsTicker>>({});
+  const [gaps, setGaps] = useState<GapRow[]>([]);
   const [state, setState] = useState<DeskState>(EMPTY);
 
   const refresh = useCallback(async () => {
@@ -209,6 +210,10 @@ export function PortfolioDesk() {
       .then((r) => r.json())
       .then((d: { tickers?: Record<string, PerpsTicker> }) => setMarks(d.tickers ?? {}))
       .catch(() => undefined);
+    fetch("/api/gaps?window=15m")
+      .then((r) => r.json())
+      .then((d: { gaps?: GapRow[] }) => setGaps(d.gaps ?? []))
+      .catch(() => undefined);
   }, [state.positions.length]);
 
   async function approvePerps() {
@@ -270,13 +275,25 @@ export function PortfolioDesk() {
 
   const ratio = state.equity > 0 ? state.maint / state.equity : 0;
   const usedPct = state.equity > 0 ? state.used / state.equity : 0;
+  const exposures = state.positions.map((p) => {
+    const gap = gaps.find((g) => g.symbol === p.symbol);
+    const side = p.size > 0 ? "Long" : "Short";
+    return {
+      symbol: p.symbol,
+      side,
+      title: gap?.title ?? "No mapped catalyst",
+      eventId: gap?.eventId,
+      score: gap?.score ?? 0,
+      aligned: gap ? (p.size > 0 && gap.bias === "long") || (p.size < 0 && gap.bias === "short") : false,
+    };
+  });
 
   return (
     <div className="space-y-2">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-lg font-semibold tracking-tight text-white">Portfolio</h1>
-          <p className="text-[12px] text-[#8b93a7]">Perps account, positions, and funding.</p>
+          <p className="text-[12px] text-[#8b93a7]">Equity, risk, and event exposure on Polymarket Perps.</p>
         </div>
         <Link href="/markets" className="text-sm text-[#8b93a7] hover:text-white">
           Back to markets
@@ -305,18 +322,18 @@ export function PortfolioDesk() {
       ) : null}
 
       <div className="grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-[#1e2636] bg-[#1e2636] sm:grid-cols-3 lg:grid-cols-6">
-        <Stat label="Total equity" value={fmtUsd(state.equity)} />
+        <Stat label="Equity" value={fmtUsd(state.equity)} />
+        <Stat label="PnL" value={fmtUsdSigned(state.upnl)} tone={signedClass(state.upnl)} />
+        <Stat label="Margin" value={fmtUsd(state.used)} />
         <Stat label="Available" value={fmtUsd(state.available)} />
-        <Stat label="Used margin" value={fmtUsd(state.used)} />
-        <Stat label="Unrealized PnL" value={fmtUsdSigned(state.upnl)} tone={signedClass(state.upnl)} />
         <Stat
-          label="Realized PnL"
+          label="Realized"
           value={state.realized == null ? "—" : fmtUsdSigned(state.realized)}
           tone={state.realized == null ? "text-[#8b93a7]" : signedClass(state.realized)}
         />
         <div className="bg-[#10141c] px-4 py-3">
           <div className="flex items-center justify-between text-[10px] uppercase tracking-wide text-[#5c6478]">
-            <span>Margin ratio</span>
+            <span>Risk</span>
             {state.liquidation ? <Pill tone="danger">Liq</Pill> : null}
           </div>
           <div className={`mt-1 num text-lg ${ratio > 0.8 ? "text-rose-300" : "text-zinc-100"}`}>
@@ -344,6 +361,35 @@ export function PortfolioDesk() {
           />
         </div>
       ) : null}
+
+      <Section title="Event exposure">
+        {exposures.length === 0 ? (
+          <Empty text="No open positions mapped to events." />
+        ) : (
+          <ul className="space-y-1.5">
+            {exposures.map((row) => (
+              <li key={`${row.symbol}-${row.side}`} className="flex flex-wrap items-baseline justify-between gap-2 text-sm">
+                <span className="text-zinc-200">
+                  {row.title}
+                  <span className="text-[#5c6478]"> → </span>
+                  <Link
+                    href={row.eventId ? `/markets/${row.symbol}?event=${row.eventId}` : `/markets/${row.symbol}`}
+                    className={row.side === "Long" ? "text-emerald-300 hover:underline" : "text-rose-300 hover:underline"}
+                  >
+                    {row.symbol.replace("-USD", "")} {row.side}
+                  </Link>
+                </span>
+                {row.score > 0 ? (
+                  <span className="num text-[11px] text-[#8b93a7]">
+                    score {Math.round(row.score)}
+                    {row.aligned ? " · with signal" : " · vs signal"}
+                  </span>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+        )}
+      </Section>
 
       <Section title="Open positions">
         {state.positions.length === 0 ? (

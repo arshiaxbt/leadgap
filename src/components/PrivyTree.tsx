@@ -36,7 +36,7 @@ function SyncActiveWallet() {
       ? wallets.find((w) => w.address.toLowerCase() === loginAddr)
       : undefined;
     const injected = wallets.find((w) => w.walletClientType !== "privy");
-    const preferred = byLogin ?? injected ?? wallets[0];
+    const preferred = injected ?? byLogin ?? wallets[0];
     if (!preferred) return;
     if (address && preferred.address.toLowerCase() === address.toLowerCase()) return;
     void setActiveWallet(preferred);

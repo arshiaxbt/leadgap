@@ -30,6 +30,7 @@ export function PrivyLogin() {
             resetPerpsSession();
             void logout();
           }}
+          title="Privy logout. Stored Perps credentials stay in this browser so refresh does not ask for CreateProxy again."
           className="rounded border border-zinc-700 px-3 py-1.5 text-xs text-zinc-200 hover:bg-zinc-800"
         >
           Log out

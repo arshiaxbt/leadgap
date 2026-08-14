@@ -13,7 +13,7 @@ export function explainPerpsError(err: unknown): PerpsAccess {
     return {
       kind: "other",
       message:
-        "The wallet must approve one Polygon signature to open Perps. Switch the wallet to Polygon, sign once, and wait — overlapping prompts are ignored.",
+        "Approve the Polymarket Perps CreateProxy typed-data on Polygon once. That is not the Privy wallet-login message. Rejected or overlapping prompts are ignored.",
     };
   }
   const invite =

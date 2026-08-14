@@ -6,6 +6,12 @@ import {
 import { signerFrom } from "@polymarket/client/viem";
 import type { WalletClient } from "viem";
 
+export type StoredApiKeyCreds = {
+  key: string;
+  secret: string;
+  passphrase: string;
+};
+
 /**
  * Same account model polymarket.com uses after Privy login:
  * the login signer (embedded or injected) authenticates, and the SDK
@@ -14,6 +20,7 @@ import type { WalletClient } from "viem";
  */
 export async function createTradingClient(
   walletClient: WalletClient,
+  options?: { credentials?: StoredApiKeyCreds; wallet?: string },
 ): Promise<SecureClient> {
   const status = (await fetch("/api/builder/status").then((r) => r.json())) as {
     hasKeys?: boolean;
@@ -22,12 +29,19 @@ export async function createTradingClient(
   if (!address) {
     throw new Error("Wallet client is missing an account.");
   }
-  return createSecureClient({
+  const funder = options?.wallet ?? (status.hasKeys ? undefined : address);
+  const shared = {
     signer: signerFrom(walletClient),
+    ...(funder ? { wallet: funder } : {}),
     ...(status.hasKeys
       ? { apiKey: remoteBuilderSigning({ url: "/api/builder/sign" }) }
-      : address
-        ? { wallet: address }
-        : {}),
-  });
+      : {}),
+  };
+  if (options?.credentials) {
+    return createSecureClient({
+      ...shared,
+      credentials: options.credentials as never,
+    });
+  }
+  return createSecureClient(shared);
 }

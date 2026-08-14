@@ -128,7 +128,7 @@ export function TradeDesk({ symbol }: { symbol: string }) {
   const { instrument, ticker, events, news, gaps, oddsHistory, instruments, markHistory, windows, tape } = data;
 
   return (
-    <div className="grid min-h-0 flex-1 grid-cols-1 overflow-hidden xl:h-[calc(100dvh-3.5rem)] xl:grid-cols-[308px_minmax(0,1fr)_308px] xl:grid-rows-[auto_minmax(0,1fr)_200px]">
+    <div className="grid min-h-0 flex-1 grid-cols-1 overflow-hidden xl:grid-cols-[308px_minmax(0,1fr)_308px] xl:grid-rows-[auto_minmax(0,1fr)_200px]">
       <div className="order-1 xl:col-span-3 xl:row-start-1">
         <TickerStrip
           instrument={instrument}
@@ -139,7 +139,12 @@ export function TradeDesk({ symbol }: { symbol: string }) {
         />
       </div>
       <div className="order-2 min-h-[280px] border-b border-[#1e2636] xl:col-start-2 xl:row-start-2 xl:min-h-0 xl:border-b-0">
-        <PriceChart candles={candles} odds={selectedOdds} />
+        <PriceChart
+          key={`${instrument.instrumentId}-${klineInterval}`}
+          candles={candles}
+          odds={selectedOdds}
+          interval={klineInterval}
+        />
       </div>
       <div className="order-3 min-h-[220px] border-b border-[#1e2636] xl:col-start-1 xl:row-start-2 xl:row-span-2 xl:min-h-0 xl:border-b-0 xl:border-r">
         <EventIntel

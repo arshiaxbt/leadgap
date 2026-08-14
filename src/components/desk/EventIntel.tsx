@@ -80,17 +80,23 @@ export function EventIntel({
           ) : null}
         </div>
         {events.length > 1 ? (
-          <select
-            value={event.id}
-            onChange={(e) => onSelect(e.target.value)}
-            className="mt-1 w-full rounded-md border border-[#1e2636] bg-[#07080c] px-2 py-1 text-xs text-zinc-200"
-          >
-            {events.map((item) => (
-              <option key={item.id} value={item.id}>
-                {item.title}
-              </option>
-            ))}
-          </select>
+          <div className="mt-2 flex max-h-24 flex-col gap-0.5 overflow-auto">
+            {events.map((item) => {
+              const on = item.id === event.id;
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => onSelect(item.id)}
+                  className={`truncate rounded px-2 py-1 text-left text-[11px] ${
+                    on ? "bg-white/[0.08] text-white" : "text-[#8b93a7] hover:text-white"
+                  }`}
+                >
+                  {item.title}
+                </button>
+              );
+            })}
+          </div>
         ) : null}
       </div>
       <div className="space-y-3 px-3 py-3">

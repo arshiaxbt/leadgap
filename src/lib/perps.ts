@@ -163,14 +163,22 @@ export async function fetchCandles(
   if (!res.ok) return [];
   const body = (await res.json()) as { data?: [number, string, string, string, string, string, number][] };
   return (body.data ?? [])
-    .map((row) => ({
-      time: Math.floor(row[0] / 1000),
-      open: Number(row[1]),
-      high: Number(row[2]),
-      low: Number(row[3]),
-      close: Number(row[4]),
-      volume: Number(row[5]),
-    }))
+    .map((row) => {
+      const raw = row[0];
+      const time = raw > 1e12 ? Math.floor(raw / 1000) : Math.floor(raw);
+      const open = Number(row[1]);
+      const high = Number(row[2]);
+      const low = Number(row[3]);
+      const close = Number(row[4]);
+      return {
+        time,
+        open,
+        high: Math.max(open, high, low, close),
+        low: Math.min(open, high, low, close),
+        close,
+        volume: Number(row[5]),
+      };
+    })
     .filter((c) => Number.isFinite(c.open) && Number.isFinite(c.close) && c.close > 0);
 }
 

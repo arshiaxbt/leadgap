@@ -1,6 +1,6 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { PairPicker } from "@/components/desk/PairPicker";
 import { fmtCountdown, fmtFunding, fmtPct, fmtPx, sessionLabel, signedClass } from "@/lib/format";
 import type { KlineInterval, PerpsInstrument, PerpsTicker } from "@/lib/types";
 import { Segmented } from "@/components/ui";
@@ -18,21 +18,10 @@ export function TickerStrip({
   interval: KlineInterval;
   onInterval: (v: KlineInterval) => void;
 }) {
-  const router = useRouter();
   const change = ticker?.change1h ?? null;
   return (
     <div className="flex min-h-12 flex-wrap items-center gap-x-4 gap-y-1 border-b border-[#1e2636] bg-[#0c1018] px-3 text-xs">
-      <select
-        value={instrument.symbol}
-        onChange={(e) => router.push(`/markets/${e.target.value}`)}
-        className="rounded-md border border-[#1e2636] bg-[#07080c] px-2 py-1 text-sm font-semibold text-white"
-      >
-        {instruments.map((item) => (
-          <option key={item.symbol} value={item.symbol}>
-            {item.symbol.replace("-USD", "")}
-          </option>
-        ))}
-      </select>
+      <PairPicker instrument={instrument} instruments={instruments} />
       <span className="num text-base font-semibold text-white">
         {ticker ? fmtPx(ticker.markPrice, instrument.priceDecimals) : "—"}
       </span>

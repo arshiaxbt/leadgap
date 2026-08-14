@@ -95,5 +95,15 @@ export function fmtUsd(n: string | number | undefined): string {
   if (n == null || n === "") return "—";
   const v = typeof n === "number" ? n : Number(n);
   if (!Number.isFinite(v)) return String(n);
-  return v.toLocaleString("en-US", { maximumFractionDigits: 2 });
+  return `$${v.toLocaleString("en-US", { maximumFractionDigits: 2 })}`;
+}
+
+export function fmtUsdSigned(n: string | number | undefined): string {
+  if (n == null || n === "") return "—";
+  const v = typeof n === "number" ? n : Number(n);
+  if (!Number.isFinite(v)) return "—";
+  const abs = Math.abs(v).toLocaleString("en-US", { maximumFractionDigits: 2 });
+  if (v > 0) return `+$${abs}`;
+  if (v < 0) return `-$${abs}`;
+  return `$${abs}`;
 }

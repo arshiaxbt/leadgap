@@ -107,7 +107,7 @@ export function PriceChart({
       },
       rightPriceScale: {
         borderColor: "#1e2636",
-        scaleMargins: { top: 0.08, bottom: 0.12 },
+        scaleMargins: { top: 0.04, bottom: 0.06 },
       },
       leftPriceScale: {
         visible: false,
@@ -171,8 +171,8 @@ export function PriceChart({
       scaleMargins: { top: 0.12, bottom: 0.12 },
     });
     chart.panes()[0]?.setStretchFactor(1);
-    oddsPane.setStretchFactor(0.42);
-    oddsPane.setHeight(132);
+    oddsPane.setStretchFactor(0.22);
+    oddsPane.setHeight(84);
     chartRef.current = chart;
     candleRef.current = candlesSeries;
     closeRef.current = closeSeries;
@@ -329,7 +329,7 @@ export function PriceChart({
     oddsRef.current?.applyOptions({ visible: oddsOn, title: oddsLabel.slice(0, 28) || "Yes ¢" });
     const panes = chartRef.current?.panes();
     panes?.[0]?.setStretchFactor(1);
-    panes?.[1]?.setStretchFactor(oddsOn ? 0.36 : 0.001);
+    panes?.[1]?.setStretchFactor(oddsOn ? 0.22 : 0.001);
   }, [oddsOn, oddsLabel]);
 
   useEffect(() => {
@@ -398,8 +398,10 @@ export function PriceChart({
         <ToolBtn active={tool === "hline"} onClick={() => setTool("hline")} label="H-line" />
         <ToolBtn active={tool === "trend"} onClick={() => setTool("trend")} label="Trend" />
         <ToolBtn active={false} onClick={clearDrawings} label="Clear" />
-        <ToolBtn active={style === "candle"} onClick={() => setStyle("candle")} label="Candles" />
-        <ToolBtn active={style === "line"} onClick={() => setStyle("line")} label="Line" />
+        <span className="ml-auto inline-flex overflow-hidden rounded border border-[#1e2636]">
+          <ToolBtn active={style === "candle"} onClick={() => setStyle("candle")} label="Candles" />
+          <ToolBtn active={style === "line"} onClick={() => setStyle("line")} label="Line" />
+        </span>
         <ToolBtn active={oddsOn} onClick={() => setOddsOn((v) => !v)} label="Yes ¢" />
         <ToolBtn active={log} onClick={() => setLog((v) => !v)} label="Log" />
         <ToolBtn

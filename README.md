@@ -32,7 +32,7 @@ GEMINI_MODEL=gemini-3.5-flash-lite
 1. Open [https://dashboard.privy.io](https://dashboard.privy.io) and create an app
 2. Enable **Email**, **Google**, and **Wallet**
 3. Enable embedded wallets for users without a wallet
-4. Allowlist `https://localhost:3000` and your public origin
+4. Allowlist `https://localhost:3000` and `https://leadgap.xyz` (plus any Vercel preview origins)
 5. Put the App ID in `.env.local`:
 
 ```

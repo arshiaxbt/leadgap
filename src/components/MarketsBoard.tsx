@@ -51,11 +51,11 @@ export function MarketsBoard() {
   });
 
   return (
-    <div className="space-y-5">
-      <div className="flex flex-wrap items-end justify-between gap-4">
+    <div className="space-y-2">
+      <div className="flex flex-wrap items-end justify-between gap-2">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-white">Markets</h1>
-          <p className="mt-1 text-sm text-[#8b93a7]">
+          <h1 className="text-lg font-semibold tracking-tight text-white">Markets</h1>
+          <p className="text-[12px] text-[#8b93a7]">
             Every live Polymarket perp. {data?.instruments.length ?? "—"} listed.
           </p>
         </div>
@@ -72,14 +72,14 @@ export function MarketsBoard() {
         <table className="w-full min-w-[900px] text-left text-sm">
           <thead className="text-[11px] uppercase tracking-wide text-[#5c6478]">
             <tr>
-              <th className="px-4 py-3 font-medium">Market</th>
-              <th className="px-3 py-3 font-medium">Mark</th>
-              <th className="px-3 py-3 font-medium">Index</th>
-              <th className="px-3 py-3 font-medium">1h</th>
-              <th className="px-3 py-3 font-medium">Funding</th>
-              <th className="px-3 py-3 font-medium">OI</th>
-              <th className="px-3 py-3 font-medium">Lev</th>
-              <th className="px-4 py-3 font-medium">Session</th>
+              <th className="px-3 py-1.5 font-medium">Market</th>
+              <th className="px-2 py-1.5 font-medium">Mark</th>
+              <th className="px-2 py-1.5 font-medium">Index</th>
+              <th className="px-2 py-1.5 font-medium">1h</th>
+              <th className="px-2 py-1.5 font-medium">Funding</th>
+              <th className="px-2 py-1.5 font-medium">OI</th>
+              <th className="px-2 py-1.5 font-medium">Lev</th>
+              <th className="px-3 py-1.5 font-medium">Session</th>
             </tr>
           </thead>
           <tbody>
@@ -89,7 +89,7 @@ export function MarketsBoard() {
               const cluster = mapped.get(inst.symbol)?.cluster;
               return (
                 <tr key={inst.symbol} className="border-t border-[#1e2636] hover:bg-white/[0.03]">
-                  <td className="px-4 py-3">
+                  <td className="px-3 py-1.5">
                     <Link href={`/markets/${inst.symbol}`} className="font-medium text-zinc-100 hover:text-white">
                       {inst.symbol.replace("-USD", "")}
                     </Link>
@@ -98,17 +98,17 @@ export function MarketsBoard() {
                       {cluster ? <Pill>{cluster}</Pill> : null}
                     </div>
                   </td>
-                  <td className="num px-3 py-3">{t ? fmtPx(t.markPrice, inst.priceDecimals) : "—"}</td>
-                  <td className="num px-3 py-3 text-[#8b93a7]">
+                  <td className="num px-2 py-1.5">{t ? fmtPx(t.markPrice, inst.priceDecimals) : "—"}</td>
+                  <td className="num px-2 py-1.5 text-[#8b93a7]">
                     {t ? fmtPx(t.indexPrice, inst.priceDecimals) : "—"}
                   </td>
-                  <td className={`num px-3 py-3 ${change != null ? signedClass(change) : "text-[#5c6478]"}`}>
+                  <td className={`num px-2 py-1.5 ${change != null ? signedClass(change) : "text-[#5c6478]"}`}>
                     {change != null ? fmtPct(change) : "—"}
                   </td>
-                  <td className="num px-3 py-3">{t ? fmtFunding(t.fundingRate) : "—"}</td>
-                  <td className="num px-3 py-3 text-[#8b93a7]">{t ? fmtPx(t.openInterest, 2) : "—"}</td>
-                  <td className="num px-3 py-3 text-[#8b93a7]">{inst.maxLeverage}x</td>
-                  <td className="px-4 py-3 text-[#8b93a7]">{sessionLabel(inst.category)}</td>
+                  <td className="num px-2 py-1.5">{t ? fmtFunding(t.fundingRate) : "—"}</td>
+                  <td className="num px-2 py-1.5 text-[#8b93a7]">{t ? fmtPx(t.openInterest, 2) : "—"}</td>
+                  <td className="num px-2 py-1.5 text-[#8b93a7]">{inst.maxLeverage}x</td>
+                  <td className="px-3 py-1.5 text-[#8b93a7]">{sessionLabel(inst.category)}</td>
                 </tr>
               );
             })}

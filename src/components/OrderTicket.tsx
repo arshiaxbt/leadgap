@@ -8,7 +8,6 @@ import { estLiq, fmtPx, fmtUsd, mmr } from "@/lib/format";
 import { explainPerpsError, type PerpsAccess } from "@/lib/perpsAccess";
 import { usePrivyMount } from "@/lib/usePrivyMount";
 import type { PerpsInstrument, PerpsTicker } from "@/lib/types";
-import { TextInput } from "@/components/ui";
 
 type Geo = { blocked: boolean; country: string; reason: string };
 
@@ -159,84 +158,111 @@ export function OrderTicket({
   }
 
   const long = side === "BUY";
+  const levPresets = [...new Set([1, 2, 5, 10, 25, 50, instrument.maxLeverage].filter((n) => n <= instrument.maxLeverage))].sort(
+    (a, b) => a - b,
+  );
+  const field =
+    "num mt-0.5 w-full rounded-md border border-[#1e2636] bg-[#07080c] px-2 py-1 text-[13px] text-zinc-100 outline-none placeholder:text-[#5c6478] focus:border-[#3ee0a8]/40";
 
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-auto px-2.5 py-2">
-      <div className="grid grid-cols-2 gap-1">
+    <div className="flex h-full min-h-0 flex-col gap-1 overflow-auto px-2 py-1.5">
+      <div className="flex items-center justify-between">
+        <p className="text-[10px] uppercase tracking-wide text-[#5c6478]">Order</p>
+        <span className="num text-[10px] text-[#8b93a7]">{free != null ? `Free ${fmtUsd(free)}` : "—"}</span>
+      </div>
+
+      <div className="grid grid-cols-2 gap-px overflow-hidden rounded-md border border-[#1a2030]">
         <button
           type="button"
           onClick={() => setSide("BUY")}
-          className={`rounded py-2 text-[13px] font-bold tracking-wide ${
-            long ? "bg-[#3ee0a8] text-[#07080c]" : "bg-white/5 text-[#8b93a7]"
+          className={`py-1.5 text-[12px] font-bold tracking-wide ${
+            long ? "bg-[#3ee0a8] text-[#07080c]" : "bg-[#0e1118] text-[#8b93a7] hover:text-white"
           }`}
         >
-          LONG
+          Long
         </button>
         <button
           type="button"
           onClick={() => setSide("SELL")}
-          className={`rounded py-2 text-[13px] font-bold tracking-wide ${
-            !long ? "bg-[#fb7185] text-[#07080c]" : "bg-white/5 text-[#8b93a7]"
+          className={`py-1.5 text-[12px] font-bold tracking-wide ${
+            !long ? "bg-[#fb7185] text-[#07080c]" : "bg-[#0e1118] text-[#8b93a7] hover:text-white"
           }`}
         >
-          SHORT
+          Short
         </button>
       </div>
 
-      <div className="mt-2 flex items-center gap-1">
+      <div className="flex items-center gap-1">
         {(["IOC", "GTC"] as const).map((id) => (
           <button
             key={id}
             type="button"
             onClick={() => setTif(id)}
             className={`flex-1 rounded py-1 text-[11px] font-medium ${
-              tif === id ? "bg-white text-[#07080c]" : "bg-white/5 text-[#8b93a7]"
+              tif === id ? "bg-white text-[#07080c]" : "bg-white/5 text-[#8b93a7] hover:text-white"
             }`}
           >
             {id === "IOC" ? "Market" : "Limit"}
           </button>
         ))}
-        <label className="ml-1 flex items-center gap-1 text-[10px] text-[#8b93a7]">
+        <label className="flex items-center gap-1 px-1 text-[10px] text-[#8b93a7]">
           <input type="checkbox" checked={reduceOnly} onChange={(e) => setReduceOnly(e.target.checked)} />
           Reduce
         </label>
       </div>
 
       {tif === "GTC" ? (
-        <label className="mt-2 block text-[10px] uppercase tracking-wide text-[#5c6478]">
+        <label className="block text-[10px] uppercase tracking-wide text-[#5c6478]">
           Price
-          <TextInput value={price} onChange={(e) => setPrice(e.target.value)} className="num mt-1 py-1.5 text-sm" />
+          <input value={price} onChange={(e) => setPrice(e.target.value)} className={field} />
         </label>
       ) : null}
 
-      <label className="mt-2 block text-[10px] uppercase tracking-wide text-[#5c6478]">
-        Size
-        <div className="mt-1 flex gap-1">
-          <button type="button" onClick={() => bump(-1)} className="w-8 rounded bg-white/5 text-zinc-300">
+      <label className="block text-[10px] uppercase tracking-wide text-[#5c6478]">
+        <span className="flex justify-between">
+          Size
+          <span className="num normal-case tracking-normal text-[#8b93a7]">{fmtUsd(notional)}</span>
+        </span>
+        <div className="mt-0.5 flex gap-1">
+          <button type="button" onClick={() => bump(-1)} className="w-7 rounded bg-white/5 text-zinc-300 hover:text-white">
             −
           </button>
-          <TextInput value={qty} onChange={(e) => setQty(e.target.value)} className="num py-1.5 text-sm" />
-          <button type="button" onClick={() => bump(1)} className="w-8 rounded bg-white/5 text-zinc-300">
+          <input value={qty} onChange={(e) => setQty(e.target.value)} className={field} />
+          <button type="button" onClick={() => bump(1)} className="w-7 rounded bg-white/5 text-zinc-300 hover:text-white">
             +
           </button>
         </div>
       </label>
-      <div className="mt-1 grid grid-cols-4 gap-1">
+      <div className="grid grid-cols-4 gap-1">
         {[0.25, 0.5, 0.75, 1].map((pct) => (
           <button
             key={pct}
             type="button"
             onClick={() => applyPct(pct)}
-            className="rounded bg-white/5 py-1 text-[10px] text-[#8b93a7] hover:text-white"
+            className="rounded bg-white/5 py-0.5 text-[10px] text-[#8b93a7] hover:bg-white/10 hover:text-white"
           >
             {pct * 100}%
           </button>
         ))}
       </div>
 
-      <div className="mt-2 flex items-center justify-between text-[10px] uppercase tracking-wide text-[#5c6478]">
+      <div className="flex items-center justify-between text-[10px] uppercase tracking-wide text-[#5c6478]">
         <span>Leverage</span>
         <span className="num text-zinc-200">{leverage}x</span>
+      </div>
+      <div className="flex flex-wrap gap-1">
+        {levPresets.map((n) => (
+          <button
+            key={n}
+            type="button"
+            onClick={() => setLeverage(n)}
+            className={`rounded px-1.5 py-0.5 text-[10px] ${
+              leverage === n ? "bg-white text-[#07080c]" : "bg-white/5 text-[#8b93a7] hover:text-white"
+            }`}
+          >
+            {n}x
+          </button>
+        ))}
       </div>
       <input
         type="range"
@@ -244,63 +270,63 @@ export function OrderTicket({
         max={instrument.maxLeverage}
         value={leverage}
         onChange={(e) => setLeverage(Number(e.target.value))}
-        className="mt-1 w-full"
+        className="w-full accent-[#3ee0a8]"
       />
 
       {tif === "GTC" ? (
-        <div className="mt-2 grid grid-cols-2 gap-1.5">
+        <div className="grid grid-cols-2 gap-1.5">
           <label className="text-[10px] uppercase tracking-wide text-[#5c6478]">
             TP
-            <TextInput value={tp} onChange={(e) => setTp(e.target.value)} className="num mt-1 py-1.5 text-xs" />
+            <input value={tp} onChange={(e) => setTp(e.target.value)} placeholder="—" className={field} />
           </label>
           <label className="text-[10px] uppercase tracking-wide text-[#5c6478]">
             SL
-            <TextInput value={sl} onChange={(e) => setSl(e.target.value)} className="num mt-1 py-1.5 text-xs" />
+            <input value={sl} onChange={(e) => setSl(e.target.value)} placeholder="—" className={field} />
           </label>
         </div>
       ) : null}
 
-      <div className="mt-auto space-y-2 pt-3">
-        <div className="grid grid-cols-3 gap-1 text-[10px] text-[#5c6478]">
-          <div>
-            Margin
-            <div className="num text-zinc-200">{fmtPx(marginEst, 2)}</div>
-          </div>
-          <div>
-            Liq
-            <div className="num text-zinc-200">{liq != null ? fmtPx(liq, instrument.priceDecimals) : "—"}</div>
-          </div>
-          <div className="text-right">
-            Free
-            <div className="num text-zinc-200">{free != null ? fmtUsd(free) : "—"}</div>
-          </div>
+      <div className="grid grid-cols-3 gap-1 border-t border-[#1a2030] pt-1.5 text-[10px] text-[#5c6478]">
+        <div>
+          Margin
+          <div className="num text-zinc-200">{fmtPx(marginEst, 2)}</div>
         </div>
-        <button
-          type="button"
-          disabled={!canTrade || busy}
-          onClick={() => void submit()}
-          className={`w-full rounded-md py-3 text-sm font-bold tracking-wide disabled:opacity-40 ${
-            long ? "bg-[#3ee0a8] text-[#07080c]" : "bg-[#fb7185] text-[#07080c]"
-          }`}
-        >
-          {busy ? "…" : `${long ? "Long" : "Short"} ${base}`}
-        </button>
+        <div>
+          Liq
+          <div className="num text-zinc-200">{liq != null ? fmtPx(liq, instrument.priceDecimals) : "—"}</div>
+        </div>
+        <div className="text-right">
+          Free
+          <div className="num text-zinc-200">{free != null ? fmtUsd(free) : "—"}</div>
+        </div>
+      </div>
+      <button
+        type="button"
+        disabled={!canTrade || busy}
+        onClick={() => void submit()}
+        className={`w-full rounded-md py-2 text-[13px] font-bold tracking-wide disabled:opacity-40 ${
+          long ? "bg-[#3ee0a8] text-[#07080c]" : "bg-[#fb7185] text-[#07080c]"
+        }`}
+      >
+        {busy ? "Submitting…" : `${long ? "Long" : "Short"} ${base}`}
+      </button>
+      <div className="flex items-center justify-between gap-2">
         <button
           type="button"
           disabled={!canTrade || busy}
           onClick={() => void cancelAll()}
-          className="w-full text-[11px] text-[#8b93a7] hover:text-white disabled:opacity-40"
+          className="text-[10px] text-[#8b93a7] hover:text-white disabled:opacity-40"
         >
-          Cancel open orders
+          Cancel open
         </button>
-        <p className="text-[10px] leading-4 text-[#5c6478]">{hint}</p>
         {perpsAccess?.href ? (
-          <a href={perpsAccess.href} target="_blank" rel="noreferrer" className="text-[11px] text-[#8bb4ff] hover:underline">
-            Request Perps access
+          <a href={perpsAccess.href} target="_blank" rel="noreferrer" className="text-[10px] text-[#8bb4ff] hover:underline">
+            Request access
           </a>
         ) : null}
-        {status ? <p className="text-[11px] text-amber-200">{status}</p> : null}
       </div>
+      <p className="text-[10px] leading-3 text-[#5c6478]">{hint}</p>
+      {status ? <p className="text-[11px] text-amber-200">{status}</p> : null}
     </div>
   );
 }

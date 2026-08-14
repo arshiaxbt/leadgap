@@ -272,11 +272,11 @@ export function PortfolioDesk() {
   const usedPct = state.equity > 0 ? state.used / state.equity : 0;
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-2">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-white">Portfolio</h1>
-          <p className="mt-1 text-sm text-[#8b93a7]">Perps account, positions, and funding.</p>
+          <h1 className="text-lg font-semibold tracking-tight text-white">Portfolio</h1>
+          <p className="text-[12px] text-[#8b93a7]">Perps account, positions, and funding.</p>
         </div>
         <Link href="/markets" className="text-sm text-[#8b93a7] hover:text-white">
           Back to markets

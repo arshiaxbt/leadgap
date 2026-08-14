@@ -151,7 +151,7 @@ export function Blotter({ instrumentId }: { instrumentId: number }) {
   }
 
   return (
-    <div className="flex h-full min-h-[128px] flex-col border-t border-[#1a2030] bg-[#08090c]">
+    <div className="flex h-full min-h-0 flex-col bg-[#08090c]">
       <div className="flex items-center gap-1 border-b border-[#1a2030] px-2 py-0.5 text-[11px]">
         {(["positions", "orders", "fills"] as const).map((t) => (
           <button

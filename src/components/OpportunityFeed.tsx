@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { ExpectedActual } from "@/components/desk/ExpectedActual";
-import { Empty, LiveDot, Panel, Pill, Segmented, TextInput } from "@/components/ui";
+import { LiveDot, Panel, Pill, Segmented, TextInput } from "@/components/ui";
 import { eventTitleKey } from "@/lib/divergence";
 import { fmtOdds, fmtOddsDelta, fmtPct, fmtScore, leaderCopy, signedClass } from "@/lib/format";
 import { biasCopy, isActionable, scoreClass } from "@/lib/score";
@@ -115,13 +115,13 @@ export function OpportunityFeed() {
   const table = shown.slice(0, 60);
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+    <div className="space-y-2">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <p className="text-[10px] uppercase tracking-wide text-[#7d8699]">Leadgap scan</p>
-          <h1 className="text-lg font-semibold tracking-tight text-white">Odds first. Then the perp.</h1>
+          <h1 className="text-base font-semibold tracking-tight text-white">Odds first. Then the perp.</h1>
         </div>
-        <div className="flex items-center gap-3 text-[11px]">
+        <div className="flex items-center gap-2 text-[11px]">
           <span className="text-[#7d8699]">
             Odds-first <span className="num text-zinc-100">{summary.oddsFirst}</span>
           </span>
@@ -146,12 +146,9 @@ export function OpportunityFeed() {
           value={filter}
           onChange={setFilter}
         />
-        <div className="w-48">
+        <div className="w-44">
           <TextInput value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Event or perp" />
         </div>
-        <p className="w-full text-[11px] text-[#7d8699]">
-          Actionable is score ≥ 28 and not already caught up. Odds first is odds-led but not yet actionable. All is unique events.
-        </p>
       </div>
 
       {error ? <p className="text-sm text-amber-200">{error}</p> : null}
@@ -159,17 +156,18 @@ export function OpportunityFeed() {
       {loading ? (
         <div className="h-64 animate-pulse rounded-xl bg-white/5" />
       ) : shown.length === 0 ? (
-        <Empty
-          title={filter === "all" ? "No gap in this window yet" : "No matching setups"}
-          body="Books are sampling. Switch to All, or open a linked event below when a lead appears."
-        />
+        <p className="text-[12px] text-[#7d8699]">
+          {filter === "all"
+            ? "No gap in this window yet. Linked events below still open a desk."
+            : "No matching setups. Switch to Odds first or All, or open a linked event."}
+        </p>
       ) : (
         <>
           {featured.length > 0 ? (
             <div className="grid gap-2 lg:grid-cols-3">
               {featured.map((row) => (
                 <Link key={`${row.eventId}-${row.symbol}-card`} href={`/markets/${row.symbol}?event=${row.eventId}`}>
-                  <Panel className="h-full p-3 transition hover:border-[#3ee0a8]/25">
+                  <Panel className="h-full p-2 transition hover:border-[#3ee0a8]/25">
                     <div className="flex items-start justify-between gap-2">
                       <p className="text-[13px] font-medium leading-4 text-zinc-100">{row.title}</p>
                       <span className={`num shrink-0 text-xl font-semibold ${scoreClass(row.score)}`}>
@@ -257,11 +255,11 @@ export function OpportunityFeed() {
 
       {linked.length > 0 ? (
         <section>
-          <h2 className="mb-3 text-sm font-medium text-zinc-200">Linked events</h2>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <h2 className="mb-1.5 text-sm font-medium text-zinc-200">Linked events</h2>
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
             {linked.map((event) => (
                 <Link key={event.id} href={`/markets/${event.perps[0]!.symbol}?event=${event.id}`}>
-                  <Panel className="h-full p-4 transition hover:border-[#3ee0a8]/30">
+                  <Panel className="h-full p-2.5 transition hover:border-[#3ee0a8]/30">
                     <div className="flex items-center justify-between gap-2">
                       <span className="num text-xs text-[#3ee0a8]">{fmtOdds(event.yesPrice)}</span>
                       <span className="truncate text-[11px] text-[#5c6478]">

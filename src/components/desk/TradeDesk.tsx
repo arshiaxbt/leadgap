@@ -152,7 +152,7 @@ export function TradeDesk({ symbol }: { symbol: string }) {
   const { instrument, ticker, events, news, gaps, oddsHistory, instruments, markHistory, windows, tape } = data;
 
   return (
-    <div className="grid min-h-0 flex-1 grid-cols-1 overflow-hidden xl:grid-cols-[220px_minmax(0,1fr)_200px_236px] xl:grid-rows-[32px_minmax(0,1fr)_128px]">
+    <div className="grid min-h-0 flex-1 grid-cols-1 overflow-hidden xl:grid-cols-[200px_minmax(0,1fr)_184px_252px] xl:grid-rows-[32px_minmax(0,1fr)_92px]">
       <div className="order-1 xl:col-span-4 xl:row-start-1">
         <TickerStrip
           instrument={instrument}
@@ -171,7 +171,7 @@ export function TradeDesk({ symbol }: { symbol: string }) {
           oddsLabel={events.find((e) => e.id === eventId)?.title ?? "Yes ¢"}
         />
       </div>
-      <div className="order-3 min-h-[200px] border-b border-[#1a2030] xl:col-start-1 xl:row-start-2 xl:row-span-2 xl:min-h-0 xl:border-b-0 xl:border-r">
+      <div className="order-3 min-h-[200px] border-b border-[#1a2030] xl:col-start-1 xl:row-start-2 xl:min-h-0 xl:border-b-0 xl:border-r">
         <EventIntel
           symbol={instrument.symbol}
           events={events}
@@ -185,17 +185,17 @@ export function TradeDesk({ symbol }: { symbol: string }) {
           news={news}
         />
       </div>
-      <div className="order-4 min-h-[280px] border-b border-[#1a2030] xl:col-start-3 xl:row-start-2 xl:min-h-0 xl:border-b-0 xl:border-l">
+      <div className="order-4 min-h-[240px] border-b border-[#1a2030] xl:col-start-3 xl:row-start-2 xl:min-h-0 xl:border-b-0 xl:border-l">
         <OrderBookPanel
           book={book}
           decimals={instrument.priceDecimals}
           onPrice={(p) => setClickPrice(String(p))}
         />
       </div>
-      <div className="order-5 min-h-[240px] xl:col-start-4 xl:row-start-2 xl:row-span-2 xl:min-h-0 xl:border-l xl:border-[#1a2030]">
+      <div className="order-5 min-h-[240px] xl:col-start-4 xl:row-start-2 xl:min-h-0 xl:border-l xl:border-[#1a2030]">
         <OrderTicket instrument={instrument} ticker={ticker} price={clickPrice} />
       </div>
-      <div className="order-6 min-h-[140px] xl:col-start-2 xl:col-span-2 xl:row-start-3 xl:min-h-0">
+      <div className="order-6 min-h-[92px] xl:col-span-4 xl:row-start-3 xl:min-h-0 xl:border-t xl:border-[#1a2030]">
         <Blotter instrumentId={instrument.instrumentId} />
       </div>
     </div>

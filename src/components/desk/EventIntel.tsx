@@ -80,7 +80,7 @@ export function EventIntel({
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-auto text-[11px]">
-      <div className="border-b border-[#1a2030] px-2.5 py-1.5">
+      <div className="border-b border-[#1a2030] px-2 py-1">
         <div className="flex items-baseline justify-between gap-2">
           <p className="truncate text-[10px] uppercase tracking-wide text-[#7d8699]">Event</p>
           <span className={`num text-sm font-semibold ${scoreClass(score)}`}>
@@ -105,7 +105,7 @@ export function EventIntel({
         ) : null}
       </div>
 
-      <div className="space-y-2.5 px-2.5 py-2">
+      <div className="space-y-1.5 px-2 py-1.5">
         <div>
           <p className="text-[13px] font-medium leading-4 text-zinc-100">{event.title}</p>
           <div className="mt-1.5 flex items-center justify-between">
@@ -176,7 +176,7 @@ export function EventIntel({
         <Spark points={oddsHistory[event.id] ?? []} className="h-8" />
       </div>
 
-      <div className="mt-auto border-t border-[#1a2030] px-2.5 py-2">
+      <div className="border-t border-[#1a2030] px-2 py-1.5">
         <p className="mb-1 text-[9px] uppercase tracking-wide text-[#7d8699]">Catalyst</p>
         {headlines.length === 0 ? (
           <p className="text-[#7d8699]">No headlines.</p>

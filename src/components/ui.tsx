@@ -64,7 +64,7 @@ export function Segmented<T extends string>({
 
 export function Empty({ title, body }: { title: string; body: string }) {
   return (
-    <Panel className="px-5 py-8 text-center">
+    <Panel className="px-4 py-4 text-center">
       <p className="text-sm font-medium text-zinc-200">{title}</p>
       <p className="mx-auto mt-1 max-w-md text-sm text-[#8b93a7]">{body}</p>
     </Panel>
@@ -102,7 +102,7 @@ export function TextInput(props: InputHTMLAttributes<HTMLInputElement>) {
   return (
     <input
       {...props}
-      className={`w-full rounded-lg border border-[#1e2636] bg-[#07080c] px-2.5 py-2 text-sm text-zinc-100 outline-none placeholder:text-[#5c6478] focus:border-[#3ee0a8]/40 ${props.className ?? ""}`}
+      className={`w-full rounded-md border border-[#1e2636] bg-[#07080c] px-2 py-1.5 text-sm text-zinc-100 outline-none placeholder:text-[#5c6478] focus:border-[#3ee0a8]/40 ${props.className ?? ""}`}
     />
   );
 }

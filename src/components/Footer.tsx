@@ -5,7 +5,7 @@ export function Footer() {
     <footer className="mt-auto border-t border-[#1a2030] px-3 py-1.5 text-[11px] text-[#7d8699]">
       <div className="mx-auto flex max-w-[1440px] flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
         <p>
-          {APP_NAME} maps Polymarket event odds to live Perps. Events are signal only — you trade
+          {APP_NAME} maps Polymarket event probabilities to live Perps. Events are signal only — you trade
           the perp. Not financial advice. You are responsible for local law.
         </p>
         <div className="flex shrink-0 items-center gap-3">

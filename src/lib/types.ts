@@ -55,12 +55,15 @@ export type ClusterRule = {
 
 export type Snapshot = { t: number; v: number };
 
+export type MappingKind = "named" | "cluster";
+
 export type LinkedPerp = {
   symbol: string;
   signedBeta: number;
   confidence: number;
   cluster: string;
   mappingReason: string;
+  mappingKind: MappingKind;
 };
 
 export type ResolvedEvent = {
@@ -94,6 +97,7 @@ export type GapRow = {
   yesPrice: number;
   markPrice: number;
   mappingReason: string;
+  mappingKind: MappingKind;
   leader: "odds" | "perp" | "flat";
   expected: number;
   actual: number;

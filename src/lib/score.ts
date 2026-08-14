@@ -54,6 +54,40 @@ export function leadgapMetrics(args: {
   return { expected, actual, gap, leader, bias, catchup, score };
 }
 
+export type ScorePart = { label: string; points: number };
+
+/** Split the published score into additive parts from the same factors. Does not change the score. */
+export function scoreBreakdown(args: {
+  oddsMove: number;
+  perpMove: number;
+  signedBeta: number;
+  confidence: number;
+  volume: number;
+  score: number;
+  leader: GapRow["leader"];
+}): ScorePart[] {
+  const expected = args.oddsMove * args.signedBeta;
+  const gap = expected - args.perpMove;
+  const oddsAbs = Math.abs(args.oddsMove);
+  const liquidity = Math.min(1, Math.log10(Math.max(args.volume, 10)) / 6);
+  const magnitude = Math.min(1, Math.abs(gap) / 0.04);
+  const leadWeight = args.leader === "odds" ? 1 : args.leader === "flat" ? 0.42 : 0.12;
+  const moveWeight = oddsAbs >= 0.008 ? 1 : oddsAbs >= 0.003 ? 0.65 : 0.3;
+
+  const raw: ScorePart[] = [
+    { label: "Odds movement", points: moveWeight },
+    { label: "Perp lag", points: magnitude * leadWeight },
+    { label: "Volume / liquidity", points: liquidity },
+    { label: "Historical confidence", points: Math.max(0, args.confidence) },
+  ];
+  const sum = raw.reduce((s, p) => s + p.points, 0);
+  if (sum <= 0 || args.score <= 0) return raw.map((p) => ({ ...p, points: 0 }));
+  const parts = raw.map((p) => ({ label: p.label, points: Math.round((args.score * p.points) / sum) }));
+  const drift = args.score - parts.reduce((s, p) => s + p.points, 0);
+  if (parts[0]) parts[0].points += drift;
+  return parts;
+}
+
 export function isActionable(row: Pick<GapRow, "bias" | "score" | "catchup">): boolean {
   if (row.bias === "none" || row.score < 28) return false;
   if (row.catchup != null && Number.isFinite(row.catchup) && row.catchup >= 0.85) return false;

@@ -1,3 +1,4 @@
+import { fmtOddsDelta } from "./format";
 import { biasCopy, type Bias } from "./score";
 import type { GapRow } from "./types";
 
@@ -37,8 +38,13 @@ export function thesisLine(row: Pick<GapRow, "leader" | "bias" | "symbol" | "cat
 export function catalystImpact(gap?: Pick<GapRow, "oddsMove" | "bias" | "symbol" | "leader">): string | null {
   if (!gap) return null;
   const name = perpName(gap.symbol);
+  const pts = `${(Math.abs(gap.oddsMove) * 100).toFixed(1)} pts`;
   const odds =
-    gap.oddsMove > 0.002 ? "Yes odds increased" : gap.oddsMove < -0.002 ? "Yes odds dropped" : "Odds little changed";
+    gap.oddsMove > 0.002
+      ? `Yes probability rose ${pts}`
+      : gap.oddsMove < -0.002
+        ? `Yes probability fell ${pts}`
+        : "Yes probability little changed";
   if (gap.leader === "perp") return `${odds}. ${name} already moved — not a Leadgap edge.`;
   const bias = biasCopy(gap.bias, gap.symbol);
   if (gap.bias === "none") return `${odds}. No ${name} edge yet.`;
@@ -67,4 +73,38 @@ export function chartStory(leader: GapRow["leader"]): string {
       return _never;
     }
   }
+}
+
+export function whyAsset(row: Pick<GapRow, "mappingReason" | "symbol" | "title">): string {
+  const name = perpName(row.symbol);
+  const reason = row.mappingReason;
+  if (reason.startsWith("Direct map") || reason.startsWith("Named ") || reason.startsWith("Alias match")) {
+    return `Event names ${name}.`;
+  }
+  if (reason.includes("macro")) return `Fed/macro cluster → ${name}.`;
+  if (reason.includes("oil")) return `Oil/geopolitics cluster → ${name}.`;
+  if (reason.includes("crypto")) return `Crypto cluster → ${name}.`;
+  if (reason.includes("semi")) return `Chips/AI cluster → ${name}.`;
+  return reason;
+}
+
+export function whyNow(row: Pick<GapRow, "window" | "oddsMove" | "perpMove" | "symbol" | "catchup" | "leader">): string {
+  const name = perpName(row.symbol);
+  const mark = `${row.perpMove >= 0 ? "+" : ""}${(row.perpMove * 100).toFixed(2)}%`;
+  if (row.leader === "perp") return `${row.window}: ${name} already moved ${mark}. Odds are not leading.`;
+  const caught =
+    row.catchup != null && Number.isFinite(row.catchup)
+      ? ` Mark captured ${Math.round(Math.max(0, Math.min(1.8, row.catchup)) * 100)}% of the implied move.`
+      : "";
+  return `${row.window}: Yes moved ${fmtOddsDelta(row.oddsMove)}; ${name} moved ${mark}.${caught}`;
+}
+
+export function whyDirection(row: Pick<GapRow, "expected" | "actual" | "gap" | "bias" | "symbol" | "oddsMove" | "signedBeta">): string {
+  const expected = row.expected ?? row.oddsMove * row.signedBeta;
+  const actual = row.actual ?? 0;
+  const action = signalAction(row.bias, row.symbol);
+  if (row.bias === "none") {
+    return `Expected ${(expected * 100).toFixed(2)}% vs actual ${(actual * 100).toFixed(2)}%. Gap is too small for a side.`;
+  }
+  return `Expected ${(expected * 100).toFixed(2)}% vs actual ${(actual * 100).toFixed(2)}% → gap ${(row.gap * 100).toFixed(2)}%. ${action}.`;
 }

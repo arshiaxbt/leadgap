@@ -5,9 +5,10 @@ import Link from "next/link";
 import { SignalCard } from "@/components/SignalCard";
 import { LiveDot, Panel, Pill, Segmented, TextInput } from "@/components/ui";
 import { eventTitleKey, GAP_WINDOWS } from "@/lib/divergence";
-import { fmtCompact, fmtOddsRange, fmtPct, fmtScore, signedClass } from "@/lib/format";
+import { fmtCompact, fmtOddsDelta, fmtOddsRange, fmtPct, fmtScore, signedClass } from "@/lib/format";
 import { isActionable, scoreClass } from "@/lib/score";
 import { oddsPrior, perpName, signalAction } from "@/lib/signal";
+import { trackEvent } from "@/lib/track";
 import type { GapRow, GapWindow } from "@/lib/types";
 
 type Filter = "actionable" | "odds" | "all";
@@ -66,6 +67,7 @@ export function OpportunityFeed() {
           fetch(`/api/gaps?window=${window}`),
           fetch("/api/events"),
         ]);
+        if (!gapRes.ok) throw new Error(`Gaps unavailable (${gapRes.status}).`);
         const data = (await gapRes.json()) as {
           gaps: GapRow[];
           asOf: number;
@@ -183,7 +185,11 @@ export function OpportunityFeed() {
       {error ? <p className="text-sm text-amber-200">{error}</p> : null}
 
       {loading ? (
-        <div className="h-16 animate-pulse rounded-md bg-white/5" />
+        <div className="grid gap-2 lg:grid-cols-3">
+          <div className="h-40 animate-pulse rounded-lg bg-white/5" />
+          <div className="h-40 animate-pulse rounded-lg bg-white/5" />
+          <div className="h-40 animate-pulse rounded-lg bg-white/5" />
+        </div>
       ) : shown.length === 0 ? (
         <p className="text-[12px] text-[#7d8699]">
           {filter === "all"
@@ -207,7 +213,7 @@ export function OpportunityFeed() {
                   <th className="px-3 py-2 font-medium">Event</th>
                   <th className="px-2 py-2 font-medium">Perp</th>
                   <th className="px-2 py-2 font-medium">Score</th>
-                  <th className="px-2 py-2 font-medium">Yes</th>
+                  <th className="px-2 py-2 font-medium">Yes %</th>
                   <th className="px-2 py-2 font-medium">Expected</th>
                   <th className="px-2 py-2 font-medium">Actual</th>
                   <th className="px-2 py-2 font-medium">Gap</th>
@@ -238,7 +244,8 @@ export function OpportunityFeed() {
                         {fmtScore(row.score)}
                       </td>
                       <td className="num px-2 py-1.5 text-[#3ee0a8]">
-                        {fmtOddsRange(oddsPrior(row.yesPrice, row.oddsMove), row.yesPrice)}
+                        <span>{fmtOddsRange(oddsPrior(row.yesPrice, row.oddsMove), row.yesPrice)}</span>
+                        <span className={`ml-1.5 ${signedClass(row.oddsMove)}`}>{fmtOddsDelta(row.oddsMove)}</span>
                       </td>
                       <td className={`num px-2 py-1.5 ${signedClass(expected)}`}>{fmtPct(expected)}</td>
                       <td className={`num px-2 py-1.5 ${signedClass(actual)}`}>{fmtPct(actual)}</td>
@@ -252,6 +259,9 @@ export function OpportunityFeed() {
                       <td className="px-3 py-1.5 text-right">
                         <Link
                           href={href}
+                          onClick={() =>
+                            trackEvent("view_gap", { symbol: row.symbol, eventId: row.eventId, score: row.score })
+                          }
                           className="inline-flex rounded-md bg-[#3ee0a8] px-2 py-0.5 text-[11px] font-semibold text-[#07080c]"
                         >
                           Trade

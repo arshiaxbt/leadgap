@@ -103,7 +103,7 @@ export function PriceChart({
   candles,
   odds,
   interval = "5m",
-  oddsLabel = "Yes ¢",
+  oddsLabel = "Yes %",
   gapMarks,
   story,
 }: {
@@ -223,8 +223,13 @@ export function PriceChart({
         lastValueVisible: true,
         priceLineVisible: true,
         crosshairMarkerVisible: true,
-        title: "Yes ¢",
+        title: "Yes %",
         visible: true,
+        priceFormat: {
+          type: "custom",
+          minMove: 0.1,
+          formatter: (price: number) => `${price.toFixed(1)}%`,
+        },
       },
       oddsPane.paneIndex(),
     );
@@ -395,7 +400,7 @@ export function PriceChart({
   }, [gapMarks, candles, interval, style]);
 
   useEffect(() => {
-    oddsRef.current?.applyOptions({ visible: oddsOn, title: oddsLabel.slice(0, 28) || "Yes ¢" });
+    oddsRef.current?.applyOptions({ visible: oddsOn, title: oddsLabel.slice(0, 28) || "Yes %" });
     const panes = chartRef.current?.panes();
     panes?.[0]?.setStretchFactor(1);
     panes?.[1]?.setStretchFactor(oddsOn ? 0.22 : 0.001);
@@ -456,7 +461,7 @@ export function PriceChart({
             O {fmtN(hover.o)} H {fmtN(hover.h)} L {fmtN(hover.l)} C{" "}
             <span className={hover.c >= hover.o ? "text-[#3ee0a8]" : "text-rose-300"}>{fmtN(hover.c)}</span>
             {oddsOn && hover.odds != null ? (
-              <span className="ml-2 text-[#5b8def]">Yes {hover.odds.toFixed(1)}¢</span>
+              <span className="ml-2 text-[#5b8def]">Yes {hover.odds.toFixed(1)}%</span>
             ) : null}
           </span>
         ) : (
@@ -471,7 +476,7 @@ export function PriceChart({
           <ToolBtn active={style === "candle"} onClick={() => setStyle("candle")} label="Candles" />
           <ToolBtn active={style === "line"} onClick={() => setStyle("line")} label="Line" />
         </span>
-        <ToolBtn active={oddsOn} onClick={() => setOddsOn((v) => !v)} label="Yes ¢" />
+        <ToolBtn active={oddsOn} onClick={() => setOddsOn((v) => !v)} label="Yes %" />
         <ToolBtn active={log} onClick={() => setLog((v) => !v)} label="Log" />
         <ToolBtn
           active={false}

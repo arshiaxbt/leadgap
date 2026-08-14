@@ -1,4 +1,4 @@
-import type { ClusterRule, LinkedPerp, MapRow } from "./types";
+import type { ClusterRule, LinkedPerp, MapRow, MappingKind } from "./types";
 
 function equity(
   symbol: string,
@@ -265,7 +265,11 @@ export const CLUSTER_RULES: ClusterRule[] = [
 ];
 
 export const CONFIDENCE_FLOOR = 0.5;
-export const MAP_REVISION = 2;
+export const MAP_REVISION = 3;
+const CLUSTER_PRIMARY = 0.75;
+const FOREIGN_MACRO =
+  /\b(china|chinese|japan|japanese|uk|britain|british|india|indian|europe|eurozone|brazil|canada|mexico|korea|russia)\b/;
+const US_MACRO = /\b(fed|fomc|powell|united states|\bu\.s\.|\bus\b|america|american)\b/;
 
 export function mapBySymbol(): Map<string, MapRow> {
   return new Map(ASSET_MAP.map((row) => [row.symbol, row]));
@@ -292,6 +296,7 @@ export function eventMentionsQuery(hay: string, query: string): boolean {
   if (words.length === 0) return false;
   return words.every((w) => {
     if (aliasHit(text, w)) return true;
+    if (w.length <= 4) return false;
     const escaped = w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     return new RegExp(`(?:^|[^a-z0-9])${escaped}[a-z]{0,3}(?:$|[^a-z0-9])`).test(text);
   });
@@ -313,12 +318,40 @@ export function preferredPerps<T extends { symbol: string; confidence: number }>
   return [...perps].sort((a, b) => nameStrength(hay, b.symbol) - nameStrength(hay, a.symbol) || b.confidence - a.confidence);
 }
 
+export function mappingKindOf(link: Pick<LinkedPerp, "mappingKind" | "mappingReason">): MappingKind {
+  if (link.mappingKind === "named" || link.mappingKind === "cluster") return link.mappingKind;
+  return link.mappingReason.startsWith("Cluster ") ? "cluster" : "named";
+}
+
+export function isClearMapping(args: {
+  mappingKind?: MappingKind;
+  mappingReason: string;
+  title: string;
+  question: string;
+  symbol: string;
+  confidence: number;
+}): boolean {
+  const kind = mappingKindOf({ mappingKind: args.mappingKind ?? "named", mappingReason: args.mappingReason });
+  const hay = `${args.title} ${args.question}`;
+  if (kind === "named") return nameStrength(hay, args.symbol) > 0;
+  return args.confidence >= CLUSTER_PRIMARY;
+}
+
+export function selectLinkedPerps(hay: string, perps: LinkedPerp[]): LinkedPerp[] {
+  const named = perps.filter((p) => nameStrength(hay, p.symbol) > 0);
+  if (named.length) return preferredPerps(hay, named).slice(0, 1);
+  const cluster = perps.filter((p) => mappingKindOf(p) === "cluster" && p.confidence >= CLUSTER_PRIMARY);
+  if (cluster.length) return preferredPerps(hay, cluster).slice(0, 3);
+  return [];
+}
+
 export function linksForSearchHit(args: {
   hay: string;
   source: "cluster" | "asset";
   id: string;
   query: string;
 }): LinkedPerp[] {
+  const hay = args.hay.toLowerCase();
   switch (args.source) {
     case "asset": {
       const row = mapBySymbol().get(args.id);
@@ -330,6 +363,7 @@ export function linksForSearchHit(args: {
           confidence: row.confidence,
           cluster: row.cluster,
           mappingReason: `Direct map ${row.symbol} via “${args.query}”`,
+          mappingKind: "named",
         },
       ];
     }
@@ -337,19 +371,21 @@ export function linksForSearchHit(args: {
       const rule = CLUSTER_RULES.find((r) => r.id === args.id);
       if (!rule) return [];
       const named = rule.members.filter((member) => nameStrength(args.hay, member.symbol) > 0);
-      const members = named.length
-        ? named
-        : eventMentionsQuery(args.hay, args.query)
-          ? rule.members.slice(0, 1)
-          : [];
+      let members = named;
+      if (!named.length) {
+        if (!eventMentionsQuery(args.hay, args.query)) return [];
+        if (args.id === "macro" && FOREIGN_MACRO.test(hay) && !US_MACRO.test(hay)) return [];
+        members = rule.members.filter((member) => member.confidence >= CLUSTER_PRIMARY);
+      }
       return members.map((member) => ({
         symbol: member.symbol,
         signedBeta: member.signedBeta,
-        confidence: named.length ? member.confidence : Math.min(member.confidence, 0.72),
+        confidence: member.confidence,
         cluster: args.id,
         mappingReason: named.length
           ? `Named ${member.symbol} in cluster ${args.id}`
           : `Cluster ${args.id} topic via “${args.query}”`,
+        mappingKind: named.length ? "named" : "cluster",
       }));
     }
     default: {

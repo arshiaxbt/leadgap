@@ -113,13 +113,6 @@ export function EventIntel({
           <p className="text-[13px] font-medium leading-4 text-zinc-100">{event.title}</p>
         )}
 
-        {link?.mappingReason ? (
-          <div>
-            <p className="text-[9px] uppercase tracking-wide text-[#7d8699]">Why this perp</p>
-            <p className="leading-4 text-zinc-300">{link.mappingReason}</p>
-          </div>
-        ) : null}
-
         <div className="grid grid-cols-4 gap-px overflow-hidden rounded border border-[#1a2030] bg-[#1a2030]">
           {GAP_WINDOWS.map((w) => {
             const row = windows?.[w]?.find((g) => g.eventId === event.id);
@@ -150,7 +143,7 @@ export function EventIntel({
         <p className="mb-1 text-[9px] uppercase tracking-wide text-[#7d8699]">Catalyst</p>
         {impact ? <p className="mb-1.5 leading-4 text-zinc-200">{impact}</p> : null}
         {headlines.length === 0 ? (
-          <p className="text-[#7d8699]">No mapped headline. Impact above is from odds, not a news summary.</p>
+          <p className="text-[#7d8699]">No mapped headline. Impact above is from Yes probability, not a news summary.</p>
         ) : (
           <ul className="space-y-1.5">
             {headlines.map((item) => (

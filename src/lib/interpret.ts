@@ -1,3 +1,4 @@
+import { fmtOddsDelta } from "./format";
 import type { GapRow } from "./types";
 
 export type InterpretSource = "model" | "rules";
@@ -14,20 +15,20 @@ export function deterministicNote(args: {
   signedBeta: number;
 }): string {
   const dir = args.signedBeta >= 0 ? "higher" : "lower";
-  const odds = `${args.oddsMove >= 0 ? "+" : ""}${(args.oddsMove * 100).toFixed(1)}¢`;
+  const odds = fmtOddsDelta(args.oddsMove);
   const expected = args.oddsMove * args.signedBeta;
   const residual = expected - args.perpMove;
   const perp = `${args.perpMove >= 0 ? "+" : ""}${(args.perpMove * 100).toFixed(2)}%`;
   const lead =
     args.leader === "odds"
-      ? "Prediction-market odds moved first relative to the perp mark."
+      ? "Yes probability moved first relative to the perp mark."
       : args.leader === "perp"
         ? "The perp mark moved first; the event book is the lagging leg (not tradable in this app)."
-        : "Odds and the perp moved in similar proportion over this window.";
+        : "Yes probability and the perp moved in similar proportion over this window.";
   return [
     `Mapped event “${args.title}” (${args.question}) to ${args.symbol} because ${args.mappingReason}.`,
-    `A rise in Yes odds is treated as ${dir} ${args.symbol} (signed beta ${args.signedBeta}).`,
-    `Window: odds ${odds}, implied perp ${expected >= 0 ? "+" : ""}${(expected * 100).toFixed(2)}%, mark ${perp}, residual ${(residual * 100).toFixed(2)} pts.`,
+    `A rise in Yes probability is treated as ${dir} ${args.symbol} (signed beta ${args.signedBeta}).`,
+    `Window: Yes ${odds}, implied perp ${expected >= 0 ? "+" : ""}${(expected * 100).toFixed(2)}%, mark ${perp}, residual ${(residual * 100).toFixed(2)}%.`,
     lead,
     "This is a mapping note, not a trade recommendation. Trade the perp only.",
   ].join(" ");
@@ -71,7 +72,7 @@ async function chat(args: object): Promise<string | null> {
         {
           role: "system",
           content:
-            "Explain a mapped Polymarket event vs perp divergence. Use only the provided fields. Do not invent a mapping, catalyst, or trade recommendation. 90 words max. Plain prose.",
+            "Explain a mapped Polymarket event vs perp divergence. Use only the provided fields. Do not invent a mapping, catalyst, or trade recommendation. Report Yes probability as a percent (e.g. 16.5%) and Yes changes as percentage points (e.g. -3.5 pts), never cents. 90 words max. Plain prose.",
         },
         { role: "user", content: JSON.stringify(args) },
       ],

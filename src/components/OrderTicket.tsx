@@ -7,6 +7,7 @@ import { BUILDER_CODE } from "@/lib/builder";
 import { estLiq, fmtPx, fmtUsd, mmr } from "@/lib/format";
 import { explainPerpsError, type PerpsAccess } from "@/lib/perpsAccess";
 import { usePrivyMount } from "@/lib/usePrivyMount";
+import { trackEvent } from "@/lib/track";
 import type { Bias } from "@/lib/score";
 import type { PerpsInstrument, PerpsTicker } from "@/lib/types";
 
@@ -61,6 +62,10 @@ export function OrderTicket({
     if (bias === "long") setSide("BUY");
     else if (bias === "short") setSide("SELL");
   }, [bias]);
+
+  useEffect(() => {
+    trackEvent("open_ticket", { symbol: instrument.symbol });
+  }, [instrument.symbol]);
 
   useEffect(() => {
     if (!walletClient || mount !== "ready") return;
@@ -139,6 +144,7 @@ export function OrderTicket({
         if (sl) request.stopLoss = { triggerPrice: sl };
       }
       const placed = await session.placeOrder(request as never);
+      trackEvent("submit_order", { symbol: instrument.symbol, side });
       setStatus(`Order ${placed.order.id} ${placed.order.status}`);
       await session.armAutoCancel({ cancelAt: Date.now() + 15 * 60_000 }).catch(() => undefined);
     } catch (err) {

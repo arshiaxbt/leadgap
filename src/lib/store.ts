@@ -1,6 +1,6 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { allGammaQueries, ASSET_MAP, CONFIDENCE_FLOOR, MAP_REVISION, aliasHit, linksForSearchHit, mapBySymbol, preferredPerps } from "./mapping";
+import { allGammaQueries, ASSET_MAP, CONFIDENCE_FLOOR, MAP_REVISION, aliasHit, linksForSearchHit, mapBySymbol, selectLinkedPerps } from "./mapping";
 import { computeGaps, eventTitleKey, GAP_WINDOWS, uniqueGapRows } from "./divergence";
 import { isActionable } from "./score";
 import { bestMarket, fetchOddsHistory, fetchYesMid, parseTokenIds, parseYesPrice, searchGammaEvents } from "./gamma";
@@ -148,12 +148,11 @@ function uniqueEvents(events: ResolvedEvent[]): ResolvedEvent[] {
     if (seenId.has(event.id)) continue;
     const key = eventTitleKey(event.title) || event.id;
     if (seenTitle.has(key)) continue;
+    const perps = selectLinkedPerps(`${event.title} ${event.question}`, event.perps);
+    if (perps.length === 0) continue;
     seenId.add(event.id);
     seenTitle.add(key);
-    out.push({
-      ...event,
-      perps: preferredPerps(`${event.title} ${event.question}`, event.perps).slice(0, 1),
-    });
+    out.push({ ...event, perps });
   }
   return out;
 }
@@ -225,6 +224,7 @@ async function resolveEvents(): Promise<ResolvedEvent[]> {
           confidence: Math.min(row.confidence, 0.65),
           cluster: row.cluster,
           mappingReason: `Alias match on ${row.symbol}`,
+          mappingKind: "named",
         });
       }
     }
@@ -236,7 +236,8 @@ async function resolveEvents(): Promise<ResolvedEvent[]> {
   const out: ResolvedEvent[] = [];
   const seenTitle = new Set<string>();
   for (const event of ranked) {
-    event.perps = preferredPerps(`${event.title} ${event.question}`, event.perps).slice(0, 1);
+    event.perps = selectLinkedPerps(`${event.title} ${event.question}`, event.perps);
+    if (event.perps.length === 0) continue;
     const key = eventTitleKey(event.title) || event.id;
     if (seenTitle.has(key)) continue;
     seenTitle.add(key);

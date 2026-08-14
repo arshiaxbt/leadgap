@@ -12,6 +12,7 @@ import { explainPerpsError } from "@/lib/perpsAccess";
 import { fmtPx, fmtUsd, fmtUsdSigned, signedClass } from "@/lib/format";
 import { ERC20_BALANCE_ABI, formatPusd, PUSD_TOKEN } from "@/lib/pusd";
 import { usePrivyMount } from "@/lib/usePrivyMount";
+import { trackEvent } from "@/lib/track";
 import type { GapRow, PerpsTicker } from "@/lib/types";
 
 type Pos = {
@@ -249,6 +250,7 @@ export function PortfolioDesk() {
         reduceOnly: true,
         builderCode: BUILDER_CODE,
       } as never);
+      trackEvent("close_position", { symbol: row.symbol });
       await refresh();
     } catch (err) {
       setState((s) => ({ ...s, note: explainPerpsError(err).message }));

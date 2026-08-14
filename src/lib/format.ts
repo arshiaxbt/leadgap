@@ -13,19 +13,21 @@ export function fmtPct(n: number, digits = 2): string {
   return `${sign}${(n * 100).toFixed(digits)}%`;
 }
 
+/** Yes probability in 0–1, shown as a percent (Polymarket-style). */
 export function fmtOdds(n: number): string {
   if (!Number.isFinite(n)) return "—";
-  return `${(n * 100).toFixed(1)}¢`;
+  return `${(n * 100).toFixed(1)}%`;
 }
 
 export function fmtOddsRange(from: number, to: number): string {
   return `${fmtOdds(from)} → ${fmtOdds(to)}`;
 }
 
+/** Absolute change in Yes probability, in percentage points. */
 export function fmtOddsDelta(n: number): string {
   if (!Number.isFinite(n)) return "—";
   const sign = n > 0 ? "+" : "";
-  return `${sign}${(n * 100).toFixed(1)}¢`;
+  return `${sign}${(n * 100).toFixed(1)} pts`;
 }
 
 export function fmtScore(n: number): string {

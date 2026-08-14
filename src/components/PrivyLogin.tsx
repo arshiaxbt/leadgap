@@ -2,6 +2,7 @@
 
 import { usePrivy, useWallets } from "@privy-io/react-auth";
 import { resetPerpsSession } from "@/lib/perpsSession";
+import { trackEvent } from "@/lib/track";
 import { PolyProfileChip } from "@/components/PolyProfile";
 import { shortAddr } from "@/lib/format";
 
@@ -37,7 +38,10 @@ export function PrivyLogin() {
   return (
     <button
       type="button"
-      onClick={() => void login()}
+      onClick={() => {
+        trackEvent("connect_wallet");
+        void login();
+      }}
       className="rounded border border-[#1a2030] px-2.5 py-1 text-[12px] text-zinc-200 hover:bg-white/5"
     >
       Log in

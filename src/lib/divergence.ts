@@ -1,4 +1,4 @@
-import { CONFIDENCE_FLOOR } from "./mapping";
+import { CONFIDENCE_FLOOR, isClearMapping, mappingKindOf } from "./mapping";
 import { leadgapMetrics } from "./score";
 import type { GapRow, GapWindow, PerpsTicker, ResidualPoint, ResolvedEvent, Snapshot } from "./types";
 
@@ -82,6 +82,7 @@ export function computeGaps(args: {
         yesPrice: event.yesPrice,
         markPrice: ticker.markPrice,
         mappingReason: link.mappingReason,
+        mappingKind: mappingKindOf(link),
         leader: metrics.leader,
         expected: metrics.expected,
         actual: metrics.actual,
@@ -92,7 +93,18 @@ export function computeGaps(args: {
     }
   }
 
-  return rows.sort((a, b) => b.score - a.score || Math.abs(b.gap) - Math.abs(a.gap));
+  return rows
+    .filter((row) =>
+      isClearMapping({
+        mappingKind: row.mappingKind,
+        mappingReason: row.mappingReason,
+        title: row.title,
+        question: row.question,
+        symbol: row.symbol,
+        confidence: row.confidence,
+      }),
+    )
+    .sort((a, b) => b.score - a.score || Math.abs(b.gap) - Math.abs(a.gap));
 }
 
 export function eventTitleKey(title: string): string {
@@ -104,22 +116,23 @@ export function eventTitleKey(title: string): string {
     .trim();
 }
 
-/** One row per event, then drop near-duplicate titles, keeping the highest score. */
+/** One row per event+perp, then drop near-duplicate titles for the same perp. */
 export function uniqueGapRows(rows: GapRow[]): GapRow[] {
-  const byEvent = new Map<string, GapRow>();
+  const byEventSymbol = new Map<string, GapRow>();
   for (const row of rows) {
-    const prev = byEvent.get(row.eventId);
-    if (!prev || row.score > prev.score) byEvent.set(row.eventId, row);
+    const key = `${row.eventId}:${row.symbol}`;
+    const prev = byEventSymbol.get(key);
+    if (!prev || row.score > prev.score) byEventSymbol.set(key, row);
   }
-  const byTitle = new Map<string, GapRow>();
-  for (const row of byEvent.values()) {
-    const key = eventTitleKey(row.title) || row.eventId;
-    const prev = byTitle.get(key);
+  const byTitleSymbol = new Map<string, GapRow>();
+  for (const row of byEventSymbol.values()) {
+    const key = `${eventTitleKey(row.title) || row.eventId}:${row.symbol}`;
+    const prev = byTitleSymbol.get(key);
     if (!prev || row.score > prev.score || (row.score === prev.score && row.volume > prev.volume)) {
-      byTitle.set(key, row);
+      byTitleSymbol.set(key, row);
     }
   }
-  return [...byTitle.values()].sort((a, b) => b.score - a.score || Math.abs(b.gap) - Math.abs(a.gap));
+  return [...byTitleSymbol.values()].sort((a, b) => b.score - a.score || Math.abs(b.gap) - Math.abs(a.gap));
 }
 
 export function residualPath(args: {

@@ -10,6 +10,7 @@ import { PriceChart } from "@/components/desk/PriceChart";
 import { TickerStrip } from "@/components/desk/TickerStrip";
 import { OrderTicket } from "@/components/OrderTicket";
 import { chartStory, thesisLine } from "@/lib/signal";
+import { trackEvent } from "@/lib/track";
 import type {
   Candle,
   GapRow,
@@ -100,6 +101,10 @@ export function TradeDesk({ symbol }: { symbol: string }) {
       clearInterval(id);
     };
   }, [eventParam, symbol]);
+
+  useEffect(() => {
+    trackEvent("open_market", { symbol });
+  }, [symbol]);
 
   const instrumentId = data?.instrument.instrumentId;
 
@@ -207,7 +212,7 @@ export function TradeDesk({ symbol }: { symbol: string }) {
       candles={candles}
       odds={selectedOdds}
       interval={klineInterval}
-      oddsLabel={events.find((e) => e.id === eventId)?.title ?? "Yes ¢"}
+      oddsLabel={events.find((e) => e.id === eventId)?.title ?? "Yes %"}
       gapMarks={(tape ?? []).filter((p) => p.symbol === instrument.symbol && (!eventId || p.eventId === eventId))}
       story={story}
     />

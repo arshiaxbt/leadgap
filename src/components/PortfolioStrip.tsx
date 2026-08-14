@@ -1,11 +1,13 @@
 "use client";
 
+import { usePrivy } from "@privy-io/react-auth";
 import { useAccount, usePublicClient, useWalletClient } from "wagmi";
 import { useEffect, useRef, useState } from "react";
 import { polygon } from "viem/chains";
 import { FundControls } from "@/components/FundControls";
+import { Pill } from "@/components/ui";
 import { explainPerpsError } from "@/lib/perpsAccess";
-import { forgetStoredPerpsSession } from "@/lib/perpsSession";
+import { fmtUsd, shortAddr } from "@/lib/format";
 import { ERC20_BALANCE_ABI, formatPusd, PUSD_TOKEN } from "@/lib/pusd";
 import { usePrivyMount } from "@/lib/usePrivyMount";
 
@@ -14,7 +16,7 @@ type PortfolioState = {
   available?: string;
   positions?: string;
   liquidation?: boolean;
-  note: string;
+  note?: string;
   href?: string;
   needsSignature?: boolean;
   funded?: boolean;
@@ -43,31 +45,21 @@ function fromPortfolio(
       : String(portfolio.withdrawable),
     positions: portfolio.positions
       .filter((p) => Number(p.size) !== 0)
-      .slice(0, 4)
+      .slice(0, 3)
       .map((p) => `${p.symbol} ${p.size}`)
-      .join(" · "),
+      .join("  "),
     liquidation: Boolean(portfolio.inLiquidation),
-    note: portfolio.inLiquidation
-      ? "Account is in liquidation scope — new risk-increasing orders are blocked."
-      : `Polymarket wallet ${client.account.wallet.slice(0, 6)}…${client.account.wallet.slice(-4)} · min deposit 10 pUSD`,
   };
 }
 
 export function PortfolioStrip() {
   const mount = usePrivyMount();
-  if (mount !== "ready") {
-    return (
-      <div className="border-b border-zinc-800 bg-[#101318] px-4 py-2 text-xs text-zinc-500">
-        {mount === "insecure"
-          ? "Privy login needs HTTPS or localhost (embedded wallets cannot run on plain HTTP IPs)."
-          : "Log in to load Perps equity, available order margin, and positions."}
-      </div>
-    );
-  }
+  if (mount !== "ready") return null;
   return <ConnectedPortfolio />;
 }
 
 function ConnectedPortfolio() {
+  const { authenticated, ready } = usePrivy();
   const { address, isConnected } = useAccount();
   const { data: walletClient } = useWalletClient({ chainId: polygon.id });
   const publicClient = usePublicClient({ chainId: polygon.id });
@@ -76,9 +68,8 @@ function ConnectedPortfolio() {
   const signerReady = Boolean(walletClient?.account?.address);
   const [retry, setRetry] = useState(0);
   const [busy, setBusy] = useState(false);
-  const [state, setState] = useState<PortfolioState>({
-    note: "Log in with Privy (email, Google, or wallet). That login is separate from the Polymarket Perps signature.",
-  });
+  const [openFund, setOpenFund] = useState(false);
+  const [state, setState] = useState<PortfolioState>({});
 
   async function walletPusdFor(addr: string): Promise<string | undefined> {
     if (!publicClient) return undefined;
@@ -96,19 +87,12 @@ function ConnectedPortfolio() {
   }
 
   useEffect(() => {
-    if (!isConnected || !address) {
-      setState({
-        note: "Log in with Privy (email, Google, or wallet). That login is separate from the Polymarket Perps signature.",
-      });
+    if (!ready || !authenticated || !isConnected || !address) {
+      setState({});
       return;
     }
     const wc = walletClientRef.current;
-    if (!wc?.account?.address) {
-      setState({
-        note: "Wallet connected. Waiting for the Polygon signer before loading Perps.",
-      });
-      return;
-    }
+    if (!wc?.account?.address) return;
     let stop = false;
     setBusy(true);
     (async () => {
@@ -117,10 +101,7 @@ function ConnectedPortfolio() {
         const opened = await resumePerpsSession(wc);
         if (stop) return;
         if (!opened) {
-          setState({
-            needsSignature: true,
-            note: "Privy login is done. Click Approve Perps session once to load equity and deposit.",
-          });
+          setState({ needsSignature: true });
           return;
         }
         const { client, session } = opened;
@@ -146,7 +127,7 @@ function ConnectedPortfolio() {
     return () => {
       stop = true;
     };
-  }, [address, isConnected, retry, signerReady]);
+  }, [address, authenticated, isConnected, ready, retry, signerReady]);
 
   async function approvePerps() {
     const wc = walletClientRef.current;
@@ -172,46 +153,60 @@ function ConnectedPortfolio() {
     }
   }
 
+  if (!ready || !authenticated) return null;
+
   return (
-    <div className="border-b border-zinc-800 bg-[#101318] px-4 py-2 text-xs text-zinc-400">
-      <div className="mx-auto flex max-w-7xl flex-col gap-2">
-        <div className="flex flex-wrap items-center gap-x-6 gap-y-1">
-          <span className="text-zinc-500">Portfolio</span>
-          {state.equity ? <span>Equity {state.equity} pUSD</span> : null}
-          {state.available ? <span>Withdrawable {state.available} pUSD</span> : null}
-          {state.positions ? <span>{state.positions}</span> : null}
-          {state.liquidation ? <span className="text-rose-400">Liquidation</span> : null}
-          <span className="text-zinc-500">{busy && !state.equity ? "Loading Perps…" : state.note}</span>
-          {state.needsSignature ? (
-            <button
-              type="button"
-              disabled={busy}
-              onClick={() => void approvePerps()}
-              className="text-zinc-300 underline disabled:opacity-40"
-            >
-              {busy ? "Waiting for wallet…" : "Approve Perps session"}
-            </button>
+    <div className="border-b border-[#1e2636] bg-[#0c1018]/90">
+      <div className="mx-auto flex max-w-[1280px] flex-col gap-2 px-4 py-2">
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-1 text-xs">
+          {busy && !state.funded && !state.needsSignature ? (
+            <span className="text-[#8b93a7]">Loading account…</span>
           ) : null}
           {state.needsSignature ? (
-            <button
-              type="button"
-              disabled={busy}
-              onClick={() => {
-                forgetStoredPerpsSession(address);
-                setRetry((n) => n + 1);
-              }}
-              className="text-zinc-500 underline disabled:opacity-40"
-            >
-              Reset stored session
-            </button>
+            <>
+              <span className="text-[#8b93a7]">Connect Perps to trade and see equity.</span>
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => void approvePerps()}
+                className="rounded-md bg-[#3ee0a8] px-2.5 py-1 font-medium text-[#07080c] disabled:opacity-40"
+              >
+                {busy ? "Waiting for wallet…" : "Connect Perps"}
+              </button>
+            </>
           ) : null}
+          {state.funded ? (
+            <>
+              <span className="text-[#8b93a7]">
+                Equity <span className="num text-zinc-100">{fmtUsd(state.equity)}</span>
+              </span>
+              <span className="text-[#8b93a7]">
+                Free <span className="num text-zinc-100">{fmtUsd(state.available)}</span>
+              </span>
+              {state.positions ? <span className="num text-zinc-300">{state.positions}</span> : null}
+              {state.liquidation ? <Pill tone="danger">Liquidation</Pill> : null}
+              {state.polymarketWallet ? (
+                <span className="hidden font-mono text-[#5c6478] sm:inline">
+                  {shortAddr(state.polymarketWallet)}
+                </span>
+              ) : null}
+              <button
+                type="button"
+                onClick={() => setOpenFund((v) => !v)}
+                className="ml-auto text-[#8b93a7] hover:text-white"
+              >
+                {openFund ? "Close" : "Transfer"}
+              </button>
+            </>
+          ) : null}
+          {state.note ? <span className="text-amber-200">{state.note}</span> : null}
           {state.href ? (
-            <a href={state.href} target="_blank" rel="noreferrer" className="text-zinc-300 underline">
-              polymarket.com/perps
+            <a href={state.href} target="_blank" rel="noreferrer" className="text-[#8bb4ff] hover:underline">
+              Request access
             </a>
           ) : null}
         </div>
-        {state.funded && walletClient ? (
+        {openFund && state.funded && walletClient ? (
           <FundControls
             walletClient={walletClient}
             publicClient={publicClient}

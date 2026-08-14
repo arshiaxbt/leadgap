@@ -4,7 +4,8 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { NewsList } from "@/components/NewsList";
 import { OrderTicket } from "@/components/OrderTicket";
-import { fmtOdds, fmtPct, fmtPx, signedClass } from "@/lib/format";
+import { Panel, Pill } from "@/components/ui";
+import { fmtOdds, fmtPct, fmtPx, leaderCopy, signedClass } from "@/lib/format";
 import type { GapRow, NewsItem, PerpsInstrument, PerpsTicker, ResolvedEvent } from "@/lib/types";
 
 type Payload = {
@@ -20,7 +21,6 @@ export function EventView({ id }: { id: string }) {
   const [gaps, setGaps] = useState<GapRow[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
-  const [noteSource, setNoteSource] = useState<string | null>(null);
   const [noteBusy, setNoteBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -29,7 +29,7 @@ export function EventView({ id }: { id: string }) {
     async function load() {
       const res = await fetch(`/api/events/${id}`);
       if (!res.ok) {
-        if (!stop) setError("Event not found or not yet ingested.");
+        if (!stop) setError("Event not found yet.");
         return;
       }
       const json = (await res.json()) as Payload;
@@ -76,18 +76,8 @@ export function EventView({ id }: { id: string }) {
           signedBeta: link.signedBeta,
         }),
       });
-      const json = (await res.json()) as {
-        text?: string;
-        source?: string;
-        model?: string;
-        provider?: string;
-      };
+      const json = (await res.json()) as { text?: string };
       setNote(json.text ?? null);
-      setNoteSource(
-        json.source === "model"
-          ? `${json.provider ?? "api"} · ${json.model ?? ""}`
-          : "rules (no free API key yet)",
-      );
     } finally {
       setNoteBusy(false);
     }
@@ -99,94 +89,101 @@ export function EventView({ id }: { id: string }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data?.event.id, selected, gap?.score]);
 
-  if (error) return <p className="text-sm text-rose-400">{error}</p>;
-  if (!data) return <p className="text-sm text-zinc-500">Loading event…</p>;
+  if (error) return <p className="text-sm text-rose-300">{error}</p>;
+  if (!data) return <div className="h-64 animate-pulse rounded-xl bg-white/5" />;
 
   const { event, news } = data;
 
   return (
     <div className="grid gap-6 lg:grid-cols-[1fr_340px]">
-      <div>
-        <p className="text-xs uppercase tracking-wide text-zinc-500">Event · signal only</p>
-        <h1 className="mt-1 text-2xl font-semibold text-zinc-100">{event.title}</h1>
-        <p className="mt-1 text-sm text-zinc-400">{event.question}</p>
-        <p className="mt-2 text-sm text-zinc-300">
-          Yes {fmtOdds(event.yesPrice)} · volume {fmtPx(event.volume, 0)}
-        </p>
-        <p className="mt-2 text-xs text-zinc-600">
-          Prediction markets are not tradable in this app. Trade the related perp if the mapping names a direction.
-        </p>
+      <div className="space-y-6">
+        <div>
+          <p className="text-xs text-[#8b93a7]">Event · signal only</p>
+          <h1 className="mt-1 text-2xl font-semibold tracking-tight text-white">{event.title}</h1>
+          <p className="mt-1 text-sm text-[#8b93a7]">{event.question}</p>
+          <div className="mt-3 flex flex-wrap items-center gap-3">
+            <span className="num text-3xl font-semibold text-[#3ee0a8]">{fmtOdds(event.yesPrice)}</span>
+            <span className="text-xs text-[#5c6478]">Yes · vol {fmtPx(event.volume, 0)}</span>
+            {gap ? (
+              <Pill tone={gap.leader === "odds" ? "lead" : gap.leader === "perp" ? "perp" : "mute"}>
+                {leaderCopy(gap.leader)}
+              </Pill>
+            ) : null}
+          </div>
+        </div>
 
-        <section className="mt-6">
-          <h2 className="mb-2 text-sm font-semibold text-zinc-100">Related perps</h2>
-          <div className="overflow-x-auto rounded-lg border border-zinc-800">
+        <section>
+          <h2 className="mb-3 text-sm font-medium text-zinc-200">Related perps</h2>
+          <Panel className="overflow-x-auto">
             <table className="w-full text-left text-sm">
-              <thead className="bg-[#12161c] text-xs uppercase text-zinc-500">
+              <thead className="text-[11px] uppercase tracking-wide text-[#5c6478]">
                 <tr>
-                  <th className="px-3 py-2">Symbol</th>
-                  <th className="px-3 py-2">Mark</th>
-                  <th className="px-3 py-2">β</th>
-                  <th className="px-3 py-2">Conf</th>
-                  <th className="px-3 py-2">15m gap</th>
-                  <th className="px-3 py-2">Why</th>
+                  <th className="px-4 py-2.5 font-medium">Market</th>
+                  <th className="px-3 py-2.5 font-medium">Mark</th>
+                  <th className="px-3 py-2.5 font-medium">15m gap</th>
+                  <th className="px-4 py-2.5 font-medium">Theme</th>
                 </tr>
               </thead>
               <tbody>
                 {event.perps.map((link) => {
                   const t = data.tickers[link.symbol];
                   const g = gaps.find((row) => row.symbol === link.symbol);
+                  const on = selected === link.symbol;
                   return (
                     <tr
                       key={link.symbol}
-                      className={`cursor-pointer border-t border-zinc-800 ${selected === link.symbol ? "bg-zinc-900" : "hover:bg-zinc-900/50"}`}
+                      className={`cursor-pointer border-t border-[#1e2636] ${on ? "bg-white/[0.04]" : "hover:bg-white/[0.03]"}`}
                       onClick={() => setSelected(link.symbol)}
                     >
-                      <td className="px-3 py-2">
-                        <Link href={`/markets/${link.symbol}`} className="text-zinc-100 hover:underline">
-                          {link.symbol}
+                      <td className="px-4 py-3">
+                        <Link href={`/markets/${link.symbol}`} className="font-medium text-zinc-100 hover:text-white">
+                          {link.symbol.replace("-USD", "")}
                         </Link>
                       </td>
-                      <td className="px-3 py-2">{t ? fmtPx(t.markPrice) : "—"}</td>
-                      <td className="px-3 py-2">{link.signedBeta}</td>
-                      <td className="px-3 py-2">{link.confidence.toFixed(2)}</td>
-                      <td className={`px-3 py-2 ${g ? signedClass(g.gap) : "text-zinc-500"}`}>
-                        {g ? fmtPct(g.gap) : "n/a"}
+                      <td className="num px-3 py-3">{t ? fmtPx(t.markPrice) : "—"}</td>
+                      <td className={`num px-3 py-3 ${g ? signedClass(g.gap) : "text-[#5c6478]"}`}>
+                        {g ? fmtPct(g.gap) : "—"}
                       </td>
-                      <td className="max-w-xs truncate px-3 py-2 text-xs text-zinc-500">{link.mappingReason}</td>
+                      <td className="px-4 py-3">
+                        <Pill>{link.cluster}</Pill>
+                      </td>
                     </tr>
                   );
                 })}
               </tbody>
             </table>
-          </div>
+          </Panel>
         </section>
 
-        <section className="mt-6 rounded-lg border border-zinc-800 p-4">
+        <Panel className="p-4">
           <div className="flex items-center justify-between gap-3">
-            <h2 className="text-sm font-semibold text-zinc-100">Interpretation</h2>
+            <h2 className="text-sm font-medium text-zinc-100">Read</h2>
             <button
               type="button"
               onClick={() => void loadNote()}
               disabled={noteBusy}
-              className="rounded border border-zinc-700 px-2 py-1 text-xs text-zinc-300 disabled:opacity-40"
+              className="text-xs text-[#8b93a7] hover:text-white disabled:opacity-40"
             >
-              {noteBusy ? "Writing…" : "Refresh note"}
+              {noteBusy ? "Writing…" : "Refresh"}
             </button>
           </div>
-          <p className="mt-2 text-sm leading-6 text-zinc-400">
-            {noteBusy
-              ? "Local Llama is writing from the mapped fields only…"
-              : (note ?? "Uses only the mapping table plus observed odds/mark moves. Will not invent a link.")}
+          <p className="mt-2 text-sm leading-6 text-[#b4bccb]">
+            {noteBusy ? "Writing from the mapped fields…" : (note ?? "A short note from the mapped odds and mark move.")}
           </p>
-          {noteSource ? <p className="mt-2 text-[11px] text-zinc-600">Source: {noteSource}</p> : null}
-        </section>
+        </Panel>
 
-        <section className="mt-6">
-          <h2 className="mb-2 text-sm font-semibold text-zinc-100">News</h2>
+        <section>
+          <h2 className="mb-3 text-sm font-medium text-zinc-200">News</h2>
           <NewsList items={news} />
         </section>
       </div>
-      {instrument ? <OrderTicket instrument={instrument} ticker={ticker} /> : <p className="text-sm text-zinc-500">Select a mapped perp to trade.</p>}
+      <div className="lg:sticky lg:top-20 lg:self-start">
+        {instrument ? (
+          <OrderTicket instrument={instrument} ticker={ticker} />
+        ) : (
+          <p className="text-sm text-[#8b93a7]">Select a perp to trade.</p>
+        )}
+      </div>
     </div>
   );
 }

@@ -12,8 +12,7 @@ export function explainPerpsError(err: unknown): PerpsAccess {
   if (/sign the perps proxy|sign the perps session|could not sign|user rejected|rejected the request|cancelled signing/.test(text)) {
     return {
       kind: "other",
-      message:
-        "Approve the Polymarket Perps CreateProxy typed-data on Polygon once. That is not the Privy wallet-login message. Rejected or overlapping prompts are ignored.",
+      message: "Approve the Perps signature in your wallet. This is separate from logging in.",
     };
   }
   const invite =
@@ -25,13 +24,12 @@ export function explainPerpsError(err: unknown): PerpsAccess {
     return {
       kind: "invite",
       href: PERPS_WAITLIST_URL,
-      message:
-        "Polymarket Perps is invite-only. This login is not enabled for Perps yet. Join the waitlist on Polymarket — you can still watch event/perp gaps here.",
+      message: "This account is not enabled for Polymarket Perps yet. You can still watch gaps here.",
     };
   }
 
   return {
     kind: "other",
-    message: raw || "Could not open a Perps session from this login.",
+    message: raw || "Could not open Perps for this login.",
   };
 }

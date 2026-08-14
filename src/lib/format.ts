@@ -50,3 +50,21 @@ export function sessionLabel(category: PerpsCategory, now = new Date()): Session
 export function mmr(maxLeverage: number): number {
   return 0.5 / maxLeverage;
 }
+
+export function shortAddr(addr: string): string {
+  if (addr.length < 12) return addr;
+  return `${addr.slice(0, 6)}…${addr.slice(-4)}`;
+}
+
+export function leaderCopy(leader: "odds" | "perp" | "flat"): string {
+  if (leader === "odds") return "Odds first";
+  if (leader === "perp") return "Perp first";
+  return "In line";
+}
+
+export function fmtUsd(n: string | number | undefined): string {
+  if (n == null || n === "") return "—";
+  const v = typeof n === "number" ? n : Number(n);
+  if (!Number.isFinite(v)) return String(n);
+  return v.toLocaleString("en-US", { maximumFractionDigits: 2 });
+}

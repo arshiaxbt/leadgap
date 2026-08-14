@@ -2,10 +2,7 @@
 
 import { usePrivy, useWallets } from "@privy-io/react-auth";
 import { resetPerpsSession } from "@/lib/perpsSession";
-
-function short(addr: string) {
-  return `${addr.slice(0, 6)}…${addr.slice(-4)}`;
-}
+import { shortAddr } from "@/lib/format";
 
 export function PrivyLogin() {
   const { ready, authenticated, login, logout, user } = usePrivy();
@@ -15,14 +12,14 @@ export function PrivyLogin() {
   const email = user?.email?.address;
 
   if (!ready) {
-    return <span className="text-xs text-zinc-500">Login…</span>;
+    return <span className="text-xs text-[#8b93a7]">Connecting…</span>;
   }
 
   if (authenticated) {
     return (
-      <div className="flex items-center gap-2">
-        <span className="hidden text-xs text-zinc-400 sm:inline">
-          {email ?? (address ? short(address) : "Signed in")}
+      <div className="flex items-center gap-3">
+        <span className="hidden font-mono text-xs text-[#8b93a7] sm:inline">
+          {email ?? (address ? shortAddr(address) : "Signed in")}
         </span>
         <button
           type="button"
@@ -30,8 +27,7 @@ export function PrivyLogin() {
             resetPerpsSession();
             void logout();
           }}
-          title="Privy logout. Stored Perps credentials stay in this browser so refresh does not ask for CreateProxy again."
-          className="rounded border border-zinc-700 px-3 py-1.5 text-xs text-zinc-200 hover:bg-zinc-800"
+          className="rounded-lg border border-[#1e2636] px-3 py-1.5 text-xs text-zinc-200 hover:bg-white/5"
         >
           Log out
         </button>
@@ -43,7 +39,7 @@ export function PrivyLogin() {
     <button
       type="button"
       onClick={() => void login()}
-      className="rounded bg-[#1652f0] px-3 py-1.5 text-sm font-medium text-white hover:bg-[#3d6ff5]"
+      className="rounded-lg bg-[#3ee0a8] px-3.5 py-1.5 text-sm font-medium text-[#07080c] hover:bg-[#6aebc0]"
     >
       Log in
     </button>

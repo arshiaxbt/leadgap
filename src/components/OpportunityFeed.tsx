@@ -1,16 +1,24 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { fmtOdds, fmtPct, signedClass } from "@/lib/format";
+import { fmtOdds, fmtPct, leaderCopy, signedClass } from "@/lib/format";
 import type { GapRow, GapWindow } from "@/lib/types";
+import { Empty, LiveDot, Panel, Pill, Segmented } from "@/components/ui";
 
-const WINDOWS: GapWindow[] = ["1m", "5m", "15m", "1h"];
+const WINDOWS: { id: GapWindow; label: string }[] = [
+  { id: "1m", label: "1m" },
+  { id: "5m", label: "5m" },
+  { id: "15m", label: "15m" },
+  { id: "1h", label: "1h" },
+];
 
 export function OpportunityFeed() {
   const [window, setWindow] = useState<GapWindow>("15m");
   const [gaps, setGaps] = useState<GapRow[]>([]);
-  const [events, setEvents] = useState<{ id: string; title: string; question: string; yesPrice: number; volume: number; perps: { symbol: string }[] }[]>([]);
+  const [events, setEvents] = useState<
+    { id: string; title: string; question: string; yesPrice: number; volume: number; perps: { symbol: string }[] }[]
+  >([]);
   const [asOf, setAsOf] = useState<number>(0);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -31,7 +39,7 @@ export function OpportunityFeed() {
         setAsOf(data.asOf);
         setError(data.error);
       } catch (err) {
-        if (!stop) setError(err instanceof Error ? err.message : "failed");
+        if (!stop) setError(err instanceof Error ? err.message : "Could not load markets.");
       } finally {
         if (!stop) setLoading(false);
       }
@@ -44,95 +52,105 @@ export function OpportunityFeed() {
     };
   }, [window]);
 
+  const maxScore = useMemo(() => Math.max(...gaps.map((g) => g.score), 0.0001), [gaps]);
+  const shown = gaps.slice(0, 60);
+
   return (
-    <div>
-      <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-semibold text-zinc-100">Event / perp gaps</h1>
-          <p className="mt-1 max-w-2xl text-sm text-zinc-500">
-            Odds move vs mark move on mapped Polymarket events. The server samples books in the
-            background — you do not need to leave this tab open. News is context. Trade the perp, not
-            the event book. A highlight is not a recommendation.
+    <div className="space-y-8">
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div className="max-w-xl">
+          <h1 className="text-2xl font-semibold tracking-tight text-white">Odds first. Then the perp.</h1>
+          <p className="mt-2 text-sm leading-6 text-[#8b93a7]">
+            Leadgap watches Polymarket event books against every live perp. When implied odds reprice
+            and the mark has not caught up, it surfaces here. Trade the perp — events are signal only.
           </p>
         </div>
-        <div className="flex gap-1">
-          {WINDOWS.map((w) => (
-            <button
-              key={w}
-              type="button"
-              onClick={() => setWindow(w)}
-              className={`rounded px-2.5 py-1 text-xs ${window === w ? "bg-zinc-100 text-zinc-900" : "bg-zinc-800 text-zinc-300"}`}
-            >
-              {w}
-            </button>
-          ))}
+        <div className="flex items-center gap-3">
+          <LiveDot label={asOf ? new Date(asOf).toLocaleTimeString() : "Live"} />
+          <Segmented options={WINDOWS} value={window} onChange={setWindow} />
         </div>
       </div>
-      {error ? <p className="mb-3 text-xs text-amber-400">{error}</p> : null}
-      {loading ? <p className="text-sm text-zinc-500">Loading live books… first ingest can take ~30s.</p> : null}
-      {!loading && gaps.length === 0 ? (
-        <div className="mb-6 rounded-lg border border-zinc-800 p-4 text-sm text-zinc-500">
-          No scored gap in this window yet. Leadgap keeps sampling on the server every 20 seconds, even
-          if you close the tab. Mapped live events are listed below.
-        </div>
-      ) : null}
-      <div className="overflow-x-auto rounded-lg border border-zinc-800">
-        <table className="w-full min-w-[860px] text-left text-sm">
-          <thead className="bg-[#12161c] text-xs uppercase tracking-wide text-zinc-500">
-            <tr>
-              <th className="px-3 py-2">Event</th>
-              <th className="px-3 py-2">Perp</th>
-              <th className="px-3 py-2">Odds</th>
-              <th className="px-3 py-2">Odds Δ</th>
-              <th className="px-3 py-2">Mark Δ</th>
-              <th className="px-3 py-2">Gap</th>
-              <th className="px-3 py-2">Leader</th>
-              <th className="px-3 py-2">Score</th>
-            </tr>
-          </thead>
-          <tbody>
-            {gaps.slice(0, 80).map((row) => (
-              <tr key={`${row.eventId}-${row.symbol}`} className="border-t border-zinc-800 hover:bg-zinc-900/60">
-                <td className="px-3 py-2">
-                  <Link href={`/events/${row.eventId}`} className="text-zinc-100 hover:underline">
-                    {row.title}
-                  </Link>
-                  <div className="max-w-md truncate text-xs text-zinc-500">{row.question}</div>
-                </td>
-                <td className="px-3 py-2">
-                  <Link href={`/markets/${row.symbol}`} className="text-zinc-200 hover:underline">
-                    {row.symbol}
-                  </Link>
-                </td>
-                <td className="px-3 py-2">{fmtOdds(row.yesPrice)}</td>
-                <td className={`px-3 py-2 ${signedClass(row.oddsMove)}`}>{fmtPct(row.oddsMove)}</td>
-                <td className={`px-3 py-2 ${signedClass(row.perpMove)}`}>{fmtPct(row.perpMove)}</td>
-                <td className={`px-3 py-2 ${signedClass(row.gap)}`}>{fmtPct(row.gap)}</td>
-                <td className="px-3 py-2 text-zinc-400">{row.leader}</td>
-                <td className="px-3 py-2 text-zinc-300">{row.score.toFixed(4)}</td>
+
+      {error ? <p className="text-sm text-amber-200">{error}</p> : null}
+
+      {loading ? (
+        <div className="h-64 animate-pulse rounded-xl bg-white/5" />
+      ) : shown.length === 0 ? (
+        <Empty
+          title="No gap in this window yet"
+          body="Books are sampling. Linked events are below — open one when a lead appears."
+        />
+      ) : (
+        <Panel className="overflow-x-auto">
+          <table className="w-full min-w-[880px] text-left text-sm">
+            <thead className="text-[11px] uppercase tracking-wide text-[#5c6478]">
+              <tr>
+                <th className="px-4 py-3 font-medium">Event</th>
+                <th className="px-3 py-3 font-medium">Perp</th>
+                <th className="px-3 py-3 font-medium">Odds</th>
+                <th className="px-3 py-3 font-medium">Odds Δ</th>
+                <th className="px-3 py-3 font-medium">Mark Δ</th>
+                <th className="px-3 py-3 font-medium">Gap</th>
+                <th className="px-3 py-3 font-medium">Lead</th>
+                <th className="px-4 py-3 font-medium">Strength</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      {asOf ? (
-        <p className="mt-3 text-xs text-zinc-600">As of {new Date(asOf).toLocaleTimeString()}</p>
-      ) : null}
+            </thead>
+            <tbody>
+              {shown.map((row) => (
+                <tr key={`${row.eventId}-${row.symbol}`} className="border-t border-[#1e2636] hover:bg-white/[0.03]">
+                  <td className="px-4 py-3">
+                    <Link href={`/events/${row.eventId}`} className="font-medium text-zinc-100 hover:text-white">
+                      {row.title}
+                    </Link>
+                    <div className="mt-0.5 max-w-sm truncate text-xs text-[#5c6478]">{row.question}</div>
+                  </td>
+                  <td className="px-3 py-3">
+                    <Link href={`/markets/${row.symbol}`} className="text-[#8bb4ff] hover:text-white">
+                      {row.symbol.replace("-USD", "")}
+                    </Link>
+                  </td>
+                  <td className="num px-3 py-3">{fmtOdds(row.yesPrice)}</td>
+                  <td className={`num px-3 py-3 ${signedClass(row.oddsMove)}`}>{fmtPct(row.oddsMove)}</td>
+                  <td className={`num px-3 py-3 ${signedClass(row.perpMove)}`}>{fmtPct(row.perpMove)}</td>
+                  <td className={`num px-3 py-3 ${signedClass(row.gap)}`}>{fmtPct(row.gap)}</td>
+                  <td className="px-3 py-3">
+                    <Pill tone={row.leader === "odds" ? "lead" : row.leader === "perp" ? "perp" : "mute"}>
+                      {leaderCopy(row.leader)}
+                    </Pill>
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="h-1.5 w-16 overflow-hidden rounded-full bg-white/5">
+                      <div
+                        className="h-full rounded-full bg-[#3ee0a8]"
+                        style={{ width: `${Math.max(8, (row.score / maxScore) * 100)}%` }}
+                      />
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </Panel>
+      )}
+
       {events.length > 0 ? (
-        <section className="mt-8">
-          <h2 className="mb-3 text-sm font-semibold text-zinc-100">Mapped live events</h2>
-          <ul className="divide-y divide-zinc-800 rounded-lg border border-zinc-800">
-            {events.slice(0, 40).map((event) => (
-              <li key={event.id} className="px-3 py-3">
-                <Link href={`/events/${event.id}`} className="text-zinc-100 hover:underline">
-                  {event.title}
-                </Link>
-                <div className="text-xs text-zinc-500">
-                  Yes {fmtOdds(event.yesPrice)} · {event.perps.map((p) => p.symbol).join(", ")}
-                </div>
-              </li>
+        <section>
+          <h2 className="mb-3 text-sm font-medium text-zinc-200">Linked events</h2>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {events.slice(0, 12).map((event) => (
+              <Link key={event.id} href={`/events/${event.id}`}>
+                <Panel className="h-full p-4 transition hover:border-[#3ee0a8]/30">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="num text-xs text-[#3ee0a8]">{fmtOdds(event.yesPrice)}</span>
+                    <span className="truncate text-[11px] text-[#5c6478]">
+                      {event.perps.map((p) => p.symbol.replace("-USD", "")).join(" · ")}
+                    </span>
+                  </div>
+                  <p className="mt-2 text-sm font-medium text-zinc-100">{event.title}</p>
+                </Panel>
+              </Link>
             ))}
-          </ul>
+          </div>
         </section>
       ) : null}
     </div>

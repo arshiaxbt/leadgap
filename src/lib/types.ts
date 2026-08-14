@@ -131,7 +131,7 @@ export type NewsItem = {
 
 export type SessionLabel = "RTH" | "overnight" | "24h";
 
-export type KlineInterval = "1m" | "5m" | "15m" | "1h";
+export type KlineInterval = "1m" | "5m" | "15m" | "30m" | "1h" | "4h" | "1d";
 
 export type PerpsBookLevel = { price: number; quantity: number };
 

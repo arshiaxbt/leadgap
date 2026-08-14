@@ -5,7 +5,7 @@ import type { KlineInterval } from "@/lib/types";
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
 
-const INTERVALS = new Set<KlineInterval>(["1m", "5m", "15m", "1h"]);
+const INTERVALS = new Set<KlineInterval>(["1m", "5m", "15m", "30m", "1h", "4h", "1d"]);
 
 export async function GET(req: Request) {
   const url = new URL(req.url);

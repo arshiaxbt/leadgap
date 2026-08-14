@@ -91,6 +91,33 @@ export function computeGaps(args: {
   return rows.sort((a, b) => b.score - a.score || Math.abs(b.gap) - Math.abs(a.gap));
 }
 
+export function eventTitleKey(title: string): string {
+  return title
+    .toLowerCase()
+    .replace(/\$/g, "")
+    .replace(/(\d+(?:\.\d+)?)k\b/g, (_, n) => String(Math.round(Number(n) * 1000)))
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
+/** One row per event, then drop near-duplicate titles, keeping the highest score. */
+export function uniqueGapRows(rows: GapRow[]): GapRow[] {
+  const byEvent = new Map<string, GapRow>();
+  for (const row of rows) {
+    const prev = byEvent.get(row.eventId);
+    if (!prev || row.score > prev.score) byEvent.set(row.eventId, row);
+  }
+  const byTitle = new Map<string, GapRow>();
+  for (const row of byEvent.values()) {
+    const key = eventTitleKey(row.title) || row.eventId;
+    const prev = byTitle.get(key);
+    if (!prev || row.score > prev.score || (row.score === prev.score && row.volume > prev.volume)) {
+      byTitle.set(key, row);
+    }
+  }
+  return [...byTitle.values()].sort((a, b) => b.score - a.score || Math.abs(b.gap) - Math.abs(a.gap));
+}
+
 export function residualPath(args: {
   odds: Snapshot[];
   marks: Snapshot[];

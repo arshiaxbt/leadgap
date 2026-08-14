@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { fmtPct, fmtPx, signedClass } from "@/lib/format";
+import { fmtCompact, fmtPct, fmtPx, signedClass } from "@/lib/format";
 import type { PerpsInstrument, PerpsTicker } from "@/lib/types";
 
 const CATS = [
@@ -23,11 +23,20 @@ export function PairPicker({
   const router = useRouter();
   const btn = useRef<HTMLButtonElement>(null);
   const panel = useRef<HTMLDivElement>(null);
+  const searchRef = useRef<HTMLInputElement>(null);
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
   const [cat, setCat] = useState<(typeof CATS)[number]["id"]>("all");
   const [tickers, setTickers] = useState<Record<string, PerpsTicker>>({});
   const [box, setBox] = useState({ top: 0, left: 0 });
+  const [hi, setHi] = useState(0);
+
+  useEffect(() => {
+    fetch("/api/markets")
+      .then((r) => r.json())
+      .then((d: { tickers?: Record<string, PerpsTicker> }) => setTickers(d.tickers ?? {}))
+      .catch(() => undefined);
+  }, []);
 
   useEffect(() => {
     if (!open) return;
@@ -40,7 +49,10 @@ export function PairPicker({
   useEffect(() => {
     if (!open || !btn.current) return;
     const r = btn.current.getBoundingClientRect();
-    setBox({ top: r.bottom + 6, left: r.left });
+    const width = 420;
+    const left = Math.min(r.left, Math.max(8, window.innerWidth - width - 8));
+    setBox({ top: r.bottom + 6, left });
+    window.setTimeout(() => searchRef.current?.focus(), 0);
   }, [open]);
 
   useEffect(() => {
@@ -68,10 +80,25 @@ export function PairPicker({
         if (!needle) return true;
         return `${item.symbol} ${item.baseAsset} ${item.category}`.toLowerCase().includes(needle);
       })
-      .sort((a, b) => a.symbol.localeCompare(b.symbol));
-  }, [cat, instruments, q]);
+      .sort((a, b) => {
+        if (a.symbol === instrument.symbol) return -1;
+        if (b.symbol === instrument.symbol) return 1;
+        const oa = tickers[a.symbol]?.openInterest ?? 0;
+        const ob = tickers[b.symbol]?.openInterest ?? 0;
+        return ob - oa;
+      });
+  }, [cat, instrument.symbol, instruments, q, tickers]);
+
+  useEffect(() => {
+    setHi(0);
+  }, [q, cat, open]);
 
   const base = instrument.symbol.replace("-USD", "");
+
+  function go(symbol: string) {
+    setOpen(false);
+    router.push(`/markets/${symbol}`);
+  }
 
   return (
     <>
@@ -84,8 +111,11 @@ export function PairPicker({
           setCat("all");
         }}
         className="flex h-8 items-center gap-1.5 rounded px-1.5 hover:bg-white/[0.04]"
+        aria-expanded={open}
+        aria-haspopup="listbox"
       >
         <span className="text-sm font-semibold tracking-wide text-white">{base}</span>
+        <span className="text-[10px] text-[#5c6478]">Perp</span>
         <svg viewBox="0 0 12 12" className={`h-2 w-2 text-[#8b93a7] ${open ? "rotate-180" : ""}`} aria-hidden>
           <path fill="currentColor" d="M2.2 4.2 6 8l3.8-3.8-.9-.9L6 6.2 3.1 3.3z" />
         </svg>
@@ -94,13 +124,26 @@ export function PairPicker({
         <div
           ref={panel}
           style={{ top: box.top, left: box.left }}
-          className="fixed z-50 w-[280px] overflow-hidden rounded-lg border border-[#1e2636] bg-[#0c1018] shadow-[0_16px_40px_rgba(0,0,0,0.5)]"
+          className="fixed z-50 w-[420px] overflow-hidden rounded-lg border border-[#1e2636] bg-[#0c1018] shadow-[0_16px_40px_rgba(0,0,0,0.55)]"
         >
           <input
+            ref={searchRef}
             autoFocus
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder="Search"
+            onKeyDown={(e) => {
+              if (e.key === "ArrowDown") {
+                e.preventDefault();
+                setHi((n) => Math.min(rows.length - 1, n + 1));
+              } else if (e.key === "ArrowUp") {
+                e.preventDefault();
+                setHi((n) => Math.max(0, n - 1));
+              } else if (e.key === "Enter") {
+                const row = rows[hi];
+                if (row) go(row.symbol);
+              }
+            }}
+            placeholder="Search markets"
             className="w-full border-b border-[#1e2636] bg-transparent px-3 py-2 text-xs text-zinc-100 outline-none placeholder:text-[#5c6478]"
           />
           <div className="flex gap-1 overflow-x-auto border-b border-[#1e2636] px-2 py-1.5">
@@ -117,11 +160,17 @@ export function PairPicker({
               </button>
             ))}
           </div>
-          <div className="max-h-64 overflow-auto py-1">
+          <div className="grid grid-cols-[1fr_88px_64px_56px] px-3 py-1 text-[9px] uppercase tracking-wide text-[#5c6478]">
+            <span>Market</span>
+            <span className="text-right">Mark</span>
+            <span className="text-right">1h</span>
+            <span className="text-right">OI</span>
+          </div>
+          <div className="max-h-[min(70vh,420px)] overflow-auto pb-1">
             {rows.length === 0 ? (
               <p className="px-3 py-3 text-[11px] text-[#5c6478]">No markets.</p>
             ) : (
-              rows.map((item) => {
+              rows.map((item, i) => {
                 const t = tickers[item.symbol];
                 const ch = t?.change1h ?? null;
                 const on = item.symbol === instrument.symbol;
@@ -129,20 +178,24 @@ export function PairPicker({
                   <button
                     key={item.symbol}
                     type="button"
-                    onClick={() => {
-                      setOpen(false);
-                      router.push(`/markets/${item.symbol}`);
-                    }}
-                    className={`flex w-full items-center gap-2 px-3 py-1 text-left text-xs hover:bg-white/[0.04] ${
-                      on ? "bg-white/[0.06]" : ""
+                    onMouseEnter={() => setHi(i)}
+                    onClick={() => go(item.symbol)}
+                    className={`grid w-full grid-cols-[1fr_88px_64px_56px] items-center px-3 py-1.5 text-left text-xs ${
+                      on || i === hi ? "bg-white/[0.06]" : "hover:bg-white/[0.04]"
                     }`}
                   >
-                    <span className="w-14 font-medium text-zinc-100">{item.symbol.replace("-USD", "")}</span>
-                    <span className="num flex-1 text-right text-zinc-300">
+                    <span className="flex min-w-0 items-center gap-1.5">
+                      <span className="truncate font-medium text-zinc-100">{item.symbol.replace("-USD", "")}</span>
+                      <span className="shrink-0 text-[9px] uppercase text-[#5c6478]">{item.category}</span>
+                    </span>
+                    <span className="num text-right text-zinc-300">
                       {t ? fmtPx(t.markPrice, item.priceDecimals) : "—"}
                     </span>
-                    <span className={`num w-12 text-right ${ch != null ? signedClass(ch) : "text-[#5c6478]"}`}>
+                    <span className={`num text-right ${ch != null ? signedClass(ch) : "text-[#5c6478]"}`}>
                       {ch != null ? fmtPct(ch) : "—"}
+                    </span>
+                    <span className="num text-right text-[#8b93a7]">
+                      {t ? fmtCompact(t.openInterest) : "—"}
                     </span>
                   </button>
                 );

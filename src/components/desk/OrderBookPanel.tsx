@@ -3,7 +3,7 @@
 import { fmtPx } from "@/lib/format";
 import type { PerpsBook } from "@/lib/types";
 
-const LEVELS = 8;
+const LEVELS = 14;
 
 export function OrderBookPanel({
   book,
@@ -53,7 +53,7 @@ export function OrderBookPanel({
         <span className="text-right">Size</span>
         <span className="text-right">Sum</span>
       </div>
-      <div className="min-h-0 flex-1 overflow-hidden">
+      <div className="min-h-0 flex-1 overflow-auto">
         {askRows.map((level) => (
           <Row
             key={`a-${level.price}`}

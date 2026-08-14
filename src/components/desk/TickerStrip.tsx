@@ -42,7 +42,10 @@ export function TickerStrip({
             { id: "1m", label: "1m" },
             { id: "5m", label: "5m" },
             { id: "15m", label: "15m" },
+            { id: "30m", label: "30m" },
             { id: "1h", label: "1h" },
+            { id: "4h", label: "4h" },
+            { id: "1d", label: "1d" },
           ]}
           value={interval}
           onChange={onInterval}

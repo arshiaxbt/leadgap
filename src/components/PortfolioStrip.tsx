@@ -6,12 +6,11 @@ import { useAccount, useWalletClient } from "wagmi";
 import { useEffect, useRef, useState } from "react";
 import { polygon } from "viem/chains";
 import { explainPerpsError } from "@/lib/perpsAccess";
-import { fmtUsd, fmtUsdSigned, signedClass } from "@/lib/format";
+import { fmtUsd } from "@/lib/format";
 import { usePrivyMount } from "@/lib/usePrivyMount";
 
 type Summary = {
   equity?: number;
-  upnl?: number;
   note?: string;
   href?: string;
   needsSignature?: boolean;
@@ -62,11 +61,9 @@ function AccountChip() {
         const portfolio = await session.fetchPortfolio();
         if (stop) return;
         const margin = portfolio.margin ?? {};
-        const positions = (portfolio.positions ?? []).filter((p) => Number(p.size) !== 0);
         setState({
           funded: true,
           equity: num(margin.totalAccountValue ?? portfolio.withdrawable),
-          upnl: positions.reduce((s, p) => s + num(p.unrealizedPnl), 0),
         });
       } catch (err) {
         if (!stop) {
@@ -120,9 +117,6 @@ function AccountChip() {
         <>
           <span className="text-[#7d8699]">
             Eq <span className="num text-zinc-100">{fmtUsd(state.equity)}</span>
-          </span>
-          <span className="text-[#7d8699]">
-            PnL <span className={`num ${signedClass(state.upnl ?? 0)}`}>{fmtUsdSigned(state.upnl)}</span>
           </span>
         </>
       ) : null}

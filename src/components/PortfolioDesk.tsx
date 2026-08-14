@@ -6,6 +6,7 @@ import { useAccount, usePublicClient, useWalletClient } from "wagmi";
 import { polygon } from "viem/chains";
 import { BUILDER_CODE } from "@/lib/builder";
 import { FundControls } from "@/components/FundControls";
+import { PolyProfileCard } from "@/components/PolyProfile";
 import { Pill } from "@/components/ui";
 import { explainPerpsError } from "@/lib/perpsAccess";
 import { fmtPx, fmtUsd, fmtUsdSigned, signedClass } from "@/lib/format";
@@ -82,7 +83,7 @@ const EMPTY: DeskState = {
 
 export function PortfolioDesk() {
   const mount = usePrivyMount();
-  const { isConnected } = useAccount();
+  const { address, isConnected } = useAccount();
   const { data: walletClient } = useWalletClient({ chainId: polygon.id });
   const publicClient = usePublicClient({ chainId: polygon.id });
   const walletClientRef = useRef(walletClient);
@@ -281,6 +282,10 @@ export function PortfolioDesk() {
           Back to markets
         </Link>
       </div>
+
+      {address || state.polymarketWallet ? (
+        <PolyProfileCard eoa={address} polymarketWallet={state.polymarketWallet} />
+      ) : null}
 
       {state.needsSignature ? (
         <button

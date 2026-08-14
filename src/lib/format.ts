@@ -85,10 +85,27 @@ export function shortAddr(addr: string): string {
   return `${addr.slice(0, 6)}…${addr.slice(-4)}`;
 }
 
+export function fmtCompact(n: number): string {
+  if (!Number.isFinite(n)) return "—";
+  const abs = Math.abs(n);
+  if (abs >= 1e6) return `${(n / 1e6).toFixed(1)}M`;
+  if (abs >= 1e3) return `${(n / 1e3).toFixed(1)}K`;
+  return fmtPx(n, 2);
+}
+
 export function leaderCopy(leader: "odds" | "perp" | "flat"): string {
-  if (leader === "odds") return "Odds first";
-  if (leader === "perp") return "Perp first";
-  return "In line";
+  switch (leader) {
+    case "odds":
+      return "Odds first";
+    case "perp":
+      return "Perp first";
+    case "flat":
+      return "In line";
+    default: {
+      const _never: never = leader;
+      return _never;
+    }
+  }
 }
 
 export function fmtUsd(n: string | number | undefined): string {

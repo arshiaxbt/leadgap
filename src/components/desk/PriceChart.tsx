@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import {
+  AreaSeries,
   CandlestickSeries,
   ColorType,
   CrosshairMode,
@@ -25,7 +26,10 @@ const STEP: Record<KlineInterval, number> = {
   "1m": 60,
   "5m": 300,
   "15m": 900,
+  "30m": 1800,
   "1h": 3600,
+  "4h": 14_400,
+  "1d": 86_400,
 };
 
 function clock(realSec: number, withDate = false): string {
@@ -47,16 +51,18 @@ export function PriceChart({
   candles,
   odds,
   interval = "5m",
+  oddsLabel = "Yes ¢",
 }: {
   candles: Candle[];
   odds?: Snapshot[];
   interval?: KlineInterval;
+  oddsLabel?: string;
 }) {
   const host = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const candleRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
   const closeRef = useRef<ISeriesApi<"Line"> | null>(null);
-  const oddsRef = useRef<ISeriesApi<"Line"> | null>(null);
+  const oddsRef = useRef<ISeriesApi<"Area"> | null>(null);
   const fitted = useRef(false);
   const pendingTrend = useRef<{ time: UTCTimestamp; value: number } | null>(null);
   const linesRef = useRef<IPriceLine[]>([]);
@@ -67,7 +73,7 @@ export function PriceChart({
   stepRef.current = STEP[interval];
   const [tool, setTool] = useState<Tool>("cursor");
   const [style, setStyle] = useState<Style>("candle");
-  const [oddsOn, setOddsOn] = useState(false);
+  const [oddsOn, setOddsOn] = useState(true);
   const [log, setLog] = useState(false);
   const [hover, setHover] = useState<{
     o: number;
@@ -106,7 +112,6 @@ export function PriceChart({
       leftPriceScale: {
         visible: false,
         borderColor: "#1e2636",
-        scaleMargins: { top: 0.2, bottom: 0.2 },
       },
       localization: {
         timeFormatter: (t: Time) => clock(realByLogical.current.get(Number(t)) ?? Number(t), true),
@@ -145,17 +150,29 @@ export function PriceChart({
       visible: false,
       lastValueVisible: true,
     });
-    const oddsSeries = chart.addSeries(LineSeries, {
-      color: "rgba(77, 141, 255, 0.4)",
-      lineWidth: 1,
-      lineStyle: LineStyle.Dashed,
-      priceScaleId: "left",
-      lastValueVisible: true,
-      priceLineVisible: false,
-      crosshairMarkerVisible: false,
-      title: "Odds",
-      visible: false,
+    const oddsPane = chart.addPane(true);
+    const oddsSeries = chart.addSeries(
+      AreaSeries,
+      {
+        lineColor: "#5b8def",
+        topColor: "rgba(91, 141, 239, 0.28)",
+        bottomColor: "rgba(91, 141, 239, 0.02)",
+        lineWidth: 2,
+        priceScaleId: "right",
+        lastValueVisible: true,
+        priceLineVisible: true,
+        crosshairMarkerVisible: true,
+        title: "Yes ¢",
+        visible: true,
+      },
+      oddsPane.paneIndex(),
+    );
+    oddsSeries.priceScale().applyOptions({
+      scaleMargins: { top: 0.12, bottom: 0.12 },
     });
+    chart.panes()[0]?.setStretchFactor(1);
+    oddsPane.setStretchFactor(0.42);
+    oddsPane.setHeight(132);
     chartRef.current = chart;
     candleRef.current = candlesSeries;
     closeRef.current = closeSeries;
@@ -278,19 +295,22 @@ export function PriceChart({
       oddsRef.current.setData([]);
       return;
     }
+    const samples = (odds ?? [])
+      .map((p) => ({
+        real: p.t > 1e12 ? Math.floor(p.t / 1000) : Math.floor(p.t),
+        v: p.v,
+      }))
+      .filter((p) => Number.isFinite(p.real) && Number.isFinite(p.v))
+      .sort((a, b) => a.real - b.real);
     const byT = new Map<number, number>();
-    for (const p of odds ?? []) {
-      if (!Number.isFinite(p.t) || !Number.isFinite(p.v)) continue;
-      const real = Math.floor(p.t / 1000);
-      if (real < packed[0]!.real || real > packed[packed.length - 1]!.real + stepRef.current) continue;
-      let lo = 0;
-      let hi = packed.length - 1;
-      while (lo < hi) {
-        const mid = (lo + hi + 1) >> 1;
-        if (packed[mid]!.real <= real) lo = mid;
-        else hi = mid - 1;
+    let j = 0;
+    let last: number | null = null;
+    for (const bar of packed) {
+      while (j < samples.length && samples[j]!.real <= bar.real) {
+        last = samples[j]!.v * 100;
+        j += 1;
       }
-      byT.set(packed[lo]!.logical, p.v * 100);
+      if (last != null) byT.set(bar.logical, last);
     }
     oddsMapRef.current = byT;
     oddsRef.current.setData(
@@ -306,9 +326,11 @@ export function PriceChart({
   }, [style]);
 
   useEffect(() => {
-    oddsRef.current?.applyOptions({ visible: oddsOn });
-    chartRef.current?.priceScale("left").applyOptions({ visible: oddsOn });
-  }, [oddsOn]);
+    oddsRef.current?.applyOptions({ visible: oddsOn, title: oddsLabel.slice(0, 28) || "Yes ¢" });
+    const panes = chartRef.current?.panes();
+    panes?.[0]?.setStretchFactor(1);
+    panes?.[1]?.setStretchFactor(oddsOn ? 0.36 : 0.001);
+  }, [oddsOn, oddsLabel]);
 
   useEffect(() => {
     chartRef.current?.priceScale("right").applyOptions({
@@ -365,7 +387,7 @@ export function PriceChart({
             O {fmtN(hover.o)} H {fmtN(hover.h)} L {fmtN(hover.l)} C{" "}
             <span className={hover.c >= hover.o ? "text-[#3ee0a8]" : "text-rose-300"}>{fmtN(hover.c)}</span>
             {oddsOn && hover.odds != null ? (
-              <span className="ml-2 text-[#5b8def]">{hover.odds.toFixed(1)}¢</span>
+              <span className="ml-2 text-[#5b8def]">Yes {hover.odds.toFixed(1)}¢</span>
             ) : null}
           </span>
         ) : (
@@ -378,7 +400,7 @@ export function PriceChart({
         <ToolBtn active={false} onClick={clearDrawings} label="Clear" />
         <ToolBtn active={style === "candle"} onClick={() => setStyle("candle")} label="Candles" />
         <ToolBtn active={style === "line"} onClick={() => setStyle("line")} label="Line" />
-        <ToolBtn active={oddsOn} onClick={() => setOddsOn((v) => !v)} label="Odds" />
+        <ToolBtn active={oddsOn} onClick={() => setOddsOn((v) => !v)} label="Yes ¢" />
         <ToolBtn active={log} onClick={() => setLog((v) => !v)} label="Log" />
         <ToolBtn
           active={false}

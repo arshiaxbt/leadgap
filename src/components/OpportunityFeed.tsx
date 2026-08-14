@@ -4,8 +4,9 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { ExpectedActual } from "@/components/desk/ExpectedActual";
 import { Empty, LiveDot, Panel, Pill, Segmented, TextInput } from "@/components/ui";
+import { eventTitleKey } from "@/lib/divergence";
 import { fmtOdds, fmtOddsDelta, fmtPct, fmtScore, leaderCopy, signedClass } from "@/lib/format";
-import { biasCopy, scoreClass } from "@/lib/score";
+import { biasCopy, isActionable, scoreClass } from "@/lib/score";
 import type { GapRow, GapWindow } from "@/lib/types";
 
 const WINDOWS: { id: GapWindow; label: string }[] = [
@@ -16,6 +17,21 @@ const WINDOWS: { id: GapWindow; label: string }[] = [
 ];
 
 type Filter = "actionable" | "odds" | "all";
+
+function matchesFilter(row: GapRow, filter: Filter): boolean {
+  switch (filter) {
+    case "actionable":
+      return isActionable(row);
+    case "odds":
+      return row.leader === "odds" && !isActionable(row);
+    case "all":
+      return true;
+    default: {
+      const _never: never = filter;
+      return _never;
+    }
+  }
+}
 
 export function OpportunityFeed() {
   const [window, setWindow] = useState<GapWindow>("15m");
@@ -50,8 +66,8 @@ export function OpportunityFeed() {
         setGaps(rows);
         setSummary(
           data.summary ?? {
-            oddsFirst: rows.filter((g) => g.leader === "odds").length,
-            actionable: rows.filter((g) => g.bias && g.bias !== "none").length,
+            oddsFirst: rows.filter((g) => g.leader === "odds" && !isActionable(g)).length,
+            actionable: rows.filter(isActionable).length,
             topScore: rows[0]?.score ?? 0,
           },
         );
@@ -74,14 +90,26 @@ export function OpportunityFeed() {
 
   const shown = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return gaps.filter((row) => {
-      if (filter === "odds" && row.leader !== "odds") return false;
-      if (filter === "actionable" && (row.bias ?? "none") === "none") return false;
+    return gaps.filter((row) => matchesFilter(row, filter)).filter((row) => {
       if (!q) return true;
       const hay = `${row.title} ${row.question} ${row.symbol}`.toLowerCase();
       return hay.includes(q);
     });
   }, [filter, gaps, query]);
+
+  const linked = useMemo(() => {
+    const out: typeof events = [];
+    const seen = new Set<string>();
+    for (const event of events) {
+      if (!event.perps[0]?.symbol) continue;
+      const key = eventTitleKey(event.title) || event.id;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push(event);
+      if (out.length >= 12) break;
+    }
+    return out;
+  }, [events]);
 
   const featured = shown.slice(0, 3);
   const table = shown.slice(0, 60);
@@ -111,9 +139,9 @@ export function OpportunityFeed() {
       <div className="flex flex-wrap items-center gap-2">
         <Segmented
           options={[
-            { id: "actionable", label: "Actionable" },
-            { id: "odds", label: "Odds first" },
-            { id: "all", label: "All" },
+            { id: "actionable", label: `Actionable ${summary.actionable}` },
+            { id: "odds", label: `Odds first ${summary.oddsFirst}` },
+            { id: "all", label: `All ${gaps.length}` },
           ]}
           value={filter}
           onChange={setFilter}
@@ -121,6 +149,9 @@ export function OpportunityFeed() {
         <div className="w-48">
           <TextInput value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Event or perp" />
         </div>
+        <p className="w-full text-[11px] text-[#7d8699]">
+          Actionable is score ≥ 28 and not already caught up. Odds first is odds-led but not yet actionable. All is unique events.
+        </p>
       </div>
 
       {error ? <p className="text-sm text-amber-200">{error}</p> : null}
@@ -224,14 +255,11 @@ export function OpportunityFeed() {
         </>
       )}
 
-      {events.length > 0 ? (
+      {linked.length > 0 ? (
         <section>
           <h2 className="mb-3 text-sm font-medium text-zinc-200">Linked events</h2>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {events
-              .filter((event) => event.perps[0]?.symbol)
-              .slice(0, 12)
-              .map((event) => (
+            {linked.map((event) => (
                 <Link key={event.id} href={`/markets/${event.perps[0]!.symbol}?event=${event.id}`}>
                   <Panel className="h-full p-4 transition hover:border-[#3ee0a8]/30">
                     <div className="flex items-center justify-between gap-2">

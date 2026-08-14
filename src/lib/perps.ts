@@ -148,7 +148,10 @@ const KLINE_LOOKBACK: Record<KlineInterval, number> = {
   "1m": 8 * 60 * 60 * 1000,
   "5m": 36 * 60 * 60 * 1000,
   "15m": 4 * 24 * 60 * 60 * 1000,
+  "30m": 10 * 24 * 60 * 60 * 1000,
   "1h": 21 * 24 * 60 * 60 * 1000,
+  "4h": 60 * 24 * 60 * 60 * 1000,
+  "1d": 180 * 24 * 60 * 60 * 1000,
 };
 
 export async function fetchCandles(

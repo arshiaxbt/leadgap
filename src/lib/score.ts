@@ -54,6 +54,12 @@ export function leadgapMetrics(args: {
   return { expected, actual, gap, leader, bias, catchup, score };
 }
 
+export function isActionable(row: Pick<GapRow, "bias" | "score" | "catchup">): boolean {
+  if (row.bias === "none" || row.score < 28) return false;
+  if (row.catchup != null && Number.isFinite(row.catchup) && row.catchup >= 0.85) return false;
+  return true;
+}
+
 export function scoreTone(score: number): "lead" | "warn" | "mute" {
   if (score >= 55) return "lead";
   if (score >= 28) return "warn";
@@ -68,9 +74,18 @@ export function scoreClass(score: number): string {
 
 export function biasCopy(bias: Bias, symbol?: string): string {
   const name = symbol ? symbol.replace("-USD", "") : "";
-  if (bias === "long") return name ? `Long ${name}` : "Long";
-  if (bias === "short") return name ? `Short ${name}` : "Short";
-  return "No edge";
+  switch (bias) {
+    case "long":
+      return name ? `Long ${name}` : "Long";
+    case "short":
+      return name ? `Short ${name}` : "Short";
+    case "none":
+      return "No edge";
+    default: {
+      const _never: never = bias;
+      return _never;
+    }
+  }
 }
 
 export function catchupCopy(catchup: number | null): string {

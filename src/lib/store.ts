@@ -1,7 +1,8 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { allGammaQueries, ASSET_MAP, CLUSTER_RULES, CONFIDENCE_FLOOR, mapBySymbol } from "./mapping";
-import { computeGaps, GAP_WINDOWS } from "./divergence";
+import { computeGaps, eventTitleKey, GAP_WINDOWS, uniqueGapRows } from "./divergence";
+import { isActionable } from "./score";
 import { bestMarket, fetchOddsHistory, fetchYesMid, parseTokenIds, parseYesPrice, searchGammaEvents } from "./gamma";
 import { fetchNews } from "./news";
 import { fetchHourlyKlines, fetchInstruments, fetchTickers } from "./perps";
@@ -134,6 +135,25 @@ function addLink(event: ResolvedEvent, link: LinkedPerp) {
   }
 }
 
+function uniqueEvents(events: ResolvedEvent[]): ResolvedEvent[] {
+  const ranked = [...events].sort((a, b) => b.volume - a.volume);
+  const out: ResolvedEvent[] = [];
+  const seenId = new Set<string>();
+  const seenTitle = new Set<string>();
+  for (const event of ranked) {
+    if (seenId.has(event.id)) continue;
+    const key = eventTitleKey(event.title) || event.id;
+    if (seenTitle.has(key)) continue;
+    seenId.add(event.id);
+    seenTitle.add(key);
+    out.push({
+      ...event,
+      perps: [...event.perps].sort((a, b) => b.confidence - a.confidence).slice(0, 1),
+    });
+  }
+  return out;
+}
+
 async function mapPool<T, R>(items: T[], size: number, fn: (item: T) => Promise<R>): Promise<R[]> {
   const out: R[] = [];
   for (let i = 0; i < items.length; i += size) {
@@ -221,7 +241,20 @@ async function resolveEvents(): Promise<ResolvedEvent[]> {
     }
   }
 
-  return [...byId.values()].filter((e) => e.perps.length > 0);
+  const ranked = [...byId.values()]
+    .filter((e) => e.perps.length > 0)
+    .sort((a, b) => b.volume - a.volume);
+  const out: ResolvedEvent[] = [];
+  const seenTitle = new Set<string>();
+  for (const event of ranked) {
+    event.perps.sort((a, b) => b.confidence - a.confidence);
+    event.perps = event.perps.slice(0, 1);
+    const key = eventTitleKey(event.title) || event.id;
+    if (seenTitle.has(key)) continue;
+    seenTitle.add(key);
+    out.push(event);
+  }
+  return out;
 }
 
 async function ingestOnce() {
@@ -272,6 +305,7 @@ async function ingestOnce() {
         if (mid != null) event.yesPrice = mid;
       });
     }
+    s.events = uniqueEvents(s.events);
 
     for (const event of s.events) {
       mergeSnaps(s.oddsHistory, event.id, [{ t: now, v: event.yesPrice }]);
@@ -352,21 +386,23 @@ export async function getGaps(window: GapWindow): Promise<{
   summary: { oddsFirst: number; actionable: number; topScore: number };
 }> {
   const s = await ensureFresh();
-  const gaps = computeGaps({
-    events: s.events,
-    tickers: s.tickers,
-    oddsHistory: s.oddsHistory,
-    markHistory: s.markHistory,
-    window,
-  });
+  const gaps = uniqueGapRows(
+    computeGaps({
+      events: s.events,
+      tickers: s.tickers,
+      oddsHistory: s.oddsHistory,
+      markHistory: s.markHistory,
+      window,
+    }),
+  );
   return {
     gaps,
     asOf: s.lastIngest,
     error: s.error,
     polling: true,
     summary: {
-      oddsFirst: gaps.filter((g) => g.leader === "odds").length,
-      actionable: gaps.filter((g) => g.bias !== "none").length,
+      oddsFirst: gaps.filter((g) => g.leader === "odds" && !isActionable(g)).length,
+      actionable: gaps.filter(isActionable).length,
       topScore: gaps[0]?.score ?? 0,
     },
   };
@@ -374,7 +410,7 @@ export async function getGaps(window: GapWindow): Promise<{
 
 export async function getEvents() {
   const s = await ensureFresh();
-  return { events: s.events, tickers: s.tickers, asOf: s.lastIngest, error: s.error };
+  return { events: uniqueEvents(s.events), tickers: s.tickers, asOf: s.lastIngest, error: s.error };
 }
 
 export async function getEvent(id: string) {
@@ -396,26 +432,30 @@ export async function getAsset(symbol: string) {
   const instrument = s.instruments.find((i) => i.symbol === symbol);
   if (!instrument) return null;
   const ticker = s.tickers[symbol];
-  const events = s.events.filter((e) => e.perps.some((p) => p.symbol === symbol));
+  const events = uniqueEvents(s.events.filter((e) => e.perps.some((p) => p.symbol === symbol)));
   const news = s.news.filter((n) => n.symbols.includes(symbol));
   const mapping = mapBySymbol().get(symbol) ?? null;
-  const gaps = computeGaps({
-    events,
-    tickers: s.tickers,
-    oddsHistory: s.oddsHistory,
-    markHistory: s.markHistory,
-    window: "15m",
-  }).filter((row) => row.symbol === symbol);
+  const gaps = uniqueGapRows(
+    computeGaps({
+      events,
+      tickers: s.tickers,
+      oddsHistory: s.oddsHistory,
+      markHistory: s.markHistory,
+      window: "15m",
+    }),
+  ).filter((row) => row.symbol === symbol);
   const windows = Object.fromEntries(
     GAP_WINDOWS.map((window) => [
       window,
-      computeGaps({
-        events,
-        tickers: s.tickers,
-        oddsHistory: s.oddsHistory,
-        markHistory: s.markHistory,
-        window,
-      }).filter((row) => row.symbol === symbol),
+      uniqueGapRows(
+        computeGaps({
+          events,
+          tickers: s.tickers,
+          oddsHistory: s.oddsHistory,
+          markHistory: s.markHistory,
+          window,
+        }),
+      ).filter((row) => row.symbol === symbol),
     ]),
   ) as Record<GapWindow, GapRow[]>;
   const oddsHistory = Object.fromEntries(events.map((event) => [event.id, s.oddsHistory[event.id] ?? []]));

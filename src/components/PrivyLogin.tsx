@@ -2,6 +2,7 @@
 
 import { usePrivy, useWallets } from "@privy-io/react-auth";
 import { resetPerpsSession } from "@/lib/perpsSession";
+import { PolyProfileChip } from "@/components/PolyProfile";
 import { shortAddr } from "@/lib/format";
 
 export function PrivyLogin() {
@@ -18,9 +19,7 @@ export function PrivyLogin() {
   if (authenticated) {
     return (
       <div className="flex items-center gap-3">
-        <span className="hidden font-mono text-xs text-[#8b93a7] sm:inline">
-          {email ?? (address ? shortAddr(address) : "Signed in")}
-        </span>
+        <PolyProfileChip address={address} fallback={email ?? (address ? shortAddr(address) : "Signed in")} />
         <button
           type="button"
           onClick={() => {

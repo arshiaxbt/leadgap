@@ -3,7 +3,7 @@
 import { Spark } from "@/components/Spark";
 import { ResidualSpark } from "@/components/desk/ResidualSpark";
 import { Pill } from "@/components/ui";
-import { residualPath, WINDOW_MS } from "@/lib/divergence";
+import { eventTitleKey, residualPath, WINDOW_MS } from "@/lib/divergence";
 import { fmtOdds, fmtOddsDelta, fmtPct, fmtScore, leaderCopy, signedClass } from "@/lib/format";
 import {
   biasCopy,
@@ -39,7 +39,18 @@ export function EventIntel({
   tape?: GapTapePoint[];
   news: NewsItem[];
 }) {
-  const event = events.find((e) => e.id === selectedId) ?? events[0];
+  const uniqueEvents = (() => {
+    const seen = new Set<string>();
+    const out: ResolvedEvent[] = [];
+    for (const item of events) {
+      const key = eventTitleKey(item.title) || item.id;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push(item);
+    }
+    return out;
+  })();
+  const event = uniqueEvents.find((e) => e.id === selectedId) ?? uniqueEvents[0];
   const gap = event ? gaps.find((g) => g.eventId === event.id) : undefined;
   const link = event?.perps.find((p) => p.symbol === symbol) ?? event?.perps[0];
   const path: ResidualPoint[] =
@@ -76,9 +87,9 @@ export function EventIntel({
             {gap ? fmtScore(score) : "—"}
           </span>
         </div>
-        {events.length > 1 ? (
+        {uniqueEvents.length > 1 ? (
           <div className="mt-1 max-h-14 overflow-auto">
-            {events.slice(0, 5).map((item) => (
+            {uniqueEvents.slice(0, 5).map((item) => (
               <button
                 key={item.id}
                 type="button"

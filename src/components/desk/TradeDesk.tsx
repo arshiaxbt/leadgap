@@ -48,6 +48,7 @@ export function TradeDesk({ symbol }: { symbol: string }) {
   const [candles, setCandles] = useState<Candle[]>([]);
   const [book, setBook] = useState<PerpsBook | null>(null);
   const [clickPrice, setClickPrice] = useState<string | undefined>();
+  const [chartOdds, setChartOdds] = useState<Snapshot[] | undefined>();
 
   useEffect(() => {
     let stop = false;
@@ -102,7 +103,7 @@ export function TradeDesk({ symbol }: { symbol: string }) {
     let stop = false;
     async function loadBook() {
       try {
-        const res = await fetch(`/api/book?instrumentId=${instrumentId}&depth=10`);
+        const res = await fetch(`/api/book?instrumentId=${instrumentId}&depth=100`);
         if (!res.ok) return;
         const json = (await res.json()) as PerpsBook;
         if (!stop) setBook(json);
@@ -119,9 +120,31 @@ export function TradeDesk({ symbol }: { symbol: string }) {
   }, [instrumentId]);
 
   const selectedOdds = useMemo(() => {
-    if (!eventId || !data) return undefined;
-    return data.oddsHistory[eventId];
-  }, [data, eventId]);
+    const live = eventId && data ? data.oddsHistory[eventId] : undefined;
+    if (chartOdds && chartOdds.length >= (live?.length ?? 0)) return chartOdds;
+    return live;
+  }, [chartOdds, data, eventId]);
+
+  const yesTokenId = data?.events.find((e) => e.id === eventId)?.yesTokenId ?? null;
+
+  useEffect(() => {
+    if (!yesTokenId) {
+      setChartOdds(undefined);
+      return;
+    }
+    let stop = false;
+    fetch(`/api/odds?tokenId=${encodeURIComponent(yesTokenId)}`)
+      .then((r) => r.json())
+      .then((json: { odds?: Snapshot[] }) => {
+        if (!stop) setChartOdds(json.odds ?? []);
+      })
+      .catch(() => {
+        if (!stop) setChartOdds(undefined);
+      });
+    return () => {
+      stop = true;
+    };
+  }, [yesTokenId]);
 
   if (error) return <p className="p-6 text-sm text-rose-300">{error}</p>;
   if (!data) return <div className="m-4 h-full animate-pulse rounded-xl bg-white/5" />;
@@ -129,8 +152,8 @@ export function TradeDesk({ symbol }: { symbol: string }) {
   const { instrument, ticker, events, news, gaps, oddsHistory, instruments, markHistory, windows, tape } = data;
 
   return (
-    <div className="grid min-h-0 flex-1 grid-cols-1 overflow-hidden xl:grid-cols-[220px_minmax(0,1fr)_232px] xl:grid-rows-[32px_minmax(0,1fr)_128px]">
-      <div className="order-1 xl:col-span-3 xl:row-start-1">
+    <div className="grid min-h-0 flex-1 grid-cols-1 overflow-hidden xl:grid-cols-[220px_minmax(0,1fr)_200px_236px] xl:grid-rows-[32px_minmax(0,1fr)_128px]">
+      <div className="order-1 xl:col-span-4 xl:row-start-1">
         <TickerStrip
           instrument={instrument}
           ticker={ticker}
@@ -145,6 +168,7 @@ export function TradeDesk({ symbol }: { symbol: string }) {
           candles={candles}
           odds={selectedOdds}
           interval={klineInterval}
+          oddsLabel={events.find((e) => e.id === eventId)?.title ?? "Yes ¢"}
         />
       </div>
       <div className="order-3 min-h-[200px] border-b border-[#1a2030] xl:col-start-1 xl:row-start-2 xl:row-span-2 xl:min-h-0 xl:border-b-0 xl:border-r">
@@ -161,19 +185,17 @@ export function TradeDesk({ symbol }: { symbol: string }) {
           news={news}
         />
       </div>
-      <div className="order-4 flex min-h-0 flex-col border-[#1a2030] xl:col-start-3 xl:row-start-2 xl:row-span-2 xl:border-l">
-        <div className="order-2 h-[128px] shrink-0 overflow-hidden border-b border-[#1a2030] xl:order-1 xl:h-[128px] xl:max-h-[128px]">
-          <OrderBookPanel
-            book={book}
-            decimals={instrument.priceDecimals}
-            onPrice={(p) => setClickPrice(String(p))}
-          />
-        </div>
-        <div className="order-1 min-h-[240px] flex-1 overflow-hidden xl:order-2 xl:min-h-0">
-          <OrderTicket instrument={instrument} ticker={ticker} price={clickPrice} />
-        </div>
+      <div className="order-4 min-h-[280px] border-b border-[#1a2030] xl:col-start-3 xl:row-start-2 xl:min-h-0 xl:border-b-0 xl:border-l">
+        <OrderBookPanel
+          book={book}
+          decimals={instrument.priceDecimals}
+          onPrice={(p) => setClickPrice(String(p))}
+        />
       </div>
-      <div className="order-5 min-h-[140px] xl:col-start-2 xl:row-start-3 xl:min-h-0">
+      <div className="order-5 min-h-[240px] xl:col-start-4 xl:row-start-2 xl:row-span-2 xl:min-h-0 xl:border-l xl:border-[#1a2030]">
+        <OrderTicket instrument={instrument} ticker={ticker} price={clickPrice} />
+      </div>
+      <div className="order-6 min-h-[140px] xl:col-start-2 xl:col-span-2 xl:row-start-3 xl:min-h-0">
         <Blotter instrumentId={instrument.instrumentId} />
       </div>
     </div>

@@ -84,11 +84,56 @@ export async function fetchYesMid(tokenId: string): Promise<number | null> {
   return Number.isFinite(n) ? n : null;
 }
 
+export type PublicProfile = {
+  name: string | null;
+  pseudonym: string | null;
+  profileImage: string | null;
+  proxyWallet: string | null;
+  xUsername: string | null;
+  bio: string | null;
+  displayUsernamePublic: boolean;
+  verifiedBadge: boolean;
+};
+
+const ADDR_RE = /^0x[a-fA-F0-9]{40}$/;
+
+export async function fetchPublicProfile(address: string): Promise<PublicProfile | null> {
+  if (!ADDR_RE.test(address)) return null;
+  const url = new URL("https://gamma-api.polymarket.com/public-profile");
+  url.searchParams.set("address", address);
+  const res = await fetch(url, {
+    cache: "no-store",
+    headers: { accept: "application/json" },
+    signal: AbortSignal.timeout(8_000),
+  });
+  if (!res.ok) return null;
+  const body = (await res.json()) as {
+    name?: string | null;
+    pseudonym?: string | null;
+    profileImage?: string | null;
+    proxyWallet?: string | null;
+    xUsername?: string | null;
+    bio?: string | null;
+    displayUsernamePublic?: boolean | null;
+    verifiedBadge?: boolean | null;
+  };
+  return {
+    name: body.name ?? null,
+    pseudonym: body.pseudonym ?? null,
+    profileImage: body.profileImage ?? null,
+    proxyWallet: body.proxyWallet ?? null,
+    xUsername: body.xUsername ?? null,
+    bio: body.bio ?? null,
+    displayUsernamePublic: Boolean(body.displayUsernamePublic),
+    verifiedBadge: Boolean(body.verifiedBadge),
+  };
+}
+
 export async function fetchOddsHistory(tokenId: string): Promise<{ t: number; v: number }[]> {
   const url = new URL("https://clob.polymarket.com/prices-history");
   url.searchParams.set("market", tokenId);
-  url.searchParams.set("interval", "6h");
-  url.searchParams.set("fidelity", "5");
+  url.searchParams.set("interval", "max");
+  url.searchParams.set("fidelity", "10");
   const res = await fetch(url, {
     cache: "no-store",
     headers: { accept: "application/json" },

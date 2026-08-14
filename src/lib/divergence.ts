@@ -1,5 +1,6 @@
 import { CONFIDENCE_FLOOR } from "./mapping";
-import type { GapRow, GapWindow, PerpsTicker, ResolvedEvent, Snapshot } from "./types";
+import { leadgapMetrics } from "./score";
+import type { GapRow, GapWindow, PerpsTicker, ResidualPoint, ResolvedEvent, Snapshot } from "./types";
 
 export const WINDOW_MS: Record<GapWindow, number> = {
   "1m": 60_000,
@@ -8,7 +9,9 @@ export const WINDOW_MS: Record<GapWindow, number> = {
   "1h": 60 * 60_000,
 };
 
-function valueAt(history: Snapshot[] | undefined, ageMs: number, now: number): number | null {
+export const GAP_WINDOWS: GapWindow[] = ["1m", "5m", "15m", "1h"];
+
+export function valueAt(history: Snapshot[] | undefined, ageMs: number, now: number): number | null {
   if (!history?.length) return null;
   const target = now - ageMs;
   let best: Snapshot | null = null;
@@ -51,15 +54,13 @@ export function computeGaps(args: {
       const perpMove = move(valueAt(args.markHistory[link.symbol], age, now), ticker.markPrice);
       if (oddsMove == null || perpMove == null) continue;
 
-      const gap = oddsMove * link.signedBeta - perpMove;
-      const liquidityScore = Math.min(1, Math.log10(Math.max(event.volume, 10)) / 6);
-      const score = Math.abs(gap) * liquidityScore * link.confidence;
-      const leader =
-        Math.abs(oddsMove) > Math.abs(perpMove) * 1.25
-          ? "odds"
-          : Math.abs(perpMove) > Math.abs(oddsMove) * 1.25
-            ? "perp"
-            : "flat";
+      const metrics = leadgapMetrics({
+        oddsMove,
+        perpMove,
+        signedBeta: link.signedBeta,
+        confidence: link.confidence,
+        volume: event.volume,
+      });
 
       rows.push({
         eventId: event.id,
@@ -71,16 +72,58 @@ export function computeGaps(args: {
         oddsMove,
         perpMove,
         signedBeta: link.signedBeta,
-        gap,
-        score,
+        gap: metrics.gap,
+        score: metrics.score,
         confidence: link.confidence,
         yesPrice: event.yesPrice,
         markPrice: ticker.markPrice,
         mappingReason: link.mappingReason,
-        leader,
+        leader: metrics.leader,
+        expected: metrics.expected,
+        actual: metrics.actual,
+        bias: metrics.bias,
+        catchup: metrics.catchup,
+        volume: event.volume,
       });
     }
   }
 
-  return rows.sort((a, b) => b.score - a.score);
+  return rows.sort((a, b) => b.score - a.score || Math.abs(b.gap) - Math.abs(a.gap));
+}
+
+export function residualPath(args: {
+  odds: Snapshot[];
+  marks: Snapshot[];
+  signedBeta: number;
+  windowMs?: number;
+  now?: number;
+}): ResidualPoint[] {
+  const now = args.now ?? Date.now();
+  const windowMs = args.windowMs ?? WINDOW_MS["15m"];
+  const odds = args.odds.filter((p) => now - p.t <= 3 * 60 * 60_000);
+  if (odds.length < 4) return [];
+  const step = Math.max(1, Math.floor(odds.length / 48));
+  const out: ResidualPoint[] = [];
+  for (let i = 0; i < odds.length; i += step) {
+    const o = odds[i]!;
+    const oddsThen = valueAt(args.odds, windowMs, o.t);
+    const markNow = valueAt(args.marks, 0, o.t);
+    const markThen = valueAt(args.marks, windowMs, o.t);
+    if (oddsThen == null || markNow == null || markThen == null || markThen === 0) continue;
+    const expected = (o.v - oddsThen) * args.signedBeta;
+    const actual = (markNow - markThen) / markThen;
+    out.push({ t: o.t, expected, actual, gap: expected - actual });
+  }
+  const last = odds[odds.length - 1];
+  if (last && out[out.length - 1]?.t !== last.t) {
+    const oddsThen = valueAt(args.odds, windowMs, last.t);
+    const markNow = valueAt(args.marks, 0, last.t);
+    const markThen = valueAt(args.marks, windowMs, last.t);
+    if (oddsThen != null && markNow != null && markThen && markThen !== 0) {
+      const expected = (last.v - oddsThen) * args.signedBeta;
+      const actual = (markNow - markThen) / markThen;
+      out.push({ t: last.t, expected, actual, gap: expected - actual });
+    }
+  }
+  return out;
 }

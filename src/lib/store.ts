@@ -1,12 +1,13 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { allGammaQueries, ASSET_MAP, CLUSTER_RULES, CONFIDENCE_FLOOR, mapBySymbol } from "./mapping";
-import { computeGaps } from "./divergence";
+import { computeGaps, GAP_WINDOWS } from "./divergence";
 import { bestMarket, fetchOddsHistory, fetchYesMid, parseTokenIds, parseYesPrice, searchGammaEvents } from "./gamma";
 import { fetchNews } from "./news";
 import { fetchHourlyKlines, fetchInstruments, fetchTickers } from "./perps";
 import type {
   GapRow,
+  GapTapePoint,
   GapWindow,
   LinkedPerp,
   NewsItem,
@@ -31,6 +32,7 @@ type Store = {
   markHistory: Record<string, Snapshot[]>;
   oddsHistory: Record<string, Snapshot[]>;
   news: NewsItem[];
+  gapTape: GapTapePoint[];
   lastIngest: number;
   lastNews: number;
   lastMap: number;
@@ -49,6 +51,7 @@ function emptyStore(): Store {
     markHistory: {},
     oddsHistory: {},
     news: [],
+    gapTape: [],
     lastIngest: 0,
     lastNews: 0,
     lastMap: 0,
@@ -87,6 +90,7 @@ function persist() {
         markHistory: s.markHistory,
         oddsHistory: s.oddsHistory,
         news: s.news,
+        gapTape: s.gapTape,
         lastIngest: s.lastIngest,
         lastNews: s.lastNews,
         lastMap: s.lastMap,
@@ -110,6 +114,7 @@ function loadPersisted() {
     s.markHistory = raw.markHistory ?? {};
     s.oddsHistory = raw.oddsHistory ?? {};
     s.news = raw.news ?? [];
+    s.gapTape = raw.gapTape ?? [];
     s.lastIngest = raw.lastIngest ?? 0;
     s.lastNews = raw.lastNews ?? 0;
     s.lastMap = raw.lastMap ?? 0;
@@ -277,6 +282,25 @@ async function ingestOnce() {
       s.lastNews = now;
     }
 
+    const scored = computeGaps({
+      events: s.events,
+      tickers: s.tickers,
+      oddsHistory: s.oddsHistory,
+      markHistory: s.markHistory,
+      window: "15m",
+      now,
+    });
+    const tape = scored.map((row) => ({
+      t: now,
+      eventId: row.eventId,
+      symbol: row.symbol,
+      score: row.score,
+      gap: row.gap,
+      leader: row.leader,
+      bias: row.bias,
+    }));
+    s.gapTape = [...s.gapTape, ...tape].filter((p) => now - p.t <= HISTORY_MS).slice(-2000);
+
     s.lastIngest = now;
     s.error = null;
     persist();
@@ -325,19 +349,26 @@ export async function getGaps(window: GapWindow): Promise<{
   asOf: number;
   error: string | null;
   polling: boolean;
+  summary: { oddsFirst: number; actionable: number; topScore: number };
 }> {
   const s = await ensureFresh();
+  const gaps = computeGaps({
+    events: s.events,
+    tickers: s.tickers,
+    oddsHistory: s.oddsHistory,
+    markHistory: s.markHistory,
+    window,
+  });
   return {
-    gaps: computeGaps({
-      events: s.events,
-      tickers: s.tickers,
-      oddsHistory: s.oddsHistory,
-      markHistory: s.markHistory,
-      window,
-    }),
+    gaps,
     asOf: s.lastIngest,
     error: s.error,
     polling: true,
+    summary: {
+      oddsFirst: gaps.filter((g) => g.leader === "odds").length,
+      actionable: gaps.filter((g) => g.bias !== "none").length,
+      topScore: gaps[0]?.score ?? 0,
+    },
   };
 }
 
@@ -375,7 +406,20 @@ export async function getAsset(symbol: string) {
     markHistory: s.markHistory,
     window: "15m",
   }).filter((row) => row.symbol === symbol);
+  const windows = Object.fromEntries(
+    GAP_WINDOWS.map((window) => [
+      window,
+      computeGaps({
+        events,
+        tickers: s.tickers,
+        oddsHistory: s.oddsHistory,
+        markHistory: s.markHistory,
+        window,
+      }).filter((row) => row.symbol === symbol),
+    ]),
+  ) as Record<GapWindow, GapRow[]>;
   const oddsHistory = Object.fromEntries(events.map((event) => [event.id, s.oddsHistory[event.id] ?? []]));
+  const tape = s.gapTape.filter((p) => p.symbol === symbol);
   return {
     instrument,
     ticker,
@@ -385,6 +429,8 @@ export async function getAsset(symbol: string) {
     markHistory: s.markHistory[symbol] ?? [],
     oddsHistory,
     gaps,
+    windows,
+    tape,
     instruments: s.instruments,
     asOf: s.lastIngest,
   };

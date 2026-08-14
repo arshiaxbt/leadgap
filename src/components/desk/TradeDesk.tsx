@@ -11,6 +11,8 @@ import { OrderTicket } from "@/components/OrderTicket";
 import type {
   Candle,
   GapRow,
+  GapTapePoint,
+  GapWindow,
   KlineInterval,
   MapRow,
   NewsItem,
@@ -30,6 +32,8 @@ type Payload = {
   markHistory: Snapshot[];
   oddsHistory: Record<string, Snapshot[]>;
   gaps: GapRow[];
+  windows?: Record<GapWindow, GapRow[]>;
+  tape?: GapTapePoint[];
   instruments: PerpsInstrument[];
   asOf: number;
 };
@@ -121,10 +125,10 @@ export function TradeDesk({ symbol }: { symbol: string }) {
   if (error) return <p className="p-6 text-sm text-rose-300">{error}</p>;
   if (!data) return <div className="m-4 h-full animate-pulse rounded-xl bg-white/5" />;
 
-  const { instrument, ticker, events, news, gaps, oddsHistory, instruments } = data;
+  const { instrument, ticker, events, news, gaps, oddsHistory, instruments, markHistory, windows, tape } = data;
 
   return (
-    <div className="grid min-h-0 flex-1 grid-cols-1 overflow-hidden xl:h-[calc(100dvh-3.5rem)] xl:grid-cols-[272px_minmax(0,1fr)_308px] xl:grid-rows-[auto_minmax(0,1fr)_200px]">
+    <div className="grid min-h-0 flex-1 grid-cols-1 overflow-hidden xl:h-[calc(100dvh-3.5rem)] xl:grid-cols-[308px_minmax(0,1fr)_308px] xl:grid-rows-[auto_minmax(0,1fr)_200px]">
       <div className="order-1 xl:col-span-3 xl:row-start-1">
         <TickerStrip
           instrument={instrument}
@@ -144,7 +148,10 @@ export function TradeDesk({ symbol }: { symbol: string }) {
           selectedId={eventId}
           onSelect={setEventId}
           gaps={gaps}
+          windows={windows}
           oddsHistory={oddsHistory}
+          markHistory={markHistory}
+          tape={tape}
           news={news}
         />
       </div>

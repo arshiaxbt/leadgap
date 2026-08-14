@@ -15,6 +15,8 @@ export function deterministicNote(args: {
 }): string {
   const dir = args.signedBeta >= 0 ? "higher" : "lower";
   const odds = `${args.oddsMove >= 0 ? "+" : ""}${(args.oddsMove * 100).toFixed(1)}¢`;
+  const expected = args.oddsMove * args.signedBeta;
+  const residual = expected - args.perpMove;
   const perp = `${args.perpMove >= 0 ? "+" : ""}${(args.perpMove * 100).toFixed(2)}%`;
   const lead =
     args.leader === "odds"
@@ -25,9 +27,9 @@ export function deterministicNote(args: {
   return [
     `Mapped event “${args.title}” (${args.question}) to ${args.symbol} because ${args.mappingReason}.`,
     `A rise in Yes odds is treated as ${dir} ${args.symbol} (signed beta ${args.signedBeta}).`,
-    `Window moves: odds ${odds}, mark ${perp}, gap ${(args.gap * 100).toFixed(2)} pts.`,
+    `Window: odds ${odds}, implied perp ${expected >= 0 ? "+" : ""}${(expected * 100).toFixed(2)}%, mark ${perp}, residual ${(residual * 100).toFixed(2)} pts.`,
     lead,
-    "This is a mapping note, not a trade recommendation.",
+    "This is a mapping note, not a trade recommendation. Trade the perp only.",
   ].join(" ");
 }
 

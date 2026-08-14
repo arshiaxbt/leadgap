@@ -95,6 +95,28 @@ export type GapRow = {
   markPrice: number;
   mappingReason: string;
   leader: "odds" | "perp" | "flat";
+  expected: number;
+  actual: number;
+  bias: "long" | "short" | "none";
+  catchup: number | null;
+  volume: number;
+};
+
+export type GapTapePoint = {
+  t: number;
+  eventId: string;
+  symbol: string;
+  score: number;
+  gap: number;
+  leader: GapRow["leader"];
+  bias: GapRow["bias"];
+};
+
+export type ResidualPoint = {
+  t: number;
+  expected: number;
+  actual: number;
+  gap: number;
 };
 
 export type NewsItem = {

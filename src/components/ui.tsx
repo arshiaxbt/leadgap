@@ -16,7 +16,7 @@ export function Pill({
   tone = "mute",
   children,
 }: {
-  tone?: "lead" | "perp" | "mute" | "danger" | "warn";
+  tone?: "lead" | "perp" | "mute" | "danger" | "warn" | "long" | "short";
   children: ReactNode;
 }) {
   const tones = {
@@ -25,6 +25,8 @@ export function Pill({
     mute: "bg-white/5 text-[#8b93a7]",
     danger: "bg-rose-500/15 text-rose-300",
     warn: "bg-amber-500/15 text-amber-200",
+    long: "bg-emerald-500/15 text-emerald-300",
+    short: "bg-rose-500/15 text-rose-300",
   };
   return (
     <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium ${tones[tone]}`}>

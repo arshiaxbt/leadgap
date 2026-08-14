@@ -18,6 +18,17 @@ export function fmtOdds(n: number): string {
   return `${(n * 100).toFixed(1)}¢`;
 }
 
+export function fmtOddsDelta(n: number): string {
+  if (!Number.isFinite(n)) return "—";
+  const sign = n > 0 ? "+" : "";
+  return `${sign}${(n * 100).toFixed(1)}¢`;
+}
+
+export function fmtScore(n: number): string {
+  if (!Number.isFinite(n)) return "—";
+  return String(Math.round(n));
+}
+
 export function fmtFunding(n: number): string {
   if (!Number.isFinite(n)) return "—";
   return `${(n * 100).toFixed(4)}%`;

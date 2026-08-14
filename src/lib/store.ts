@@ -299,7 +299,7 @@ async function ingestOnce() {
       leader: row.leader,
       bias: row.bias,
     }));
-    s.gapTape = [...s.gapTape, ...tape].filter((p) => now - p.t <= HISTORY_MS).slice(-2000);
+    s.gapTape = [...(s.gapTape ?? []), ...tape].filter((p) => now - p.t <= HISTORY_MS).slice(-2000);
 
     s.lastIngest = now;
     s.error = null;
@@ -419,7 +419,7 @@ export async function getAsset(symbol: string) {
     ]),
   ) as Record<GapWindow, GapRow[]>;
   const oddsHistory = Object.fromEntries(events.map((event) => [event.id, s.oddsHistory[event.id] ?? []]));
-  const tape = s.gapTape.filter((p) => p.symbol === symbol);
+  const tape = (s.gapTape ?? []).filter((p) => p.symbol === symbol);
   return {
     instrument,
     ticker,

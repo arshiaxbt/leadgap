@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { useAccount, useWalletClient } from "wagmi";
 import { polygon } from "viem/chains";
@@ -150,8 +151,8 @@ export function Blotter({ instrumentId }: { instrumentId: number }) {
   }
 
   return (
-    <div className="flex h-full min-h-[160px] flex-col border-t border-[#1e2636] bg-[#0c1018]">
-      <div className="flex items-center gap-1 border-b border-[#1e2636] px-2 py-1 text-[11px]">
+    <div className="flex h-full min-h-[128px] flex-col border-t border-[#1a2030] bg-[#08090c]">
+      <div className="flex items-center gap-1 border-b border-[#1a2030] px-2 py-0.5 text-[11px]">
         {(["positions", "orders", "fills"] as const).map((t) => (
           <button
             key={t}
@@ -162,9 +163,12 @@ export function Blotter({ instrumentId }: { instrumentId: number }) {
             {t}
           </button>
         ))}
+        <Link href="/portfolio" className="rounded px-2 py-1 text-[#8b93a7] hover:text-white">
+          Portfolio
+        </Link>
         {note ? <span className="ml-auto truncate text-[#5c6478]">{note}</span> : null}
       </div>
-      <div className="min-h-0 flex-1 overflow-auto px-3 py-2 text-xs">
+      <div className="min-h-0 flex-1 overflow-auto px-2 py-1 text-[11px]">
         {tab === "positions" ? (
           positions.length === 0 ? (
             <p className="text-[#5c6478]">No open positions.</p>

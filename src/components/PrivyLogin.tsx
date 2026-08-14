@@ -39,7 +39,7 @@ export function PrivyLogin() {
     <button
       type="button"
       onClick={() => void login()}
-      className="rounded-lg bg-[#3ee0a8] px-3.5 py-1.5 text-sm font-medium text-[#07080c] hover:bg-[#6aebc0]"
+      className="rounded border border-[#1a2030] px-2.5 py-1 text-[12px] text-zinc-200 hover:bg-white/5"
     >
       Log in
     </button>

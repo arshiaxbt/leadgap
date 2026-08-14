@@ -36,6 +36,13 @@ function clock(realSec: number, withDate = false): string {
   return `${d.getMonth() + 1}/${d.getDate()} ${hh}:${mm}`;
 }
 
+function fmtN(n: number): string {
+  if (!Number.isFinite(n)) return "—";
+  if (Math.abs(n) >= 1000) return n.toLocaleString("en-US", { maximumFractionDigits: 1 });
+  if (Math.abs(n) >= 1) return n.toLocaleString("en-US", { maximumFractionDigits: 2 });
+  return n.toLocaleString("en-US", { maximumFractionDigits: 4 });
+}
+
 export function PriceChart({
   candles,
   odds,
@@ -60,10 +67,21 @@ export function PriceChart({
   stepRef.current = STEP[interval];
   const [tool, setTool] = useState<Tool>("cursor");
   const [style, setStyle] = useState<Style>("candle");
-  const [oddsOn, setOddsOn] = useState(true);
+  const [oddsOn, setOddsOn] = useState(false);
   const [log, setLog] = useState(false);
+  const [hover, setHover] = useState<{
+    o: number;
+    h: number;
+    l: number;
+    c: number;
+    odds?: number;
+  } | null>(null);
   const toolRef = useRef<Tool>("cursor");
   toolRef.current = tool;
+  const ohlcRef = useRef<Map<number, { o: number; h: number; l: number; c: number }>>(new Map());
+  const oddsMapRef = useRef<Map<number, number>>(new Map());
+  const userTouched = useRef(false);
+  const ignoreRange = useRef(false);
 
   useEffect(() => {
     const el = host.current;
@@ -72,23 +90,23 @@ export function PriceChart({
     const chart = createChart(el, {
       autoSize: true,
       layout: {
-        background: { type: ColorType.Solid, color: "#0c1018" },
+        background: { type: ColorType.Solid, color: "#08090c" },
         textColor: "#8b93a7",
         fontFamily: "var(--font-geist-sans), sans-serif",
         fontSize: 11,
       },
       grid: {
-        vertLines: { color: "#1e2636" },
-        horzLines: { color: "#1e2636" },
+        vertLines: { color: "#1a2030" },
+        horzLines: { color: "#1a2030" },
       },
       rightPriceScale: {
         borderColor: "#1e2636",
         scaleMargins: { top: 0.08, bottom: 0.12 },
       },
       leftPriceScale: {
-        visible: true,
+        visible: false,
         borderColor: "#1e2636",
-        scaleMargins: { top: 0.15, bottom: 0.15 },
+        scaleMargins: { top: 0.2, bottom: 0.2 },
       },
       localization: {
         timeFormatter: (t: Time) => clock(realByLogical.current.get(Number(t)) ?? Number(t), true),
@@ -101,7 +119,7 @@ export function PriceChart({
         tickMarkFormatter: (t: Time) => clock(realByLogical.current.get(Number(t)) ?? Number(t)),
       },
       crosshair: {
-        mode: CrosshairMode.Normal,
+        mode: CrosshairMode.Magnet,
         vertLine: { color: "#3ee0a855", labelBackgroundColor: "#1e2636" },
         horzLine: { color: "#3ee0a855", labelBackgroundColor: "#1e2636" },
       },
@@ -128,11 +146,15 @@ export function PriceChart({
       lastValueVisible: true,
     });
     const oddsSeries = chart.addSeries(LineSeries, {
-      color: "#4d8dff",
-      lineWidth: 2,
+      color: "rgba(77, 141, 255, 0.4)",
+      lineWidth: 1,
+      lineStyle: LineStyle.Dashed,
       priceScaleId: "left",
       lastValueVisible: true,
-      title: "Yes ¢",
+      priceLineVisible: false,
+      crosshairMarkerVisible: false,
+      title: "Odds",
+      visible: false,
     });
     chartRef.current = chart;
     candleRef.current = candlesSeries;
@@ -179,9 +201,27 @@ export function PriceChart({
       trendsRef.current.push(trend);
     };
     chart.subscribeClick(onClick);
+    const onMove = (param: MouseEventParams) => {
+      if (param.time == null) {
+        setHover(null);
+        return;
+      }
+      const bar = ohlcRef.current.get(Number(param.time));
+      if (!bar) {
+        setHover(null);
+        return;
+      }
+      setHover({ ...bar, odds: oddsMapRef.current.get(Number(param.time)) });
+    };
+    chart.subscribeCrosshairMove(onMove);
+    chart.timeScale().subscribeVisibleLogicalRangeChange(() => {
+      if (ignoreRange.current) return;
+      userTouched.current = true;
+    });
 
     return () => {
       chart.unsubscribeClick(onClick);
+      chart.unsubscribeCrosshairMove(onMove);
       chart.remove();
       chartRef.current = null;
       candleRef.current = null;
@@ -202,6 +242,7 @@ export function PriceChart({
     const t0 = rows[0]!.time;
     const map = new Map<number, number>();
     const packed: { logical: UTCTimestamp; real: number }[] = [];
+    const bars = new Map<number, { o: number; h: number; l: number; c: number }>();
     const ohlc = rows.map((c, i) => {
       const logical = (t0 + i * step) as UTCTimestamp;
       map.set(logical, c.time);
@@ -210,15 +251,23 @@ export function PriceChart({
       const close = c.close;
       const high = Math.max(c.open, c.high, c.low, c.close);
       const low = Math.min(c.open, c.high, c.low, c.close);
+      bars.set(logical, { o: open, h: high, l: low, c: close });
       return { time: logical, open, high, low, close };
     });
     realByLogical.current = map;
     packedRef.current = packed;
+    ohlcRef.current = bars;
     candleRef.current.setData(ohlc);
     closeRef.current.setData(ohlc.map((c) => ({ time: c.time, value: c.close })));
     if (!fitted.current) {
+      ignoreRange.current = true;
       chartRef.current?.timeScale().fitContent();
       fitted.current = true;
+      requestAnimationFrame(() => {
+        ignoreRange.current = false;
+      });
+    } else if (!userTouched.current) {
+      chartRef.current?.timeScale().scrollToRealTime();
     }
   }, [candles, interval]);
 
@@ -243,6 +292,7 @@ export function PriceChart({
       }
       byT.set(packed[lo]!.logical, p.v * 100);
     }
+    oddsMapRef.current = byT;
     oddsRef.current.setData(
       [...byT.entries()]
         .sort((a, b) => a[0] - b[0])
@@ -276,7 +326,7 @@ export function PriceChart({
         vertTouchDrag: !drawing,
       },
       handleScale: { axisPressedMouseMove: !drawing, mouseWheel: true, pinch: true },
-      crosshair: { mode: drawing ? CrosshairMode.Magnet : CrosshairMode.Normal },
+      crosshair: { mode: CrosshairMode.Magnet },
     });
     if (host.current) host.current.style.cursor = drawing ? "crosshair" : "default";
   }, [tool]);
@@ -307,23 +357,25 @@ export function PriceChart({
     pendingTrend.current = null;
   }
 
-  function shot() {
-    const canvas = chartRef.current?.takeScreenshot();
-    if (!canvas) return;
-    const a = document.createElement("a");
-    a.href = canvas.toDataURL("image/png");
-    a.download = "leadgap-chart.png";
-    a.click();
-  }
-
   return (
     <div className="flex h-full min-h-[240px] flex-col">
-      <div className="flex flex-wrap items-center gap-1 border-b border-[#1e2636] px-2 py-1 text-[11px]">
+      <div className="flex flex-wrap items-center gap-1 border-b border-[#1a2030] px-2 py-0.5 text-[10px]">
+        {hover ? (
+          <span className="num mr-2 text-[#7d8699]">
+            O {fmtN(hover.o)} H {fmtN(hover.h)} L {fmtN(hover.l)} C{" "}
+            <span className={hover.c >= hover.o ? "text-[#3ee0a8]" : "text-rose-300"}>{fmtN(hover.c)}</span>
+            {oddsOn && hover.odds != null ? (
+              <span className="ml-2 text-[#5b8def]">{hover.odds.toFixed(1)}¢</span>
+            ) : null}
+          </span>
+        ) : (
+          <span className="mr-2 text-[#7d8699]">Chart</span>
+        )}
+        <span className="mx-1 h-3 w-px bg-[#1a2030]" />
         <ToolBtn active={tool === "cursor"} onClick={() => setTool("cursor")} label="Cursor" />
         <ToolBtn active={tool === "hline"} onClick={() => setTool("hline")} label="H-line" />
         <ToolBtn active={tool === "trend"} onClick={() => setTool("trend")} label="Trend" />
         <ToolBtn active={false} onClick={clearDrawings} label="Clear" />
-        <span className="mx-1 h-3 w-px bg-[#1e2636]" />
         <ToolBtn active={style === "candle"} onClick={() => setStyle("candle")} label="Candles" />
         <ToolBtn active={style === "line"} onClick={() => setStyle("line")} label="Line" />
         <ToolBtn active={oddsOn} onClick={() => setOddsOn((v) => !v)} label="Odds" />
@@ -331,14 +383,18 @@ export function PriceChart({
         <ToolBtn
           active={false}
           onClick={() => {
+            userTouched.current = false;
+            ignoreRange.current = true;
             chartRef.current?.timeScale().fitContent();
+            requestAnimationFrame(() => {
+              ignoreRange.current = false;
+            });
           }}
           label="Fit"
         />
-        <ToolBtn active={false} onClick={shot} label="PNG" />
         {tool !== "cursor" ? (
-          <span className="ml-2 text-[#5c6478]">
-            {tool === "hline" ? "Click chart to drop a price line" : "Click two points for a trend"}
+          <span className="ml-2 text-[#7d8699]">
+            {tool === "hline" ? "Click for price line" : "Click two points"}
           </span>
         ) : null}
       </div>

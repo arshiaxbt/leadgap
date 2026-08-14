@@ -8,7 +8,7 @@ import { estLiq, fmtPx, fmtUsd, mmr } from "@/lib/format";
 import { explainPerpsError, type PerpsAccess } from "@/lib/perpsAccess";
 import { usePrivyMount } from "@/lib/usePrivyMount";
 import type { PerpsInstrument, PerpsTicker } from "@/lib/types";
-import { Field, TextInput } from "@/components/ui";
+import { TextInput } from "@/components/ui";
 
 type Geo = { blocked: boolean; country: string; reason: string };
 
@@ -83,6 +83,7 @@ export function OrderTicket({
   const notional = px * size;
   const marginEst = leverage > 0 ? notional / leverage : 0;
   const liq = estLiq(px, leverage, maint, side);
+  const base = instrument.symbol.replace("-USD", "");
 
   const hint = useMemo(() => {
     if (mount === "insecure") return "HTTPS required to log in.";
@@ -99,6 +100,12 @@ export function OrderTicket({
     const budget = (free ?? 0) * pct;
     const next = (budget * leverage) / px;
     if (next > 0) setQty(next.toFixed(Math.max(2, instrument.quantityDecimals)));
+  }
+
+  function bump(dir: -1 | 1) {
+    const step = 10 ** -Math.max(2, instrument.quantityDecimals);
+    const next = Math.max(0, size + dir * step);
+    setQty(next.toFixed(Math.max(2, instrument.quantityDecimals)));
   }
 
   async function submit() {
@@ -151,128 +158,149 @@ export function OrderTicket({
     }
   }
 
+  const long = side === "BUY";
+
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-auto p-3">
-      <div className="mb-3 flex gap-1">
+    <div className="flex h-full min-h-0 flex-col overflow-auto px-2.5 py-2">
+      <div className="grid grid-cols-2 gap-1">
         <button
           type="button"
           onClick={() => setSide("BUY")}
-          className={`flex-1 rounded-md py-2 text-sm font-semibold ${
-            side === "BUY" ? "bg-emerald-600 text-white" : "bg-white/5 text-[#8b93a7]"
+          className={`rounded py-2 text-[13px] font-bold tracking-wide ${
+            long ? "bg-[#3ee0a8] text-[#07080c]" : "bg-white/5 text-[#8b93a7]"
           }`}
         >
-          Long
+          LONG
         </button>
         <button
           type="button"
           onClick={() => setSide("SELL")}
-          className={`flex-1 rounded-md py-2 text-sm font-semibold ${
-            side === "SELL" ? "bg-rose-600 text-white" : "bg-white/5 text-[#8b93a7]"
+          className={`rounded py-2 text-[13px] font-bold tracking-wide ${
+            !long ? "bg-[#fb7185] text-[#07080c]" : "bg-white/5 text-[#8b93a7]"
           }`}
         >
-          Short
+          SHORT
         </button>
       </div>
-      <div className="mb-3 flex gap-1 text-[11px]">
-        <button
-          type="button"
-          onClick={() => setTif("GTC")}
-          className={`rounded px-2 py-1 ${tif === "GTC" ? "bg-white text-[#07080c]" : "bg-white/5 text-[#8b93a7]"}`}
-        >
-          Limit
-        </button>
-        <button
-          type="button"
-          onClick={() => setTif("IOC")}
-          className={`rounded px-2 py-1 ${tif === "IOC" ? "bg-white text-[#07080c]" : "bg-white/5 text-[#8b93a7]"}`}
-        >
-          Market
-        </button>
-        <label className="ml-auto flex items-center gap-1 text-[#8b93a7]">
+
+      <div className="mt-2 flex items-center gap-1">
+        {(["IOC", "GTC"] as const).map((id) => (
+          <button
+            key={id}
+            type="button"
+            onClick={() => setTif(id)}
+            className={`flex-1 rounded py-1 text-[11px] font-medium ${
+              tif === id ? "bg-white text-[#07080c]" : "bg-white/5 text-[#8b93a7]"
+            }`}
+          >
+            {id === "IOC" ? "Market" : "Limit"}
+          </button>
+        ))}
+        <label className="ml-1 flex items-center gap-1 text-[10px] text-[#8b93a7]">
           <input type="checkbox" checked={reduceOnly} onChange={(e) => setReduceOnly(e.target.checked)} />
           Reduce
         </label>
       </div>
+
       {tif === "GTC" ? (
-        <Field label="Price">
-          <TextInput value={price} onChange={(e) => setPrice(e.target.value)} className="num" />
-        </Field>
+        <label className="mt-2 block text-[10px] uppercase tracking-wide text-[#5c6478]">
+          Price
+          <TextInput value={price} onChange={(e) => setPrice(e.target.value)} className="num mt-1 py-1.5 text-sm" />
+        </label>
       ) : null}
-      <div className="mt-2">
-        <Field label="Size">
-          <TextInput value={qty} onChange={(e) => setQty(e.target.value)} className="num" />
-        </Field>
+
+      <label className="mt-2 block text-[10px] uppercase tracking-wide text-[#5c6478]">
+        Size
         <div className="mt-1 flex gap-1">
-          {[0.25, 0.5, 0.75, 1].map((pct) => (
-            <button
-              key={pct}
-              type="button"
-              onClick={() => applyPct(pct)}
-              className="flex-1 rounded bg-white/5 py-1 text-[10px] text-[#8b93a7] hover:text-white"
-            >
-              {pct * 100}%
-            </button>
-          ))}
+          <button type="button" onClick={() => bump(-1)} className="w-8 rounded bg-white/5 text-zinc-300">
+            −
+          </button>
+          <TextInput value={qty} onChange={(e) => setQty(e.target.value)} className="num py-1.5 text-sm" />
+          <button type="button" onClick={() => bump(1)} className="w-8 rounded bg-white/5 text-zinc-300">
+            +
+          </button>
         </div>
-      </div>
-      <label className="mt-2 block text-xs text-[#8b93a7]">
-        Leverage {leverage}x
-        <input
-          type="range"
-          min={1}
-          max={instrument.maxLeverage}
-          value={leverage}
-          onChange={(e) => setLeverage(Number(e.target.value))}
-          className="mt-1 w-full"
-        />
       </label>
+      <div className="mt-1 grid grid-cols-4 gap-1">
+        {[0.25, 0.5, 0.75, 1].map((pct) => (
+          <button
+            key={pct}
+            type="button"
+            onClick={() => applyPct(pct)}
+            className="rounded bg-white/5 py-1 text-[10px] text-[#8b93a7] hover:text-white"
+          >
+            {pct * 100}%
+          </button>
+        ))}
+      </div>
+
+      <div className="mt-2 flex items-center justify-between text-[10px] uppercase tracking-wide text-[#5c6478]">
+        <span>Leverage</span>
+        <span className="num text-zinc-200">{leverage}x</span>
+      </div>
+      <input
+        type="range"
+        min={1}
+        max={instrument.maxLeverage}
+        value={leverage}
+        onChange={(e) => setLeverage(Number(e.target.value))}
+        className="mt-1 w-full"
+      />
+
       {tif === "GTC" ? (
-        <div className="mt-2 grid grid-cols-2 gap-2">
-          <Field label="TP">
-            <TextInput value={tp} onChange={(e) => setTp(e.target.value)} />
-          </Field>
-          <Field label="SL">
-            <TextInput value={sl} onChange={(e) => setSl(e.target.value)} />
-          </Field>
+        <div className="mt-2 grid grid-cols-2 gap-1.5">
+          <label className="text-[10px] uppercase tracking-wide text-[#5c6478]">
+            TP
+            <TextInput value={tp} onChange={(e) => setTp(e.target.value)} className="num mt-1 py-1.5 text-xs" />
+          </label>
+          <label className="text-[10px] uppercase tracking-wide text-[#5c6478]">
+            SL
+            <TextInput value={sl} onChange={(e) => setSl(e.target.value)} className="num mt-1 py-1.5 text-xs" />
+          </label>
         </div>
       ) : null}
-      <dl className="mt-3 grid grid-cols-2 gap-y-1 text-[11px] text-[#8b93a7]">
-        <dt>Notional</dt>
-        <dd className="num text-right text-zinc-200">{fmtPx(notional, 2)} pUSD</dd>
-        <dt>Margin</dt>
-        <dd className="num text-right text-zinc-200">{fmtPx(marginEst, 2)}</dd>
-        <dt>Free</dt>
-        <dd className="num text-right">{free != null ? fmtUsd(free) : "—"}</dd>
-        <dt>MMR</dt>
-        <dd className="num text-right">{(maint * 100).toFixed(2)}%</dd>
-        <dt>Liq hint</dt>
-        <dd className="num text-right text-zinc-200">{liq != null ? fmtPx(liq, instrument.priceDecimals) : "—"}</dd>
-      </dl>
-      <div className="mt-3 flex gap-2">
+
+      <div className="mt-auto space-y-2 pt-3">
+        <div className="grid grid-cols-3 gap-1 text-[10px] text-[#5c6478]">
+          <div>
+            Margin
+            <div className="num text-zinc-200">{fmtPx(marginEst, 2)}</div>
+          </div>
+          <div>
+            Liq
+            <div className="num text-zinc-200">{liq != null ? fmtPx(liq, instrument.priceDecimals) : "—"}</div>
+          </div>
+          <div className="text-right">
+            Free
+            <div className="num text-zinc-200">{free != null ? fmtUsd(free) : "—"}</div>
+          </div>
+        </div>
         <button
           type="button"
           disabled={!canTrade || busy}
           onClick={() => void submit()}
-          className="flex-1 rounded-lg bg-[#3ee0a8] py-2.5 text-sm font-semibold text-[#07080c] disabled:opacity-40"
+          className={`w-full rounded-md py-3 text-sm font-bold tracking-wide disabled:opacity-40 ${
+            long ? "bg-[#3ee0a8] text-[#07080c]" : "bg-[#fb7185] text-[#07080c]"
+          }`}
         >
-          {busy ? "…" : side === "BUY" ? "Buy / Long" : "Sell / Short"}
+          {busy ? "…" : `${long ? "Long" : "Short"} ${base}`}
         </button>
         <button
           type="button"
           disabled={!canTrade || busy}
           onClick={() => void cancelAll()}
-          className="rounded-lg border border-[#1e2636] px-3 text-xs text-zinc-300 disabled:opacity-40"
+          className="w-full text-[11px] text-[#8b93a7] hover:text-white disabled:opacity-40"
         >
-          Cancel
+          Cancel open orders
         </button>
+        <p className="text-[10px] leading-4 text-[#5c6478]">{hint}</p>
+        {perpsAccess?.href ? (
+          <a href={perpsAccess.href} target="_blank" rel="noreferrer" className="text-[11px] text-[#8bb4ff] hover:underline">
+            Request Perps access
+          </a>
+        ) : null}
+        {status ? <p className="text-[11px] text-amber-200">{status}</p> : null}
       </div>
-      <p className="mt-2 text-[11px] leading-4 text-[#5c6478]">{hint}</p>
-      {perpsAccess?.href ? (
-        <a href={perpsAccess.href} target="_blank" rel="noreferrer" className="mt-1 text-[11px] text-[#8bb4ff] hover:underline">
-          Request Perps access
-        </a>
-      ) : null}
-      {status ? <p className="mt-1 text-[11px] text-amber-200">{status}</p> : null}
     </div>
   );
 }

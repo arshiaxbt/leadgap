@@ -55,13 +55,14 @@ export function TradeDesk({ symbol }: { symbol: string }) {
       try {
         const res = await fetch(`/api/assets/${encodeURIComponent(symbol)}`);
         if (!res.ok) {
-          if (!stop) setError("Market not found.");
+          if (!stop) setError(res.status === 404 ? "Market not found." : "Couldn't load this market.");
           return;
         }
         const json = (await res.json()) as Payload;
         if (stop) return;
         setData(json);
-        setEventId((cur) => cur ?? eventParam ?? json.events[0]?.id ?? null);
+        const best = [...(json.gaps ?? [])].sort((a, b) => b.score - a.score)[0];
+        setEventId((cur) => cur ?? eventParam ?? best?.eventId ?? json.events[0]?.id ?? null);
       } catch {
         if (!stop) setError("Market not found.");
       }
@@ -128,7 +129,7 @@ export function TradeDesk({ symbol }: { symbol: string }) {
   const { instrument, ticker, events, news, gaps, oddsHistory, instruments, markHistory, windows, tape } = data;
 
   return (
-    <div className="grid min-h-0 flex-1 grid-cols-1 overflow-hidden xl:grid-cols-[308px_minmax(0,1fr)_308px] xl:grid-rows-[auto_minmax(0,1fr)_200px]">
+    <div className="grid min-h-0 flex-1 grid-cols-1 overflow-hidden xl:grid-cols-[220px_minmax(0,1fr)_232px] xl:grid-rows-[32px_minmax(0,1fr)_128px]">
       <div className="order-1 xl:col-span-3 xl:row-start-1">
         <TickerStrip
           instrument={instrument}
@@ -138,7 +139,7 @@ export function TradeDesk({ symbol }: { symbol: string }) {
           onInterval={setKlineInterval}
         />
       </div>
-      <div className="order-2 min-h-[280px] border-b border-[#1e2636] xl:col-start-2 xl:row-start-2 xl:min-h-0 xl:border-b-0">
+      <div className="order-2 min-h-[280px] border-b border-[#1a2030] xl:col-start-2 xl:row-start-2 xl:min-h-0 xl:border-b-0">
         <PriceChart
           key={`${instrument.instrumentId}-${klineInterval}`}
           candles={candles}
@@ -146,7 +147,7 @@ export function TradeDesk({ symbol }: { symbol: string }) {
           interval={klineInterval}
         />
       </div>
-      <div className="order-3 min-h-[220px] border-b border-[#1e2636] xl:col-start-1 xl:row-start-2 xl:row-span-2 xl:min-h-0 xl:border-b-0 xl:border-r">
+      <div className="order-3 min-h-[200px] border-b border-[#1a2030] xl:col-start-1 xl:row-start-2 xl:row-span-2 xl:min-h-0 xl:border-b-0 xl:border-r">
         <EventIntel
           symbol={instrument.symbol}
           events={events}
@@ -160,19 +161,19 @@ export function TradeDesk({ symbol }: { symbol: string }) {
           news={news}
         />
       </div>
-      <div className="order-4 flex min-h-0 flex-col border-[#1e2636] xl:col-start-3 xl:row-start-2 xl:row-span-2 xl:border-l">
-        <div className="order-2 h-[140px] shrink-0 overflow-hidden border-b border-[#1e2636] xl:order-1 xl:h-[42%] xl:min-h-[160px]">
+      <div className="order-4 flex min-h-0 flex-col border-[#1a2030] xl:col-start-3 xl:row-start-2 xl:row-span-2 xl:border-l">
+        <div className="order-2 h-[128px] shrink-0 overflow-hidden border-b border-[#1a2030] xl:order-1 xl:h-[128px] xl:max-h-[128px]">
           <OrderBookPanel
             book={book}
             decimals={instrument.priceDecimals}
             onPrice={(p) => setClickPrice(String(p))}
           />
         </div>
-        <div className="order-1 min-h-[280px] flex-1 xl:order-2 xl:min-h-0">
+        <div className="order-1 min-h-[240px] flex-1 overflow-hidden xl:order-2 xl:min-h-0">
           <OrderTicket instrument={instrument} ticker={ticker} price={clickPrice} />
         </div>
       </div>
-      <div className="order-5 min-h-[180px] xl:col-start-2 xl:row-start-3 xl:min-h-0">
+      <div className="order-5 min-h-[140px] xl:col-start-2 xl:row-start-3 xl:min-h-0">
         <Blotter instrumentId={instrument.instrumentId} />
       </div>
     </div>

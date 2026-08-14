@@ -8,7 +8,7 @@ export function Panel({
   className?: string;
 }) {
   return (
-    <div className={`rounded-xl border border-[#1e2636] bg-[#10141c]/90 ${className}`}>{children}</div>
+    <div className={`rounded-lg border border-[#1a2030] bg-[#0e1118] ${className}`}>{children}</div>
   );
 }
 

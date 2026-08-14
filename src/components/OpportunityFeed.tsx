@@ -87,37 +87,28 @@ export function OpportunityFeed() {
   const table = shown.slice(0, 60);
 
   return (
-    <div className="space-y-8">
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div className="max-w-xl">
-          <h1 className="text-2xl font-semibold tracking-tight text-white">Odds first. Then the perp.</h1>
-          <p className="mt-2 text-sm leading-6 text-[#8b93a7]">
-            Leadgap Score ranks residual between implied Yes move and the live mark. Trade the perp —
-            events are signal only.
-          </p>
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <p className="text-[10px] uppercase tracking-wide text-[#7d8699]">Leadgap scan</p>
+          <h1 className="text-lg font-semibold tracking-tight text-white">Odds first. Then the perp.</h1>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 text-[11px]">
+          <span className="text-[#7d8699]">
+            Odds-first <span className="num text-zinc-100">{summary.oddsFirst}</span>
+          </span>
+          <span className="text-[#7d8699]">
+            Actionable <span className="num text-zinc-100">{summary.actionable}</span>
+          </span>
+          <span className="text-[#7d8699]">
+            Top <span className={`num ${scoreClass(summary.topScore)}`}>{fmtScore(summary.topScore)}</span>
+          </span>
           <LiveDot label={asOf ? new Date(asOf).toLocaleTimeString() : "Live"} />
           <Segmented options={WINDOWS} value={window} onChange={setWindow} />
         </div>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-3">
-        <StatCard label="Odds first" value={String(summary.oddsFirst)} hint="Setups where the event book led" />
-        <StatCard
-          label="Actionable"
-          value={String(summary.actionable)}
-          hint="Score high enough for a Long/Short bias"
-        />
-        <StatCard
-          label="Top score"
-          value={fmtScore(summary.topScore)}
-          hint="Best Leadgap Score in this window"
-          className={scoreClass(summary.topScore)}
-        />
-      </div>
-
-      <div className="flex flex-wrap items-center gap-3">
+      <div className="flex flex-wrap items-center gap-2">
         <Segmented
           options={[
             { id: "actionable", label: "Actionable" },
@@ -127,8 +118,8 @@ export function OpportunityFeed() {
           value={filter}
           onChange={setFilter}
         />
-        <div className="w-52">
-          <TextInput value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search event or perp" />
+        <div className="w-48">
+          <TextInput value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Event or perp" />
         </div>
       </div>
 
@@ -144,17 +135,17 @@ export function OpportunityFeed() {
       ) : (
         <>
           {featured.length > 0 ? (
-            <div className="grid gap-3 lg:grid-cols-3">
+            <div className="grid gap-2 lg:grid-cols-3">
               {featured.map((row) => (
                 <Link key={`${row.eventId}-${row.symbol}-card`} href={`/markets/${row.symbol}?event=${row.eventId}`}>
-                  <Panel className="h-full p-4 transition hover:border-[#3ee0a8]/30">
-                    <div className="flex items-start justify-between gap-3">
-                      <p className="text-sm font-medium leading-5 text-zinc-100">{row.title}</p>
-                      <span className={`num shrink-0 text-2xl font-semibold ${scoreClass(row.score)}`}>
+                  <Panel className="h-full p-3 transition hover:border-[#3ee0a8]/25">
+                    <div className="flex items-start justify-between gap-2">
+                      <p className="text-[13px] font-medium leading-4 text-zinc-100">{row.title}</p>
+                      <span className={`num shrink-0 text-xl font-semibold ${scoreClass(row.score)}`}>
                         {fmtScore(row.score)}
                       </span>
                     </div>
-                    <div className="mt-2 flex flex-wrap gap-1">
+                    <div className="mt-1.5 flex flex-wrap gap-1">
                       <Pill tone={row.bias === "long" ? "long" : row.bias === "short" ? "short" : "mute"}>
                         {biasCopy(row.bias ?? "none", row.symbol)}
                       </Pill>
@@ -162,7 +153,7 @@ export function OpportunityFeed() {
                         {leaderCopy(row.leader)}
                       </Pill>
                     </div>
-                    <div className="mt-3">
+                    <div className="mt-2">
                       <ExpectedActual expected={row.expected ?? row.oddsMove * row.signedBeta} actual={row.actual ?? row.perpMove} />
                     </div>
                   </Panel>
@@ -172,19 +163,19 @@ export function OpportunityFeed() {
           ) : null}
 
           <Panel className="overflow-x-auto">
-            <table className="w-full min-w-[980px] text-left text-sm">
-              <thead className="text-[11px] uppercase tracking-wide text-[#5c6478]">
+            <table className="w-full min-w-[980px] text-left text-[13px]">
+              <thead className="text-[10px] uppercase tracking-wide text-[#7d8699]">
                 <tr>
-                  <th className="px-4 py-3 font-medium">Event</th>
-                  <th className="px-3 py-3 font-medium">Perp</th>
-                  <th className="px-3 py-3 font-medium">Score</th>
-                  <th className="px-3 py-3 font-medium">Bias</th>
-                  <th className="px-3 py-3 font-medium">Yes</th>
-                  <th className="px-3 py-3 font-medium">Odds Δ</th>
-                  <th className="px-3 py-3 font-medium">Expected</th>
-                  <th className="px-3 py-3 font-medium">Actual</th>
-                  <th className="px-3 py-3 font-medium">Residual</th>
-                  <th className="px-4 py-3 font-medium">Lead</th>
+                  <th className="px-3 py-2 font-medium">Event</th>
+                  <th className="px-2 py-2 font-medium">Perp</th>
+                  <th className="px-2 py-2 font-medium">Score</th>
+                  <th className="px-2 py-2 font-medium">Bias</th>
+                  <th className="px-2 py-2 font-medium">Yes</th>
+                  <th className="px-2 py-2 font-medium">Odds Δ</th>
+                  <th className="px-2 py-2 font-medium">Expected</th>
+                  <th className="px-2 py-2 font-medium">Actual</th>
+                  <th className="px-2 py-2 font-medium">Residual</th>
+                  <th className="px-3 py-2 font-medium">Lead</th>
                 </tr>
               </thead>
               <tbody>
@@ -192,35 +183,34 @@ export function OpportunityFeed() {
                   const expected = row.expected ?? row.oddsMove * row.signedBeta;
                   const actual = row.actual ?? row.perpMove;
                   return (
-                    <tr key={`${row.eventId}-${row.symbol}`} className="border-t border-[#1e2636] hover:bg-white/[0.03]">
-                      <td className="px-4 py-3">
+                    <tr key={`${row.eventId}-${row.symbol}`} className="border-t border-[#1a2030] hover:bg-white/[0.03]">
+                      <td className="px-3 py-1.5">
                         <Link
                           href={`/markets/${row.symbol}?event=${row.eventId}`}
                           className="font-medium text-zinc-100 hover:text-white"
                         >
                           {row.title}
                         </Link>
-                        <div className="mt-0.5 max-w-sm truncate text-xs text-[#5c6478]">{row.question}</div>
                       </td>
-                      <td className="px-3 py-3">
+                      <td className="px-2 py-1.5">
                         <Link href={`/markets/${row.symbol}`} className="text-[#8bb4ff] hover:text-white">
                           {row.symbol.replace("-USD", "")}
                         </Link>
                       </td>
-                      <td className={`num px-3 py-3 text-base font-semibold ${scoreClass(row.score)}`}>
+                      <td className={`num px-2 py-1.5 font-semibold ${scoreClass(row.score)}`}>
                         {fmtScore(row.score)}
                       </td>
-                      <td className="px-3 py-3">
+                      <td className="px-2 py-1.5">
                         <Pill tone={row.bias === "long" ? "long" : row.bias === "short" ? "short" : "mute"}>
                           {biasCopy(row.bias ?? "none")}
                         </Pill>
                       </td>
-                      <td className="num px-3 py-3">{fmtOdds(row.yesPrice)}</td>
-                      <td className={`num px-3 py-3 ${signedClass(row.oddsMove)}`}>{fmtOddsDelta(row.oddsMove)}</td>
-                      <td className={`num px-3 py-3 ${signedClass(expected)}`}>{fmtPct(expected)}</td>
-                      <td className={`num px-3 py-3 ${signedClass(actual)}`}>{fmtPct(actual)}</td>
-                      <td className={`num px-3 py-3 ${signedClass(row.gap)}`}>{fmtPct(row.gap)}</td>
-                      <td className="px-4 py-3">
+                      <td className="num px-2 py-1.5">{fmtOdds(row.yesPrice)}</td>
+                      <td className={`num px-2 py-1.5 ${signedClass(row.oddsMove)}`}>{fmtOddsDelta(row.oddsMove)}</td>
+                      <td className={`num px-2 py-1.5 ${signedClass(expected)}`}>{fmtPct(expected)}</td>
+                      <td className={`num px-2 py-1.5 ${signedClass(actual)}`}>{fmtPct(actual)}</td>
+                      <td className={`num px-2 py-1.5 ${signedClass(row.gap)}`}>{fmtPct(row.gap)}</td>
+                      <td className="px-3 py-1.5">
                         <Pill tone={row.leader === "odds" ? "lead" : row.leader === "perp" ? "perp" : "mute"}>
                           {leaderCopy(row.leader)}
                         </Pill>
@@ -261,22 +251,3 @@ export function OpportunityFeed() {
   );
 }
 
-function StatCard({
-  label,
-  value,
-  hint,
-  className = "text-white",
-}: {
-  label: string;
-  value: string;
-  hint: string;
-  className?: string;
-}) {
-  return (
-    <Panel className="p-4">
-      <p className="text-[11px] uppercase tracking-wide text-[#5c6478]">{label}</p>
-      <p className={`num mt-1 text-2xl font-semibold ${className}`}>{value}</p>
-      <p className="mt-1 text-[11px] text-[#5c6478]">{hint}</p>
-    </Panel>
-  );
-}

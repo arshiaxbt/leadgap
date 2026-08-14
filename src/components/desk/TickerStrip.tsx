@@ -20,9 +20,9 @@ export function TickerStrip({
 }) {
   const change = ticker?.change1h ?? null;
   return (
-    <div className="flex min-h-12 flex-wrap items-center gap-x-4 gap-y-1 border-b border-[#1e2636] bg-[#0c1018] px-3 text-xs">
+    <div className="flex h-8 items-center gap-x-3 overflow-x-auto border-b border-[#1a2030] bg-[#08090c] px-2 text-[11px]">
       <PairPicker instrument={instrument} instruments={instruments} />
-      <span className="num text-base font-semibold text-white">
+      <span className="num text-[15px] font-semibold text-white">
         {ticker ? fmtPx(ticker.markPrice, instrument.priceDecimals) : "—"}
       </span>
       <Stat label="Index" value={ticker ? fmtPx(ticker.indexPrice, instrument.priceDecimals) : "—"} />

@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Header } from "@/components/Header";
-import { PortfolioStrip } from "@/components/PortfolioStrip";
 import { Providers } from "@/components/Providers";
 import { APP_LOGO, APP_NAME, APP_ORIGIN, APP_TAGLINE } from "@/lib/brand";
 
@@ -46,7 +45,6 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       <body className="flex h-full min-h-full flex-col font-sans text-[var(--foreground)] antialiased">
         <Providers>
           <Header />
-          <PortfolioStrip />
           <div className="flex min-h-0 flex-1 flex-col">{children}</div>
         </Providers>
       </body>

@@ -35,7 +35,7 @@ function matchesFilter(row: GapRow, filter: Filter): boolean {
 
 export function OpportunityFeed() {
   const [window, setWindow] = useState<GapWindow>("15m");
-  const [filter, setFilter] = useState<Filter>("all");
+  const [filter, setFilter] = useState<Filter>("actionable");
   const [query, setQuery] = useState("");
   const [gaps, setGaps] = useState<GapRow[]>([]);
   const [summary, setSummary] = useState({ oddsFirst: 0, actionable: 0, topScore: 0 });

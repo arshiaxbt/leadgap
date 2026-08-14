@@ -1,4 +1,4 @@
-import type { ClusterRule, MapRow } from "./types";
+import type { ClusterRule, LinkedPerp, MapRow } from "./types";
 
 function equity(
   symbol: string,
@@ -182,7 +182,7 @@ export const ASSET_MAP: MapRow[] = [
   equity("SKHYNIX-USD", ["SK Hynix", "Hynix", "SKHYNIX"], ["SK Hynix"], "semi"),
   equity("SPCX-USD", ["SpaceX", "Starship"], ["SpaceX IPO", "Starship launch"]),
   equity("HOOD-USD", ["Robinhood"], ["Robinhood earnings"], "crypto-equity"),
-  equity("MSTR-USD", ["MicroStrategy", "Strategy", "Saylor"], ["MicroStrategy Bitcoin"], "crypto-equity"),
+  equity("MSTR-USD", ["MicroStrategy", "MSTR", "Saylor"], ["MicroStrategy Bitcoin"], "crypto-equity"),
   equity("STRC-USD", ["STRC", "Strategy Strike"], ["MicroStrategy preferred"], "crypto-equity"),
   equity("CRCL-USD", ["Circle", "USDC"], ["Circle IPO", "USDC"], "crypto-equity"),
   equity("COIN-USD", ["Coinbase"], ["Coinbase earnings", "Coinbase"], "crypto-equity"),
@@ -265,6 +265,7 @@ export const CLUSTER_RULES: ClusterRule[] = [
 ];
 
 export const CONFIDENCE_FLOOR = 0.5;
+export const MAP_REVISION = 2;
 
 export function mapBySymbol(): Map<string, MapRow> {
   return new Map(ASSET_MAP.map((row) => [row.symbol, row]));
@@ -272,6 +273,90 @@ export function mapBySymbol(): Map<string, MapRow> {
 
 export function aliasesForSymbol(symbol: string): string[] {
   return mapBySymbol().get(symbol)?.aliases ?? [symbol.replace("-USD", "")];
+}
+
+export function aliasHit(text: string, alias: string): boolean {
+  const hay = text.toLowerCase();
+  const needle = alias.toLowerCase().trim();
+  if (needle.length < 3) return false;
+  const escaped = needle.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/\s+/g, "[\\s-]+");
+  return new RegExp(`(?:^|[^a-z0-9])${escaped}(?:$|[^a-z0-9])`).test(hay);
+}
+
+export function eventMentionsQuery(hay: string, query: string): boolean {
+  const text = hay.toLowerCase();
+  const words = query
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .filter((w) => w.length >= 3);
+  if (words.length === 0) return false;
+  return words.every((w) => {
+    if (aliasHit(text, w)) return true;
+    const escaped = w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    return new RegExp(`(?:^|[^a-z0-9])${escaped}[a-z]{0,3}(?:$|[^a-z0-9])`).test(text);
+  });
+}
+
+export function nameStrength(hay: string, symbol: string): number {
+  const row = mapBySymbol().get(symbol);
+  if (!row) return 0;
+  const ticker = symbol.replace("-USD", "");
+  if (aliasHit(hay, ticker)) return 3;
+  if (row.aliases.some((alias) => aliasHit(hay, alias))) return 2;
+  return 0;
+}
+
+export function preferredPerps<T extends { symbol: string; confidence: number }>(
+  hay: string,
+  perps: T[],
+): T[] {
+  return [...perps].sort((a, b) => nameStrength(hay, b.symbol) - nameStrength(hay, a.symbol) || b.confidence - a.confidence);
+}
+
+export function linksForSearchHit(args: {
+  hay: string;
+  source: "cluster" | "asset";
+  id: string;
+  query: string;
+}): LinkedPerp[] {
+  switch (args.source) {
+    case "asset": {
+      const row = mapBySymbol().get(args.id);
+      if (!row || nameStrength(args.hay, row.symbol) === 0) return [];
+      return [
+        {
+          symbol: row.symbol,
+          signedBeta: row.signedBeta,
+          confidence: row.confidence,
+          cluster: row.cluster,
+          mappingReason: `Direct map ${row.symbol} via “${args.query}”`,
+        },
+      ];
+    }
+    case "cluster": {
+      const rule = CLUSTER_RULES.find((r) => r.id === args.id);
+      if (!rule) return [];
+      const named = rule.members.filter((member) => nameStrength(args.hay, member.symbol) > 0);
+      const members = named.length
+        ? named
+        : eventMentionsQuery(args.hay, args.query)
+          ? rule.members.slice(0, 1)
+          : [];
+      return members.map((member) => ({
+        symbol: member.symbol,
+        signedBeta: member.signedBeta,
+        confidence: named.length ? member.confidence : Math.min(member.confidence, 0.72),
+        cluster: args.id,
+        mappingReason: named.length
+          ? `Named ${member.symbol} in cluster ${args.id}`
+          : `Cluster ${args.id} topic via “${args.query}”`,
+      }));
+    }
+    default: {
+      const _never: never = args.source;
+      return _never;
+    }
+  }
 }
 
 export function allGammaQueries(): { query: string; source: "cluster" | "asset"; id: string }[] {

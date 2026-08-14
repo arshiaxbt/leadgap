@@ -1,5 +1,5 @@
 import Parser from "rss-parser";
-import { ASSET_MAP } from "./mapping";
+import { aliasHit, ASSET_MAP } from "./mapping";
 import type { NewsItem, ResolvedEvent } from "./types";
 
 const FEEDS = [
@@ -10,16 +10,6 @@ const FEEDS = [
 
 function idFrom(link: string, title: string): string {
   return Buffer.from(`${link}|${title}`).toString("base64url").slice(0, 24);
-}
-
-function aliasHit(hay: string, alias: string): boolean {
-  const needle = alias.toLowerCase();
-  if (needle.length < 3) return false;
-  if (needle.length <= 4) {
-    const escaped = needle.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    return new RegExp(`(?:^|[^a-z0-9])${escaped}(?:$|[^a-z0-9])`).test(hay);
-  }
-  return hay.includes(needle);
 }
 
 function matchSymbols(text: string): string[] {

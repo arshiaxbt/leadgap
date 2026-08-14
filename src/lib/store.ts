@@ -1,6 +1,6 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { allGammaQueries, ASSET_MAP, CLUSTER_RULES, CONFIDENCE_FLOOR, mapBySymbol } from "./mapping";
+import { allGammaQueries, ASSET_MAP, CONFIDENCE_FLOOR, MAP_REVISION, aliasHit, linksForSearchHit, mapBySymbol, preferredPerps } from "./mapping";
 import { computeGaps, eventTitleKey, GAP_WINDOWS, uniqueGapRows } from "./divergence";
 import { isActionable } from "./score";
 import { bestMarket, fetchOddsHistory, fetchYesMid, parseTokenIds, parseYesPrice, searchGammaEvents } from "./gamma";
@@ -38,6 +38,7 @@ type Store = {
   lastNews: number;
   lastMap: number;
   lastKlines: number;
+  mapRevision: number;
   ingesting: Promise<void> | null;
   error: string | null;
 };
@@ -57,6 +58,7 @@ function emptyStore(): Store {
     lastNews: 0,
     lastMap: 0,
     lastKlines: 0,
+    mapRevision: 0,
     ingesting: null,
     error: null,
   };
@@ -96,6 +98,7 @@ function persist() {
         lastNews: s.lastNews,
         lastMap: s.lastMap,
         lastKlines: s.lastKlines,
+        mapRevision: s.mapRevision,
         error: s.error,
       }),
     );
@@ -120,6 +123,7 @@ function loadPersisted() {
     s.lastNews = raw.lastNews ?? 0;
     s.lastMap = raw.lastMap ?? 0;
     s.lastKlines = raw.lastKlines ?? 0;
+    s.mapRevision = raw.mapRevision ?? 0;
     s.error = raw.error ?? null;
   } catch {
     // first boot
@@ -148,7 +152,7 @@ function uniqueEvents(events: ResolvedEvent[]): ResolvedEvent[] {
     seenTitle.add(key);
     out.push({
       ...event,
-      perps: [...event.perps].sort((a, b) => b.confidence - a.confidence).slice(0, 1),
+      perps: preferredPerps(`${event.title} ${event.question}`, event.perps).slice(0, 1),
     });
   }
   return out;
@@ -166,7 +170,6 @@ async function mapPool<T, R>(items: T[], size: number, fn: (item: T) => Promise<
 async function resolveEvents(): Promise<ResolvedEvent[]> {
   const queries = allGammaQueries();
   const byId = new Map<string, ResolvedEvent>();
-  const assetIndex = mapBySymbol();
 
   await mapPool(queries, 6, async (q) => {
     const found = await searchGammaEvents(q.query, 3);
@@ -198,28 +201,14 @@ async function resolveEvents(): Promise<ResolvedEvent[]> {
         event.volume = Math.max(event.volume, volume);
       }
 
-      if (q.source === "cluster") {
-        const rule = CLUSTER_RULES.find((r) => r.id === q.id);
-        for (const member of rule?.members ?? []) {
-          addLink(event, {
-            symbol: member.symbol,
-            signedBeta: member.signedBeta,
-            confidence: member.confidence,
-            cluster: q.id,
-            mappingReason: `Cluster ${q.id} via query “${q.query}”`,
-          });
-        }
-      } else {
-        const row = assetIndex.get(q.id);
-        if (row) {
-          addLink(event, {
-            symbol: row.symbol,
-            signedBeta: row.signedBeta,
-            confidence: row.confidence,
-            cluster: row.cluster,
-            mappingReason: `Direct map ${row.symbol} via “${q.query}”`,
-          });
-        }
+      const hay = `${event.title} ${event.question}`;
+      for (const link of linksForSearchHit({
+        hay,
+        source: q.source,
+        id: q.id,
+        query: q.query,
+      })) {
+        addLink(event, link);
       }
     }
   });
@@ -228,7 +217,7 @@ async function resolveEvents(): Promise<ResolvedEvent[]> {
     const hay = `${event.title} ${event.question}`.toLowerCase();
     for (const row of ASSET_MAP) {
       if (event.perps.some((p) => p.symbol === row.symbol)) continue;
-      const hit = row.aliases.some((a) => a.length >= 3 && hay.includes(a.toLowerCase()));
+      const hit = row.aliases.some((a) => aliasHit(hay, a));
       if (hit) {
         addLink(event, {
           symbol: row.symbol,
@@ -247,8 +236,7 @@ async function resolveEvents(): Promise<ResolvedEvent[]> {
   const out: ResolvedEvent[] = [];
   const seenTitle = new Set<string>();
   for (const event of ranked) {
-    event.perps.sort((a, b) => b.confidence - a.confidence);
-    event.perps = event.perps.slice(0, 1);
+    event.perps = preferredPerps(`${event.title} ${event.question}`, event.perps).slice(0, 1);
     const key = eventTitleKey(event.title) || event.id;
     if (seenTitle.has(key)) continue;
     seenTitle.add(key);
@@ -261,7 +249,7 @@ async function ingestOnce() {
   const s = store();
   const now = Date.now();
   try {
-    const needMap = now - s.lastMap > MAP_MS || s.events.length === 0;
+    const needMap = now - s.lastMap > MAP_MS || s.events.length === 0 || s.mapRevision !== MAP_REVISION;
     const needKlines = now - s.lastKlines > KLINE_MS;
     const [instruments, tickerRows] = await Promise.all([fetchInstruments(), fetchTickers()]);
     s.instruments = instruments;
@@ -298,6 +286,7 @@ async function ingestOnce() {
       });
       s.events = events;
       s.lastMap = now;
+      s.mapRevision = MAP_REVISION;
     } else {
       await mapPool(s.events, 8, async (event) => {
         if (!event.yesTokenId) return;

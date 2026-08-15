@@ -42,7 +42,7 @@ export function geoFromRequest(req: Request): GeoDecision {
     blocked,
     reason: blocked
       ? "Order placement is not permitted from this jurisdiction. Market data remains visible."
-      : "Eligible to submit Perps orders from this IP, subject to local law.",
+      : "",
   };
 }
 

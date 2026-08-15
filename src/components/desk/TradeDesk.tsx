@@ -8,6 +8,7 @@ import { Blotter } from "@/components/desk/Blotter";
 import { EventIntel } from "@/components/desk/EventIntel";
 import { OrderBookPanel } from "@/components/desk/OrderBookPanel";
 import { TickerStrip } from "@/components/desk/TickerStrip";
+import type { TicketPreview } from "@/components/OrderTicket";
 import { chartStory, thesisLine } from "@/lib/signal";
 import { trackEvent } from "@/lib/track";
 import type {
@@ -73,6 +74,7 @@ export function TradeDesk({ symbol }: { symbol: string }) {
   const [book, setBook] = useState<PerpsBook | null>(null);
   const [clickPrice, setClickPrice] = useState<string | undefined>();
   const [chartOdds, setChartOdds] = useState<Snapshot[] | undefined>();
+  const [preview, setPreview] = useState<TicketPreview | null>(null);
   const wide = useSyncExternalStore(subscribeXl, xlMatches, () => false);
   const cols = useDefaultLayout({
     id: "leadgap-desk-h",
@@ -199,6 +201,7 @@ export function TradeDesk({ symbol }: { symbol: string }) {
       instruments={instruments}
       interval={klineInterval}
       onInterval={setKlineInterval}
+      preview={preview}
     />
   );
   const intelPanel = (
@@ -224,6 +227,7 @@ export function TradeDesk({ symbol }: { symbol: string }) {
       oddsLabel={events.find((e) => e.id === eventId)?.title ?? "Yes %"}
       gapMarks={(tape ?? []).filter((p) => p.symbol === instrument.symbol && (!eventId || p.eventId === eventId))}
       story={story}
+      decimals={instrument.priceDecimals}
     />
   );
   const bookPanel = (
@@ -236,9 +240,17 @@ export function TradeDesk({ symbol }: { symbol: string }) {
       price={clickPrice}
       thesis={selectedGap ? thesisLine(selectedGap) : undefined}
       bias={selectedGap?.bias}
+      onPreview={setPreview}
     />
   );
-  const blotterPanel = <Blotter instrumentId={instrument.instrumentId} />;
+  const blotterPanel = (
+    <Blotter
+      instrumentId={instrument.instrumentId}
+      preview={preview}
+      ticker={ticker}
+      priceDecimals={instrument.priceDecimals}
+    />
+  );
 
   if (wide) {
     return (

@@ -63,7 +63,7 @@ export function MarketsBoard() {
   const [data, setData] = useState<Payload | null>(null);
   const [filter, setFilter] = useState("all");
   const [q, setQ] = useState("");
-  const [sort, setSort] = useState<SortCol>("oi");
+  const [sort, setSort] = useState<SortCol>("events");
   const [dir, setDir] = useState<SortDir>("desc");
   const mapped = useMemo(() => mapBySymbol(), []);
 

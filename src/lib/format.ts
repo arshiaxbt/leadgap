@@ -1,10 +1,20 @@
 import type { PerpsCategory, SessionLabel } from "./types";
 
+/** Axis / series precision: honor instrument decimals, then bump for sub-dollar marks. */
+export function priceDigits(decimals: number, sample = 0): number {
+  let d = Math.max(0, decimals);
+  if (sample > 0 && sample < 1) {
+    d = Math.max(d, Math.min(8, Math.ceil(-Math.log10(sample)) + 2));
+  }
+  return Math.max(2, Math.min(8, d));
+}
+
 export function fmtPx(n: number, digits = 2): string {
   if (!Number.isFinite(n)) return "—";
-  if (Math.abs(n) >= 1000) return n.toLocaleString("en-US", { maximumFractionDigits: 1 });
-  if (Math.abs(n) >= 1) return n.toLocaleString("en-US", { maximumFractionDigits: digits });
-  return n.toLocaleString("en-US", { maximumFractionDigits: 6 });
+  const abs = Math.abs(n);
+  if (abs >= 1000) return n.toLocaleString("en-US", { maximumFractionDigits: 1 });
+  const frac = abs >= 1 ? digits : Math.max(digits, 6);
+  return n.toLocaleString("en-US", { maximumFractionDigits: frac });
 }
 
 export function fmtPct(n: number, digits = 2): string {

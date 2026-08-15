@@ -370,18 +370,10 @@ function PortfolioDeskSession() {
         </div>
       </div>
 
-      {state.funded && walletClient ? (
-        <div className="lg-pane px-4 py-3">
-          <p className="mb-2 text-[11px] uppercase tracking-[0.1em] text-[var(--dim)]">Deposit / Withdraw</p>
-          <FundControls
-            walletClient={walletClient}
-            publicClient={publicClient}
-            polymarketWallet={state.polymarketWallet}
-            walletPusd={state.walletPusd}
-            onDone={() => setRetry((n) => n + 1)}
-          />
-        </div>
-      ) : null}
+      <div className="lg-pane px-4 py-3">
+        <p className="mb-2 text-[11px] uppercase tracking-[0.1em] text-[var(--dim)]">Fund</p>
+        <FundControls />
+      </div>
 
       <Section title="Event exposure">
         {exposures.length === 0 ? (

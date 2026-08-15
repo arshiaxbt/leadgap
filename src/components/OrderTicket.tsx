@@ -14,12 +14,24 @@ import type { PerpsInstrument, PerpsTicker } from "@/lib/types";
 
 type Geo = { blocked: boolean; country: string; reason: string };
 
+export type TicketPreview = {
+  side: "BUY" | "SELL";
+  leverage: number;
+  qty: number;
+  price: number;
+  margin: number;
+  liq: number | null;
+  tp: string;
+  sl: string;
+};
+
 type TicketProps = {
   instrument: PerpsInstrument;
   ticker?: PerpsTicker;
   price?: string;
   thesis?: string;
   bias?: Bias;
+  onPreview?: (preview: TicketPreview) => void;
 };
 
 export function OrderTicket(props: TicketProps) {
@@ -42,6 +54,7 @@ function TicketForm({
   price: priceOverride,
   thesis,
   bias,
+  onPreview,
   mount,
   address,
   isConnected = false,
@@ -129,7 +142,7 @@ function TicketForm({
     if (blocked) return geo.reason;
     if (!isConnected) return "Log in to place an order.";
     if (inviteBlocked) return perpsAccess?.message ?? "";
-    return geo.reason;
+    return "";
   }, [blocked, geo, inviteBlocked, isConnected, mount, perpsAccess]);
 
   function applyPct(pct: number) {
@@ -162,10 +175,8 @@ function TicketForm({
         builderCode: BUILDER_CODE,
       };
       if (tif === "GTC" && price) request.price = price;
-      if (tif === "GTC") {
-        if (tp) request.takeProfit = { triggerPrice: tp };
-        if (sl) request.stopLoss = { triggerPrice: sl };
-      }
+      if (tp) request.takeProfit = { triggerPrice: tp };
+      if (sl) request.stopLoss = { triggerPrice: sl };
       const placed = await session.placeOrder(request as never);
       trackEvent("submit_order", { symbol: instrument.symbol, side });
       setStatus(`Order ${placed.order.id} ${placed.order.status}`);
@@ -202,6 +213,19 @@ function TicketForm({
   );
   const field = "lg-input num mt-0.5 w-full px-2 py-1 text-[12px]";
   const fromEvent = bias === "long" || bias === "short";
+
+  useEffect(() => {
+    onPreview?.({
+      side,
+      leverage,
+      qty: size,
+      price: px,
+      margin: marginEst,
+      liq,
+      tp,
+      sl,
+    });
+  }, [leverage, liq, marginEst, onPreview, px, side, size, sl, tp]);
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-auto bg-[var(--surface)] text-[11px]">
@@ -328,18 +352,16 @@ function TicketForm({
         className="w-full accent-[var(--signal)]"
       />
 
-      {tif === "GTC" ? (
-        <div className="grid grid-cols-2 gap-1.5">
-          <label className="lg-label">
-            TP
-            <input value={tp} onChange={(e) => setTp(e.target.value)} placeholder="—" className={field} />
-          </label>
-          <label className="lg-label">
-            SL
-            <input value={sl} onChange={(e) => setSl(e.target.value)} placeholder="—" className={field} />
-          </label>
-        </div>
-      ) : null}
+      <div className="grid grid-cols-2 gap-1.5">
+        <label className="lg-label">
+          TP
+          <input value={tp} onChange={(e) => setTp(e.target.value)} placeholder="—" className={field} />
+        </label>
+        <label className="lg-label">
+          SL
+          <input value={sl} onChange={(e) => setSl(e.target.value)} placeholder="—" className={field} />
+        </label>
+      </div>
 
       <div className="grid grid-cols-3 gap-1 border-t border-[var(--line)] pt-2 text-[10px] text-[var(--dim)]">
         <div>
@@ -385,7 +407,7 @@ function TicketForm({
           </a>
         ) : null}
       </div>
-      <p className="text-[10px] leading-3 text-[var(--dim)]">{hint}</p>
+      {hint ? <p className="text-[10px] leading-3 text-[var(--dim)]">{hint}</p> : null}
       {status ? <p className="text-[11px] text-[var(--warn)]">{status}</p> : null}
       </div>
     </div>

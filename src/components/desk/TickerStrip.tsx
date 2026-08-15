@@ -2,7 +2,9 @@
 
 import { PairPicker } from "@/components/desk/PairPicker";
 import { MenuSelect } from "@/components/MenuSelect";
-import { fmtCountdown, fmtFunding, fmtPct, fmtPx, sessionLabel, signedClass } from "@/lib/format";
+import type { TicketPreview } from "@/components/OrderTicket";
+import { fmtCountdown, fmtFunding, fmtPct, fmtPx, fmtUsd, signedClass } from "@/lib/format";
+import { useDeskPosition } from "@/lib/useDeskPosition";
 import type { KlineInterval, PerpsInstrument, PerpsTicker } from "@/lib/types";
 import { Segmented } from "@/components/ui";
 
@@ -12,35 +14,52 @@ export function TickerStrip({
   instruments,
   interval,
   onInterval,
+  preview,
 }: {
   instrument: PerpsInstrument;
   ticker?: PerpsTicker;
   instruments: PerpsInstrument[];
   interval: KlineInterval;
   onInterval: (v: KlineInterval) => void;
+  preview?: TicketPreview | null;
 }) {
+  const { position, tpSl } = useDeskPosition(instrument.instrumentId);
   const change = ticker?.change1h ?? null;
+  const digits = instrument.priceDecimals;
+  const liq = position?.liq ?? preview?.liq ?? null;
+  const margin = position ? position.margin : preview?.margin;
+  const tp = (position ? tpSl.tp : preview?.tp) || "";
+  const sl = (position ? tpSl.sl : preview?.sl) || "";
+
   return (
     <div className="lg-toolbar h-auto min-h-8 flex-wrap gap-x-3 gap-y-1 overflow-x-auto px-2 py-1 text-[11px] xl:h-8 xl:flex-nowrap xl:py-0">
       <PairPicker instrument={instrument} instruments={instruments} />
       <span className="num text-[15px] font-semibold text-[var(--text)]">
-        {ticker ? fmtPx(ticker.markPrice, instrument.priceDecimals) : "—"}
+        {ticker ? fmtPx(ticker.markPrice, digits) : "—"}
       </span>
       <Stat
         label="1h"
         value={change != null ? fmtPct(change) : "—"}
         className={change != null ? signedClass(change) : ""}
       />
-      <Stat hide="hidden md:inline" label="Index" value={ticker ? fmtPx(ticker.indexPrice, instrument.priceDecimals) : "—"} />
+      <Stat hide="hidden md:inline" label="Index" value={ticker ? fmtPx(ticker.indexPrice, digits) : "—"} />
       <Stat
         label="Funding"
         value={ticker ? fmtFunding(ticker.fundingRate) : "—"}
         className={ticker ? signedClass(ticker.fundingRate) : ""}
       />
-      <Stat label="Next" value={ticker ? fmtCountdown(ticker.nextFunding) : "—"} />
+      <Stat hide="hidden lg:inline" label="Next" value={ticker ? fmtCountdown(ticker.nextFunding) : "—"} />
+      <Stat
+        label="Liq"
+        value={liq != null ? fmtPx(liq, digits) : "—"}
+      />
+      <Stat
+        label="Margin"
+        value={margin != null && margin > 0 ? fmtUsd(margin) : "—"}
+      />
+      <Stat label="TP" value={tp ? fmtPx(Number(tp), digits) : "—"} />
+      <Stat label="SL" value={sl ? fmtPx(Number(sl), digits) : "—"} />
       <Stat hide="hidden lg:inline" label="OI" value={ticker ? fmtPx(ticker.openInterest, 2) : "—"} />
-      <Stat hide="hidden lg:inline" label="Lev" value={`${instrument.maxLeverage}x`} />
-      <Stat hide="hidden xl:inline" label="Session" value={sessionLabel(instrument.category)} />
       <div className="ml-auto hidden sm:block">
         <Segmented
           options={[

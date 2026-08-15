@@ -21,6 +21,7 @@ import {
   type UTCTimestamp,
 } from "lightweight-charts";
 import type { Candle, GapTapePoint, KlineInterval, Snapshot } from "@/lib/types";
+import { priceDigits } from "@/lib/format";
 
 type Tool = "cursor" | "hline" | "trend";
 type Style = "candle" | "line";
@@ -43,11 +44,19 @@ function clock(realSec: number, withDate = false): string {
   return `${d.getMonth() + 1}/${d.getDate()} ${hh}:${mm}`;
 }
 
-function fmtN(n: number): string {
+function fmtN(n: number, digits: number): string {
   if (!Number.isFinite(n)) return "—";
   if (Math.abs(n) >= 1000) return n.toLocaleString("en-US", { maximumFractionDigits: 1 });
-  if (Math.abs(n) >= 1) return n.toLocaleString("en-US", { maximumFractionDigits: 2 });
-  return n.toLocaleString("en-US", { maximumFractionDigits: 4 });
+  return n.toLocaleString("en-US", { maximumFractionDigits: digits, minimumFractionDigits: 0 });
+}
+
+function seriesPriceFormat(digits: number) {
+  const precision = Math.max(2, Math.min(8, digits));
+  return {
+    type: "price" as const,
+    precision,
+    minMove: Number((10 ** -precision).toFixed(precision)),
+  };
 }
 
 function gapMarkerShape(bias: GapTapePoint["bias"]): SeriesMarker<UTCTimestamp>["shape"] {
@@ -106,6 +115,7 @@ export function PriceChart({
   oddsLabel = "Yes %",
   gapMarks,
   story,
+  decimals = 2,
 }: {
   candles: Candle[];
   odds?: Snapshot[];
@@ -113,6 +123,7 @@ export function PriceChart({
   oddsLabel?: string;
   gapMarks?: GapTapePoint[];
   story?: string;
+  decimals?: number;
 }) {
   const host = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
@@ -145,6 +156,9 @@ export function PriceChart({
   const oddsMapRef = useRef<Map<number, number>>(new Map());
   const userTouched = useRef(false);
   const ignoreRange = useRef(false);
+  const digits = priceDigits(decimals, candles.at(-1)?.close ?? 0);
+  const digitsRef = useRef(digits);
+  digitsRef.current = digits;
 
   useEffect(() => {
     const el = host.current;
@@ -165,7 +179,7 @@ export function PriceChart({
       rightPriceScale: {
         borderColor: "#2c2823",
         scaleMargins: { top: 0.08, bottom: 0.1 },
-        minimumWidth: 56,
+        minimumWidth: 72,
       },
       leftPriceScale: {
         visible: false,
@@ -173,6 +187,7 @@ export function PriceChart({
       },
       localization: {
         timeFormatter: (t: Time) => clock(realByLogical.current.get(Number(t)) ?? Number(t), true),
+        priceFormatter: (p: number) => fmtN(p, digitsRef.current),
       },
       timeScale: {
         borderColor: "#2c2823",
@@ -204,12 +219,14 @@ export function PriceChart({
       wickUpColor: "#3f8f6e",
       wickDownColor: "#b85c4c",
       visible: false,
+      priceFormat: seriesPriceFormat(digitsRef.current),
     });
     const closeSeries = chart.addSeries(LineSeries, {
       color: "#8e959e",
       lineWidth: 2,
       visible: true,
       lastValueVisible: true,
+      priceFormat: seriesPriceFormat(digitsRef.current),
     });
     const oddsPane = chart.addPane(true);
     const oddsSeries = chart.addSeries(
@@ -259,7 +276,7 @@ export function PriceChart({
           lineWidth: 1,
           lineStyle: LineStyle.Dashed,
           axisLabelVisible: true,
-          title: price.toFixed(2),
+          title: fmtN(price, digitsRef.current),
         });
         linesRef.current.push(line);
         return;
@@ -316,7 +333,7 @@ export function PriceChart({
       trendsRef.current = [];
       pendingTrend.current = null;
     };
-  }, []);
+  }, [digits]);
 
   useEffect(() => {
     if (!candleRef.current || !closeRef.current || candles.length === 0) return;
@@ -344,6 +361,11 @@ export function PriceChart({
     ohlcRef.current = bars;
     candleRef.current.setData(ohlc);
     closeRef.current.setData(ohlc.map((c) => ({ time: c.time, value: c.close })));
+    const digits = priceDigits(decimals, rows.at(-1)?.close ?? 0);
+    digitsRef.current = digits;
+    const format = seriesPriceFormat(digits);
+    candleRef.current.applyOptions({ priceFormat: format });
+    closeRef.current.applyOptions({ priceFormat: format });
     if (!fitted.current) {
       ignoreRange.current = true;
       chartRef.current?.timeScale().fitContent();
@@ -354,7 +376,7 @@ export function PriceChart({
     } else if (!userTouched.current) {
       chartRef.current?.timeScale().scrollToRealTime();
     }
-  }, [candles, interval]);
+  }, [candles, interval, decimals]);
 
   useEffect(() => {
     if (!oddsRef.current) return;
@@ -458,8 +480,11 @@ export function PriceChart({
       <div className="lg-toolbar flex-wrap gap-1 text-[10px]">
         {hover ? (
           <span className="num mr-2 text-[var(--dim)]">
-            O {fmtN(hover.o)} H {fmtN(hover.h)} L {fmtN(hover.l)} C{" "}
-            <span className={hover.c >= hover.o ? "text-[var(--long)]" : "text-[var(--short)]"}>{fmtN(hover.c)}</span>
+            O {fmtN(hover.o, digitsRef.current)} H {fmtN(hover.h, digitsRef.current)} L {fmtN(hover.l, digitsRef.current)}{" "}
+            C{" "}
+            <span className={hover.c >= hover.o ? "text-[var(--long)]" : "text-[var(--short)]"}>
+              {fmtN(hover.c, digitsRef.current)}
+            </span>
             {oddsOn && hover.odds != null ? (
               <span className="ml-2 text-[var(--signal)]">Yes {hover.odds.toFixed(1)}%</span>
             ) : null}

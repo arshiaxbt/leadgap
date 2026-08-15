@@ -1,14 +1,13 @@
 "use client";
 
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import dynamic from "next/dynamic";
 import { useSearchParams } from "next/navigation";
 import { Group, Panel, Separator, useDefaultLayout } from "react-resizable-panels";
 import { Blotter } from "@/components/desk/Blotter";
 import { EventIntel } from "@/components/desk/EventIntel";
 import { OrderBookPanel } from "@/components/desk/OrderBookPanel";
-import { PriceChart } from "@/components/desk/PriceChart";
 import { TickerStrip } from "@/components/desk/TickerStrip";
-import { OrderTicket } from "@/components/OrderTicket";
 import { chartStory, thesisLine } from "@/lib/signal";
 import { trackEvent } from "@/lib/track";
 import type {
@@ -42,6 +41,16 @@ type Payload = {
 };
 
 const XL = "(min-width: 1280px)";
+
+const PriceChart = dynamic(() => import("@/components/desk/PriceChart").then((m) => m.PriceChart), {
+  ssr: false,
+  loading: () => <div className="h-full min-h-[240px] animate-pulse bg-white/5" />,
+});
+
+const OrderTicket = dynamic(() => import("@/components/OrderTicket").then((m) => m.OrderTicket), {
+  ssr: false,
+  loading: () => <div className="h-full min-h-[200px] animate-pulse bg-white/5" />,
+});
 
 function subscribeXl(onStoreChange: () => void) {
   const mq = window.matchMedia(XL);

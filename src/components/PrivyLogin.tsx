@@ -14,7 +14,7 @@ export function PrivyLogin() {
   const email = user?.email?.address;
 
   if (!ready) {
-    return <span className="text-xs text-[#8b93a7]">Connecting…</span>;
+    return <span className="inline-block h-7 w-[3.75rem] rounded border border-transparent" aria-hidden />;
   }
 
   if (authenticated) {

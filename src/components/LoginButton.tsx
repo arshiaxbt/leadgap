@@ -13,7 +13,9 @@ export function LoginButton() {
   const mount = usePrivyMount();
 
   if (!appId || mount === "off") return null;
-  if (mount === "wait") return <span className="text-xs text-[#8b93a7]">…</span>;
+  if (mount === "wait") {
+    return <span className="inline-block h-7 w-[3.75rem] rounded border border-transparent" aria-hidden />;
+  }
   if (mount === "insecure") {
     return <span className="text-xs text-amber-200">HTTPS required to log in</span>;
   }

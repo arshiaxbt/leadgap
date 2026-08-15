@@ -185,10 +185,10 @@ export function OpportunityFeed() {
       {error ? <p className="text-sm text-amber-200">{error}</p> : null}
 
       {loading ? (
-        <div className="grid gap-2 lg:grid-cols-3">
-          <div className="h-40 animate-pulse rounded-lg bg-white/5" />
-          <div className="h-40 animate-pulse rounded-lg bg-white/5" />
-          <div className="h-40 animate-pulse rounded-lg bg-white/5" />
+        <div className="grid min-h-[16rem] gap-2 lg:grid-cols-3">
+          <div className="h-64 animate-pulse rounded-lg bg-white/5" />
+          <div className="h-64 animate-pulse rounded-lg bg-white/5" />
+          <div className="h-64 animate-pulse rounded-lg bg-white/5" />
         </div>
       ) : shown.length === 0 ? (
         <p className="text-[12px] text-[#7d8699]">
@@ -199,7 +199,7 @@ export function OpportunityFeed() {
       ) : (
         <>
           {featured.length > 0 ? (
-            <div className="grid gap-2 lg:grid-cols-3">
+            <div className="grid min-h-[16rem] gap-2 lg:grid-cols-3">
               {featured.map((row) => (
                 <SignalCard key={`${row.eventId}-${row.symbol}-card`} row={row} />
               ))}

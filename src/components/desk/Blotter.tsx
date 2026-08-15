@@ -23,6 +23,8 @@ type PositionRow = {
   liquidationPrice: string;
   margin: string;
   funding: string;
+  tp: string;
+  sl: string;
 };
 
 type OrderRow = {
@@ -98,6 +100,7 @@ function BlotterSession({
   const [fills, setFills] = useState<FillRow[]>([]);
   const [note, setNote] = useState("Log in to see positions and orders.");
   const [busy, setBusy] = useState(false);
+  const [editId, setEditId] = useState<number | null>(null);
   const [tpDraft, setTpDraft] = useState("");
   const [slDraft, setSlDraft] = useState("");
 
@@ -117,22 +120,38 @@ function BlotterSession({
       }
       const { session } = opened;
       const portfolio = await session.fetchPortfolio();
+      const open = await session.fetchOpenOrders().catch(() => []);
+      const tpSl: Record<number, { tp: string; sl: string }> = {};
+      for (const o of open ?? []) {
+        const id = Number(o.instrumentId);
+        const kind = o.tpSl?.kind;
+        const trigger = o.tpSl?.triggerPrice;
+        if (!kind || trigger == null || !Number.isFinite(id)) continue;
+        const cur = tpSl[id] ?? { tp: "", sl: "" };
+        if (kind === "tp") cur.tp = String(trigger);
+        if (kind === "sl") cur.sl = String(trigger);
+        tpSl[id] = cur;
+      }
       setPositions(
         (portfolio.positions ?? [])
           .filter((p) => Number(p.size) !== 0)
-          .map((p) => ({
-            instrumentId: Number(p.instrumentId ?? instrumentId),
-            symbol: p.symbol,
-            size: String(p.size),
-            entryPrice: String(p.entryPrice),
-            leverage: Number(p.leverage),
-            unrealizedPnl: String(p.unrealizedPnl),
-            liquidationPrice: String(p.liquidationPrice),
-            margin: String(p.initialMargin ?? ""),
-            funding: String(p.cumulativeFunding ?? ""),
-          })),
+          .map((p) => {
+            const id = Number(p.instrumentId ?? instrumentId);
+            return {
+              instrumentId: id,
+              symbol: p.symbol,
+              size: String(p.size),
+              entryPrice: String(p.entryPrice),
+              leverage: Number(p.leverage),
+              unrealizedPnl: String(p.unrealizedPnl),
+              liquidationPrice: String(p.liquidationPrice),
+              margin: String(p.initialMargin ?? ""),
+              funding: String(p.cumulativeFunding ?? ""),
+              tp: tpSl[id]?.tp ?? "",
+              sl: tpSl[id]?.sl ?? "",
+            };
+          }),
       );
-      const open = await session.fetchOpenOrders().catch(() => []);
       setOrders(
         (open ?? []).map((o) => ({
           id: Number(o.id),
@@ -144,10 +163,6 @@ function BlotterSession({
           triggerPrice: o.tpSl?.triggerPrice != null ? String(o.tpSl.triggerPrice) : undefined,
         })),
       );
-      const liveTp = (open ?? []).find((o) => Number(o.instrumentId) === instrumentId && o.tpSl?.kind === "tp");
-      const liveSl = (open ?? []).find((o) => Number(o.instrumentId) === instrumentId && o.tpSl?.kind === "sl");
-      setTpDraft(liveTp?.tpSl?.triggerPrice != null ? String(liveTp.tpSl.triggerPrice) : "");
-      setSlDraft(liveSl?.tpSl?.triggerPrice != null ? String(liveSl.tpSl.triggerPrice) : "");
       try {
         const page = await session.listFills().firstPage();
         const items = page.items ?? [];
@@ -238,6 +253,7 @@ function BlotterSession({
         });
       }
       await refresh();
+      setEditId(null);
     } catch (err) {
       setNote(explainPerpsError(err).message);
     } finally {
@@ -245,9 +261,13 @@ function BlotterSession({
     }
   }
 
-  const live = positions.find((p) => p.instrumentId === instrumentId) ?? null;
-  const liveTp = orders.find((o) => o.tpSlKind === "tp")?.triggerPrice ?? "";
-  const liveSl = orders.find((o) => o.tpSlKind === "sl")?.triggerPrice ?? "";
+  function startEdit(row: PositionRow) {
+    setEditId(row.instrumentId);
+    setTpDraft(row.tp);
+    setSlDraft(row.sl);
+  }
+
+  const field = "lg-input num w-[3.25rem] px-1 py-0.5 text-[10px]";
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-[var(--surface)]">
@@ -290,52 +310,14 @@ function BlotterSession({
               </tr>
             </thead>
             <tbody>
-              {live ? (
+              {positions.length === 0 && !preview ? (
                 <tr>
-                  <td className="py-1.5">{live.symbol.replace("-USD", "")}</td>
-                  <td className="num">{live.size}</td>
-                  <td className="num">{fmtPx(Number(live.entryPrice), priceDecimals)}</td>
-                  <td className="num">{ticker ? fmtPx(ticker.markPrice, priceDecimals) : "—"}</td>
-                  <td className={`num ${signedClass(Number(live.unrealizedPnl))}`}>{fmtUsdSigned(live.unrealizedPnl)}</td>
-                  <td className="num">{fmtPx(Number(live.liquidationPrice), priceDecimals)}</td>
-                  <td className="num">{fmtUsd(live.margin)}</td>
-                  <td className={`num ${signedClass(Number(live.funding))}`}>{fmtUsdSigned(live.funding)}</td>
-                  <td>
-                    <input
-                      value={tpDraft}
-                      onChange={(e) => setTpDraft(e.target.value)}
-                      placeholder={liveTp || "—"}
-                      className="lg-input num w-[4.5rem] px-1 py-0.5 text-[11px]"
-                    />
-                  </td>
-                  <td>
-                    <input
-                      value={slDraft}
-                      onChange={(e) => setSlDraft(e.target.value)}
-                      placeholder={liveSl || "—"}
-                      className="lg-input num w-[4.5rem] px-1 py-0.5 text-[11px]"
-                    />
-                  </td>
-                  <td className="whitespace-nowrap">
-                    <button
-                      type="button"
-                      disabled={busy}
-                      onClick={() => void setPositionTpSl(live)}
-                      className="mr-2 text-[var(--signal)] hover:underline"
-                    >
-                      Set
-                    </button>
-                    <button
-                      type="button"
-                      disabled={busy}
-                      onClick={() => void closePosition(live)}
-                      className="text-[var(--perp)] hover:underline"
-                    >
-                      Close
-                    </button>
+                  <td colSpan={11} className="py-1.5 text-[var(--dim)]">
+                    No open positions.
                   </td>
                 </tr>
-              ) : preview ? (
+              ) : null}
+              {positions.length === 0 && preview ? (
                 <tr>
                   <td className="py-1.5 text-[var(--muted)]">Ticket</td>
                   <td className="num">{preview.qty || "—"}</td>
@@ -351,39 +333,99 @@ function BlotterSession({
                   <td className="num">{preview.sl ? fmtPx(Number(preview.sl), priceDecimals) : "—"}</td>
                   <td className="text-[var(--dim)]">Before fill</td>
                 </tr>
-              ) : (
-                <tr>
-                  <td colSpan={11} className="py-1.5 text-[var(--dim)]">
-                    No open positions.
-                  </td>
-                </tr>
-              )}
-              {positions
-                .filter((p) => p.instrumentId !== instrumentId)
-                .map((p) => (
+              ) : null}
+              {positions.map((p) => {
+                const editing = editId === p.instrumentId;
+                const on = p.instrumentId === instrumentId;
+                const digits = on ? priceDecimals : 2;
+                return (
                   <tr key={`${p.instrumentId}-${p.symbol}`}>
-                    <td className="py-1.5">{p.symbol.replace("-USD", "")}</td>
+                    <td className="py-1.5">
+                      <Link href={`/markets/${p.symbol}`} className="text-[var(--text)] hover:underline">
+                        {p.symbol.replace("-USD", "")}
+                      </Link>
+                    </td>
                     <td className="num">{p.size}</td>
-                    <td className="num">{fmtPx(Number(p.entryPrice), priceDecimals)}</td>
-                    <td className="num">—</td>
+                    <td className="num">{fmtPx(Number(p.entryPrice), digits)}</td>
+                    <td className="num">{on && ticker ? fmtPx(ticker.markPrice, digits) : "—"}</td>
                     <td className={`num ${signedClass(Number(p.unrealizedPnl))}`}>{fmtUsdSigned(p.unrealizedPnl)}</td>
-                    <td className="num">{fmtPx(Number(p.liquidationPrice), priceDecimals)}</td>
+                    <td className="num">{fmtPx(Number(p.liquidationPrice), digits)}</td>
                     <td className="num">{fmtUsd(p.margin)}</td>
                     <td className={`num ${signedClass(Number(p.funding))}`}>{fmtUsdSigned(p.funding)}</td>
-                    <td className="num">—</td>
-                    <td className="num">—</td>
-                    <td>
-                      <button
-                        type="button"
-                        disabled={busy}
-                        onClick={() => void closePosition(p)}
-                        className="text-[var(--perp)] hover:underline"
-                      >
-                        Close
-                      </button>
+                    <td className="num">
+                      {editing ? (
+                        <input
+                          value={tpDraft}
+                          onChange={(e) => setTpDraft(e.target.value)}
+                          placeholder="TP"
+                          aria-label="Take profit"
+                          className={field}
+                        />
+                      ) : p.tp ? (
+                        fmtPx(Number(p.tp), digits)
+                      ) : (
+                        "—"
+                      )}
+                    </td>
+                    <td className="num">
+                      {editing ? (
+                        <input
+                          value={slDraft}
+                          onChange={(e) => setSlDraft(e.target.value)}
+                          placeholder="SL"
+                          aria-label="Stop loss"
+                          className={field}
+                        />
+                      ) : p.sl ? (
+                        fmtPx(Number(p.sl), digits)
+                      ) : (
+                        "—"
+                      )}
+                    </td>
+                    <td className="whitespace-nowrap">
+                      {editing ? (
+                        <>
+                          <button
+                            type="button"
+                            disabled={busy}
+                            onClick={() => void setPositionTpSl(p)}
+                            className="mr-2 text-[var(--signal)] hover:underline"
+                          >
+                            Save
+                          </button>
+                          <button
+                            type="button"
+                            disabled={busy}
+                            onClick={() => setEditId(null)}
+                            className="text-[var(--dim)] hover:text-[var(--muted)]"
+                          >
+                            Cancel
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <button
+                            type="button"
+                            disabled={busy}
+                            onClick={() => startEdit(p)}
+                            className="mr-2 text-[var(--signal)] hover:underline"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            type="button"
+                            disabled={busy}
+                            onClick={() => void closePosition(p)}
+                            className="text-[var(--perp)] hover:underline"
+                          >
+                            Close
+                          </button>
+                        </>
+                      )}
                     </td>
                   </tr>
-                ))}
+                );
+              })}
             </tbody>
           </table>
         ) : null}

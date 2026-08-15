@@ -1,6 +1,6 @@
 import type { PrivyClientConfig } from "@privy-io/react-auth";
 import { polygon } from "viem/chains";
-import { APP_LOGO } from "@/lib/brand";
+import { APP_LOGO_RASTER } from "@/lib/brand";
 
 /** Privy embedded wallets (and PrivyProvider itself) only run on HTTPS or localhost. */
 export function isSecureOrigin(): boolean {
@@ -16,10 +16,10 @@ export function getPrivyConfig(): PrivyClientConfig {
     loginMethods: ["email", "google", "wallet"],
     appearance: {
       theme: "dark",
-      accentColor: "#3ee0a8",
+      accentColor: "#c4a574",
       landingHeader: "Log in to Leadgap",
       loginMessage: "Email, Google, or a wallet.",
-      logo: APP_LOGO,
+      logo: APP_LOGO_RASTER,
       showWalletLoginFirst: false,
       walletList: [
         "detected_ethereum_wallets",

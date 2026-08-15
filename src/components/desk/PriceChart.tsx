@@ -93,7 +93,7 @@ function buildGapMarkers(
       time: logical as UTCTimestamp,
       position: mark.bias === "short" ? "aboveBar" : "belowBar",
       shape: gapMarkerShape(mark.bias),
-      color: mark.bias === "short" ? "#fb7185" : "#3ee0a8",
+      color: mark.bias === "short" ? "#b85c4c" : "#3f8f6e",
       text: String(Math.round(mark.score)),
       size: 1,
     }));
@@ -153,29 +153,29 @@ export function PriceChart({
     const chart = createChart(el, {
       autoSize: true,
       layout: {
-        background: { type: ColorType.Solid, color: "#08090c" },
-        textColor: "#8b93a7",
-        fontFamily: "var(--font-geist-sans), sans-serif",
+        background: { type: ColorType.Solid, color: "#181614" },
+        textColor: "#9a9388",
+        fontFamily: "var(--font-plex), sans-serif",
         fontSize: 11,
       },
       grid: {
-        vertLines: { color: "#1a2030" },
-        horzLines: { color: "#1a2030" },
+        vertLines: { color: "#2c2823" },
+        horzLines: { color: "#2c2823" },
       },
       rightPriceScale: {
-        borderColor: "#1e2636",
+        borderColor: "#2c2823",
         scaleMargins: { top: 0.08, bottom: 0.1 },
         minimumWidth: 56,
       },
       leftPriceScale: {
         visible: false,
-        borderColor: "#1e2636",
+        borderColor: "#2c2823",
       },
       localization: {
         timeFormatter: (t: Time) => clock(realByLogical.current.get(Number(t)) ?? Number(t), true),
       },
       timeScale: {
-        borderColor: "#1e2636",
+        borderColor: "#2c2823",
         timeVisible: true,
         secondsVisible: false,
         rightOffset: 8,
@@ -185,8 +185,8 @@ export function PriceChart({
       },
       crosshair: {
         mode: CrosshairMode.Magnet,
-        vertLine: { color: "#3ee0a855", labelBackgroundColor: "#1e2636" },
-        horzLine: { color: "#3ee0a855", labelBackgroundColor: "#1e2636" },
+        vertLine: { color: "#c4a57455", labelBackgroundColor: "#1f1c19" },
+        horzLine: { color: "#c4a57455", labelBackgroundColor: "#1f1c19" },
       },
       handleScroll: {
         mouseWheel: true,
@@ -197,16 +197,16 @@ export function PriceChart({
       handleScale: { axisPressedMouseMove: true, mouseWheel: true, pinch: true },
     });
     const candlesSeries = chart.addSeries(CandlestickSeries, {
-      upColor: "#3ee0a8",
-      downColor: "#fb7185",
-      borderUpColor: "#3ee0a8",
-      borderDownColor: "#fb7185",
-      wickUpColor: "#3ee0a8",
-      wickDownColor: "#fb7185",
+      upColor: "#3f8f6e",
+      downColor: "#b85c4c",
+      borderUpColor: "#3f8f6e",
+      borderDownColor: "#b85c4c",
+      wickUpColor: "#3f8f6e",
+      wickDownColor: "#b85c4c",
       visible: false,
     });
     const closeSeries = chart.addSeries(LineSeries, {
-      color: "#3ee0a8",
+      color: "#8e959e",
       lineWidth: 2,
       visible: true,
       lastValueVisible: true,
@@ -215,9 +215,9 @@ export function PriceChart({
     const oddsSeries = chart.addSeries(
       AreaSeries,
       {
-        lineColor: "#5b8def",
-        topColor: "rgba(91, 141, 239, 0.28)",
-        bottomColor: "rgba(91, 141, 239, 0.02)",
+        lineColor: "#c4a574",
+        topColor: "rgba(196, 165, 116, 0.22)",
+        bottomColor: "rgba(196, 165, 116, 0.02)",
         lineWidth: 2,
         priceScaleId: "right",
         lastValueVisible: true,
@@ -255,7 +255,7 @@ export function PriceChart({
       if (active === "hline") {
         const line = series.createPriceLine({
           price,
-          color: "#fbbf24",
+          color: "#c4a574",
           lineWidth: 1,
           lineStyle: LineStyle.Dashed,
           axisLabelVisible: true,
@@ -275,7 +275,7 @@ export function PriceChart({
       pendingTrend.current = null;
       const [p1, p2] = a.time <= point.time ? [a, point] : [point, a];
       const trend = chart.addSeries(LineSeries, {
-        color: "#fbbf24",
+        color: "#c4a574",
         lineWidth: 2,
         lastValueVisible: false,
         priceLineVisible: false,
@@ -454,25 +454,25 @@ export function PriceChart({
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
-      <div className="flex flex-wrap items-center gap-1 border-b border-[#1a2030] px-2 py-0.5 text-[10px]">
+    <div className="flex h-full min-h-0 flex-col bg-[var(--surface)]">
+      <div className="lg-toolbar flex-wrap gap-1 text-[10px]">
         {hover ? (
-          <span className="num mr-2 text-[#7d8699]">
+          <span className="num mr-2 text-[var(--dim)]">
             O {fmtN(hover.o)} H {fmtN(hover.h)} L {fmtN(hover.l)} C{" "}
-            <span className={hover.c >= hover.o ? "text-[#3ee0a8]" : "text-rose-300"}>{fmtN(hover.c)}</span>
+            <span className={hover.c >= hover.o ? "text-[var(--long)]" : "text-[var(--short)]"}>{fmtN(hover.c)}</span>
             {oddsOn && hover.odds != null ? (
-              <span className="ml-2 text-[#5b8def]">Yes {hover.odds.toFixed(1)}%</span>
+              <span className="ml-2 text-[var(--signal)]">Yes {hover.odds.toFixed(1)}%</span>
             ) : null}
           </span>
         ) : (
-          <span className="mr-2 text-[#7d8699]">Chart</span>
+          <span className="lg-label">Chart</span>
         )}
-        <span className="mx-1 h-3 w-px bg-[#1a2030]" />
+        <span className="mx-1 h-3 w-px bg-[var(--line)]" />
         <ToolBtn active={tool === "cursor"} onClick={() => setTool("cursor")} label="Cursor" />
         <ToolBtn active={tool === "hline"} onClick={() => setTool("hline")} label="H-line" />
         <ToolBtn active={tool === "trend"} onClick={() => setTool("trend")} label="Trend" />
         <ToolBtn active={false} onClick={clearDrawings} label="Clear" />
-        <span className="ml-auto inline-flex overflow-hidden rounded border border-[#1e2636]">
+        <span className="ml-auto inline-flex border border-[var(--line)]">
           <ToolBtn active={style === "candle"} onClick={() => setStyle("candle")} label="Candles" />
           <ToolBtn active={style === "line"} onClick={() => setStyle("line")} label="Line" />
         </span>
@@ -491,13 +491,13 @@ export function PriceChart({
           label="Fit"
         />
         {tool !== "cursor" ? (
-          <span className="ml-2 text-[#7d8699]">
+          <span className="ml-2 text-[var(--dim)]">
             {tool === "hline" ? "Click for price line" : "Click two points"}
           </span>
         ) : null}
       </div>
       {story ? (
-        <p className="border-b border-[#1a2030] px-2 py-0.5 text-[10px] text-[#8b93a7]">{story}</p>
+        <p className="border-b border-[var(--line)] px-2 py-0.5 text-[10px] text-[var(--muted)]">{story}</p>
       ) : null}
       <div ref={host} className="min-h-0 flex-1" />
     </div>
@@ -517,7 +517,7 @@ function ToolBtn({
     <button
       type="button"
       onClick={onClick}
-      className={`rounded px-2 py-0.5 ${active ? "bg-white/10 text-white" : "text-[#8b93a7] hover:text-white"}`}
+      className={`border-r border-[var(--line)] px-1.5 py-0.5 text-[10px] last:border-r-0 ${active ? "bg-[var(--hover)] text-[var(--text)]" : "text-[var(--muted)] hover:text-[var(--text)]"}`}
     >
       {label}
     </button>

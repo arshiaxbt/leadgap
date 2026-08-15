@@ -1,4 +1,5 @@
-import type { InputHTMLAttributes, ReactNode } from "react";
+import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode } from "react";
+import { polymarketEventUrl } from "@/lib/brand";
 
 export function Panel({
   children,
@@ -7,9 +8,7 @@ export function Panel({
   children: ReactNode;
   className?: string;
 }) {
-  return (
-    <div className={`rounded-lg border border-[#1a2030] bg-[#0e1118] ${className}`}>{children}</div>
-  );
+  return <div className={`lg-pane ${className}`}>{children}</div>;
 }
 
 export function Pill({
@@ -20,16 +19,16 @@ export function Pill({
   children: ReactNode;
 }) {
   const tones = {
-    lead: "bg-[#3ee0a8]/12 text-[#3ee0a8]",
-    perp: "bg-[#4d8dff]/12 text-[#8bb4ff]",
-    mute: "bg-white/5 text-[#8b93a7]",
-    danger: "bg-rose-500/15 text-rose-300",
-    warn: "bg-amber-500/15 text-amber-200",
-    long: "bg-emerald-500/15 text-emerald-300",
-    short: "bg-rose-500/15 text-rose-300",
+    lead: "border-[color-mix(in_srgb,var(--signal)_45%,transparent)] text-[var(--signal)]",
+    perp: "border-[var(--line)] text-[var(--perp)]",
+    mute: "border-[var(--line)] text-[var(--muted)]",
+    danger: "border-[color-mix(in_srgb,var(--short)_45%,transparent)] text-[var(--short)]",
+    warn: "border-[color-mix(in_srgb,var(--warn)_45%,transparent)] text-[var(--warn)]",
+    long: "border-[color-mix(in_srgb,var(--long)_45%,transparent)] text-[var(--long)]",
+    short: "border-[color-mix(in_srgb,var(--short)_45%,transparent)] text-[var(--short)]",
   };
   return (
-    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium ${tones[tone]}`}>
+    <span className={`inline-flex items-center border px-1.5 py-px text-[10px] font-medium tracking-wide ${tones[tone]}`}>
       {children}
     </span>
   );
@@ -40,46 +39,73 @@ export function Segmented<T extends string>({
   value,
   onChange,
   compact,
+  large,
 }: {
-  options: { id: T; label: string }[];
+  options: { id: T; label: string; hint?: string }[];
   value: T;
   onChange: (id: T) => void;
   compact?: boolean;
+  large?: boolean;
 }) {
   return (
-    <div className="inline-flex flex-wrap rounded-lg border border-[#1e2636] bg-[#0b0e14] p-0.5">
-      {options.map((opt) => (
-        <button
-          key={opt.id}
-          type="button"
-          onClick={() => onChange(opt.id)}
-          className={`rounded-md capitalize ${compact ? "px-1.5 py-0.5 text-[10px]" : "px-2.5 py-1 text-xs"} ${
-            value === opt.id ? "bg-white text-[#07080c]" : "text-[#8b93a7] hover:text-white"
-          }`}
-        >
-          {opt.label}
-        </button>
-      ))}
+    <div className="inline-flex items-stretch border border-[var(--line)] bg-[var(--surface)]">
+      {options.map((opt, i) => {
+        const active = value === opt.id;
+        const pad = compact ? "px-1.5 py-0.5 text-[10px]" : large ? "px-3 py-1.5 text-[13px]" : "px-2 py-1 text-[11px]";
+        return (
+          <button
+            key={opt.id}
+            type="button"
+            aria-label={opt.hint ? `${opt.label}. ${opt.hint}` : undefined}
+            onClick={() => onChange(opt.id)}
+            className={`group relative border-r border-[var(--line)] last:border-r-0 ${pad} ${
+              active
+                ? "bg-[var(--hover)] text-[var(--text)]"
+                : "text-[var(--muted)] hover:bg-[var(--hover)] hover:text-[var(--text)]"
+            }`}
+          >
+            {opt.label}
+            {opt.hint ? (
+              <span className={`lg-tip ${i === options.length - 1 ? "right-0 left-auto" : "left-0"}`}>{opt.hint}</span>
+            ) : null}
+          </button>
+        );
+      })}
     </div>
+  );
+}
+
+export function PolymarketEventLink({
+  slug,
+  children = "Polymarket",
+  className = "text-[11px] text-[var(--muted)] hover:text-[var(--signal)]",
+}: {
+  slug?: string | null;
+  children?: ReactNode;
+  className?: string;
+}) {
+  const href = polymarketEventUrl(slug);
+  if (!href) return null;
+  return (
+    <a href={href} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} className={className}>
+      {children}
+    </a>
   );
 }
 
 export function Empty({ title, body }: { title: string; body: string }) {
   return (
-    <Panel className="px-4 py-4 text-center">
-      <p className="text-sm font-medium text-zinc-200">{title}</p>
-      <p className="mx-auto mt-1 max-w-md text-sm text-[#8b93a7]">{body}</p>
+    <Panel className="px-4 py-6 text-center">
+      <p className="text-sm font-medium text-[var(--text)]">{title}</p>
+      <p className="mx-auto mt-1 max-w-md text-sm text-[var(--muted)]">{body}</p>
     </Panel>
   );
 }
 
 export function LiveDot({ label }: { label?: string }) {
   return (
-    <span className="inline-flex items-center gap-1.5 text-[11px] text-[#8b93a7]">
-      <span className="relative flex h-1.5 w-1.5">
-        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#3ee0a8] opacity-40" />
-        <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-[#3ee0a8]" />
-      </span>
+    <span className="inline-flex items-center gap-1.5 text-[11px] text-[var(--muted)]">
+      <span className="h-1.5 w-1.5 bg-[var(--signal)]" />
       {label ?? "Live"}
     </span>
   );
@@ -93,18 +119,53 @@ export function Field({
   children: ReactNode;
 }) {
   return (
-    <label className="block text-xs text-[#8b93a7]">
-      {label}
+    <label className="block">
+      <span className="lg-label">{label}</span>
       <div className="mt-1">{children}</div>
     </label>
   );
 }
 
 export function TextInput(props: InputHTMLAttributes<HTMLInputElement>) {
+  return <input {...props} className={`lg-input px-2 py-1 ${props.className ?? ""}`} />;
+}
+
+export function Btn({
+  variant = "ghost",
+  size = "sm",
+  className = "",
+  ...props
+}: ButtonHTMLAttributes<HTMLButtonElement> & {
+  variant?: "ghost" | "signal" | "long" | "short";
+  size?: "sm" | "md";
+}) {
+  const sizes = size === "md" ? "px-3 py-1.5 text-[12px]" : "px-2 py-0.5 text-[11px]";
+  const variants = {
+    ghost:
+      "border border-[var(--line)] bg-[var(--surface)] text-[var(--muted)] hover:bg-[var(--hover)] hover:text-[var(--text)] disabled:opacity-40",
+    signal:
+      "border border-[color-mix(in_srgb,var(--signal)_50%,var(--line))] text-[var(--signal)] hover:bg-[color-mix(in_srgb,var(--signal)_10%,transparent)] disabled:opacity-40",
+    long: "border border-[color-mix(in_srgb,var(--long)_50%,var(--line))] text-[var(--long)] disabled:opacity-40",
+    short: "border border-[color-mix(in_srgb,var(--short)_50%,var(--line))] text-[var(--short)] disabled:opacity-40",
+  };
   return (
-    <input
-      {...props}
-      className={`w-full rounded-md border border-[#1e2636] bg-[#07080c] px-2 py-1.5 text-sm text-zinc-100 outline-none placeholder:text-[#5c6478] focus:border-[#3ee0a8]/40 ${props.className ?? ""}`}
-    />
+    <button type="button" {...props} className={`font-medium tracking-wide ${sizes} ${variants[variant]} ${className}`} />
+  );
+}
+
+export function Metric({
+  label,
+  value,
+  tone = "text-[var(--text)]",
+}: {
+  label: string;
+  value: ReactNode;
+  tone?: string;
+}) {
+  return (
+    <div className="px-3 py-2">
+      <div className="lg-label">{label}</div>
+      <div className={`num mt-0.5 text-[15px] font-medium leading-none ${tone}`}>{value}</div>
+    </div>
   );
 }

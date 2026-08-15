@@ -1,11 +1,15 @@
-import { Footer } from "@/components/Footer";
 import type { ReactNode } from "react";
 
-export function PageShell({ children }: { children: ReactNode }) {
+export function PageShell({ children, full = false }: { children: ReactNode; full?: boolean }) {
   return (
-    <>
-      <div className="mx-auto w-full max-w-[1440px] flex-1 px-3 py-2">{children}</div>
-      <Footer />
-    </>
+    <div
+      className={
+        full
+          ? "flex min-h-0 flex-1 flex-col overflow-hidden"
+          : "mx-auto w-full max-w-[1600px] min-h-0 flex-1 overflow-auto px-3 py-2"
+      }
+    >
+      {children}
+    </div>
   );
 }

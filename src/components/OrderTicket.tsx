@@ -2,9 +2,10 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useAccount, useWalletClient } from "wagmi";
+import type { WalletClient } from "viem";
 import { polygon } from "viem/chains";
 import { BUILDER_CODE } from "@/lib/builder";
-import { estLiq, fmtPx, fmtUsd, mmr } from "@/lib/format";
+import { estLiq, fmtCountdown, fmtFunding, fmtPx, fmtUsd, mmr, signedClass } from "@/lib/format";
 import { explainPerpsError, type PerpsAccess } from "@/lib/perpsAccess";
 import { usePrivyMount } from "@/lib/usePrivyMount";
 import { trackEvent } from "@/lib/track";
@@ -13,22 +14,44 @@ import type { PerpsInstrument, PerpsTicker } from "@/lib/types";
 
 type Geo = { blocked: boolean; country: string; reason: string };
 
-export function OrderTicket({
-  instrument,
-  ticker,
-  price: priceOverride,
-  thesis,
-  bias,
-}: {
+type TicketProps = {
   instrument: PerpsInstrument;
   ticker?: PerpsTicker;
   price?: string;
   thesis?: string;
   bias?: Bias;
-}) {
+};
+
+export function OrderTicket(props: TicketProps) {
   const mount = usePrivyMount();
+  if (mount !== "ready") return <TicketForm {...props} mount={mount} />;
+  return <TicketSession {...props} />;
+}
+
+function TicketSession(props: TicketProps) {
   const { address, isConnected } = useAccount();
   const { data: walletClient } = useWalletClient({ chainId: polygon.id });
+  return (
+    <TicketForm {...props} mount="ready" address={address} isConnected={isConnected} walletClient={walletClient} />
+  );
+}
+
+function TicketForm({
+  instrument,
+  ticker,
+  price: priceOverride,
+  thesis,
+  bias,
+  mount,
+  address,
+  isConnected = false,
+  walletClient,
+}: TicketProps & {
+  mount: ReturnType<typeof usePrivyMount>;
+  address?: string;
+  isConnected?: boolean;
+  walletClient?: WalletClient;
+}) {
   const [geo, setGeo] = useState<Geo | null>(null);
   const [side, setSide] = useState<"BUY" | "SELL">("BUY");
   const [tif, setTif] = useState<"IOC" | "GTC">("GTC");
@@ -177,29 +200,32 @@ export function OrderTicket({
   const levPresets = [...new Set([1, 2, 5, 10, 25, 50, instrument.maxLeverage].filter((n) => n <= instrument.maxLeverage))].sort(
     (a, b) => a - b,
   );
-  const field =
-    "num mt-0.5 w-full rounded-md border border-[#1e2636] bg-[#07080c] px-2 py-1 text-[13px] text-zinc-100 outline-none placeholder:text-[#5c6478] focus:border-[#3ee0a8]/40";
+  const field = "lg-input num mt-0.5 w-full px-2 py-1 text-[12px]";
+  const fromEvent = bias === "long" || bias === "short";
 
   return (
-    <div className="flex h-full min-h-0 flex-col gap-1 overflow-auto px-2 py-1.5">
-      <div className="flex items-center justify-between">
-        <p className="text-[10px] uppercase tracking-wide text-[#5c6478]">Order</p>
-        <span className="num text-[10px] text-[#8b93a7]">{free != null ? `Free ${fmtUsd(free)}` : "—"}</span>
+    <div className="flex h-full min-h-0 flex-col overflow-auto bg-[var(--surface)] text-[11px]">
+      <div className="lg-toolbar justify-between">
+        <span className="lg-label">Ticket</span>
+        <span className="num text-[var(--muted)]">{free != null ? `${fmtUsd(free)} free` : "—"}</span>
       </div>
 
+      <div className="flex min-h-0 flex-1 flex-col gap-2 px-2 py-2">
       {thesis ? (
-        <div className="rounded-md border border-[#1a2030] bg-[#07080c] px-2 py-1.5">
-          <p className="text-[9px] uppercase tracking-wide text-[#5c6478]">Trade thesis</p>
-          <p className="text-[11px] leading-4 text-zinc-200">{thesis}</p>
+        <div>
+          <p className="lg-label mb-0.5">{fromEvent ? "From event" : "Thesis"}</p>
+          <p className="leading-4 text-[var(--text)]">{thesis}</p>
         </div>
       ) : null}
 
-      <div className="grid grid-cols-2 gap-px overflow-hidden rounded-md border border-[#1a2030]">
+      <div className="grid grid-cols-2 gap-px border border-[var(--line)] bg-[var(--line)]">
         <button
           type="button"
           onClick={() => setSide("BUY")}
-          className={`py-1.5 text-[12px] font-bold tracking-wide ${
-            long ? "bg-[#3ee0a8] text-[#07080c]" : "bg-[#0e1118] text-[#8b93a7] hover:text-white"
+          className={`py-1.5 text-[12px] font-semibold tracking-wide ${
+            long
+              ? "bg-[color-mix(in_srgb,var(--long)_18%,var(--surface))] text-[var(--long)]"
+              : "bg-[var(--surface)] text-[var(--dim)] hover:text-[var(--muted)]"
           }`}
         >
           Long
@@ -207,8 +233,10 @@ export function OrderTicket({
         <button
           type="button"
           onClick={() => setSide("SELL")}
-          className={`py-1.5 text-[12px] font-bold tracking-wide ${
-            !long ? "bg-[#fb7185] text-[#07080c]" : "bg-[#0e1118] text-[#8b93a7] hover:text-white"
+          className={`py-1.5 text-[12px] font-semibold tracking-wide ${
+            !long
+              ? "bg-[color-mix(in_srgb,var(--short)_18%,var(--surface))] text-[var(--short)]"
+              : "bg-[var(--surface)] text-[var(--dim)] hover:text-[var(--muted)]"
           }`}
         >
           Short
@@ -221,37 +249,39 @@ export function OrderTicket({
             key={id}
             type="button"
             onClick={() => setTif(id)}
-            className={`flex-1 rounded py-1 text-[11px] font-medium ${
-              tif === id ? "bg-white text-[#07080c]" : "bg-white/5 text-[#8b93a7] hover:text-white"
+            className={`flex-1 border py-1 text-[11px] font-medium ${
+              tif === id
+                ? "border-[var(--line-strong)] bg-[var(--hover)] text-[var(--text)]"
+                : "border-[var(--line)] bg-[var(--bg)] text-[var(--dim)] hover:text-[var(--muted)]"
             }`}
           >
             {id === "IOC" ? "Market" : "Limit"}
           </button>
         ))}
-        <label className="flex items-center gap-1 px-1 text-[10px] text-[#8b93a7]">
+        <label className="flex items-center gap-1 px-1 text-[10px] text-[var(--dim)]">
           <input type="checkbox" checked={reduceOnly} onChange={(e) => setReduceOnly(e.target.checked)} />
           Reduce
         </label>
       </div>
 
       {tif === "GTC" ? (
-        <label className="block text-[10px] uppercase tracking-wide text-[#5c6478]">
+        <label className="block lg-label">
           Price
           <input value={price} onChange={(e) => setPrice(e.target.value)} className={field} />
         </label>
       ) : null}
 
-      <label className="block text-[10px] uppercase tracking-wide text-[#5c6478]">
+      <label className="block lg-label">
         <span className="flex justify-between">
-          Size
-          <span className="num normal-case tracking-normal text-[#8b93a7]">{fmtUsd(notional)}</span>
+          Size ({base})
+          <span className="num normal-case tracking-normal text-[var(--muted)]">{fmtUsd(notional)}</span>
         </span>
         <div className="mt-0.5 flex gap-1">
-          <button type="button" onClick={() => bump(-1)} className="w-7 rounded bg-white/5 text-zinc-300 hover:text-white">
+          <button type="button" onClick={() => bump(-1)} className="w-7 border border-[var(--line)] bg-[var(--bg)] text-[var(--muted)] hover:bg-[var(--hover)]">
             −
           </button>
           <input value={qty} onChange={(e) => setQty(e.target.value)} className={field} />
-          <button type="button" onClick={() => bump(1)} className="w-7 rounded bg-white/5 text-zinc-300 hover:text-white">
+          <button type="button" onClick={() => bump(1)} className="w-7 border border-[var(--line)] bg-[var(--bg)] text-[var(--muted)] hover:bg-[var(--hover)]">
             +
           </button>
         </div>
@@ -262,16 +292,16 @@ export function OrderTicket({
             key={pct}
             type="button"
             onClick={() => applyPct(pct)}
-            className="rounded bg-white/5 py-0.5 text-[10px] text-[#8b93a7] hover:bg-white/10 hover:text-white"
+            className="border border-[var(--line)] bg-[var(--bg)] py-0.5 text-[10px] text-[var(--dim)] hover:bg-[var(--hover)]"
           >
             {pct * 100}%
           </button>
         ))}
       </div>
 
-      <div className="flex items-center justify-between text-[10px] uppercase tracking-wide text-[#5c6478]">
+      <div className="flex items-center justify-between lg-label">
         <span>Leverage</span>
-        <span className="num text-zinc-200">{leverage}x</span>
+        <span className="num text-[var(--text)]">{leverage}x</span>
       </div>
       <div className="flex flex-wrap gap-1">
         {levPresets.map((n) => (
@@ -279,8 +309,10 @@ export function OrderTicket({
             key={n}
             type="button"
             onClick={() => setLeverage(n)}
-            className={`rounded px-1.5 py-0.5 text-[10px] ${
-              leverage === n ? "bg-white text-[#07080c]" : "bg-white/5 text-[#8b93a7] hover:text-white"
+            className={`border px-1.5 py-0.5 text-[10px] ${
+              leverage === n
+                ? "border-[var(--line-strong)] bg-[var(--hover)] text-[var(--text)]"
+                : "border-[var(--line)] bg-[var(--bg)] text-[var(--dim)]"
             }`}
           >
             {n}x
@@ -293,42 +325,47 @@ export function OrderTicket({
         max={instrument.maxLeverage}
         value={leverage}
         onChange={(e) => setLeverage(Number(e.target.value))}
-        className="w-full accent-[#3ee0a8]"
+        className="w-full accent-[var(--signal)]"
       />
 
       {tif === "GTC" ? (
         <div className="grid grid-cols-2 gap-1.5">
-          <label className="text-[10px] uppercase tracking-wide text-[#5c6478]">
+          <label className="lg-label">
             TP
             <input value={tp} onChange={(e) => setTp(e.target.value)} placeholder="—" className={field} />
           </label>
-          <label className="text-[10px] uppercase tracking-wide text-[#5c6478]">
+          <label className="lg-label">
             SL
             <input value={sl} onChange={(e) => setSl(e.target.value)} placeholder="—" className={field} />
           </label>
         </div>
       ) : null}
 
-      <div className="grid grid-cols-3 gap-1 border-t border-[#1a2030] pt-1.5 text-[10px] text-[#5c6478]">
+      <div className="grid grid-cols-3 gap-1 border-t border-[var(--line)] pt-2 text-[10px] text-[var(--dim)]">
         <div>
           Margin
-          <div className="num text-zinc-200">{fmtPx(marginEst, 2)}</div>
+          <div className="num text-[var(--text)]">{fmtPx(marginEst, 2)}</div>
         </div>
         <div>
           Est. liq
-          <div className="num text-zinc-200">{liq != null ? fmtPx(liq, instrument.priceDecimals) : "—"}</div>
+          <div className="num text-[var(--text)]">{liq != null ? fmtPx(liq, instrument.priceDecimals) : "—"}</div>
         </div>
         <div className="text-right">
-          Free
-          <div className="num text-zinc-200">{free != null ? fmtUsd(free) : "—"}</div>
+          Funding
+          <div className={`num ${ticker ? signedClass(ticker.fundingRate) : "text-[var(--text)]"}`}>
+            {ticker ? fmtFunding(ticker.fundingRate) : "—"}
+          </div>
+          <div className="num text-[var(--muted)]">{ticker ? fmtCountdown(ticker.nextFunding) : ""}</div>
         </div>
       </div>
       <button
         type="button"
         disabled={!canTrade || busy}
         onClick={() => void submit()}
-        className={`w-full rounded-md py-2 text-[13px] font-bold tracking-wide disabled:opacity-40 ${
-          long ? "bg-[#3ee0a8] text-[#07080c]" : "bg-[#fb7185] text-[#07080c]"
+        className={`w-full border py-2 text-[13px] font-semibold tracking-wide disabled:opacity-40 ${
+          long
+            ? "border-[color-mix(in_srgb,var(--long)_50%,var(--line))] text-[var(--long)]"
+            : "border-[color-mix(in_srgb,var(--short)_50%,var(--line))] text-[var(--short)]"
         }`}
       >
         {busy ? "Submitting…" : `${long ? "Long" : "Short"} ${base}`}
@@ -338,18 +375,19 @@ export function OrderTicket({
           type="button"
           disabled={!canTrade || busy}
           onClick={() => void cancelAll()}
-          className="text-[10px] text-[#8b93a7] hover:text-white disabled:opacity-40"
+          className="text-[10px] text-[var(--dim)] hover:text-[var(--muted)] disabled:opacity-40"
         >
           Cancel open
         </button>
         {perpsAccess?.href ? (
-          <a href={perpsAccess.href} target="_blank" rel="noreferrer" className="text-[10px] text-[#8bb4ff] hover:underline">
+          <a href={perpsAccess.href} target="_blank" rel="noreferrer" className="text-[10px] text-[var(--perp)] hover:underline">
             Request access
           </a>
         ) : null}
       </div>
-      <p className="text-[10px] leading-3 text-[#5c6478]">{hint}</p>
-      {status ? <p className="text-[11px] text-amber-200">{status}</p> : null}
+      <p className="text-[10px] leading-3 text-[var(--dim)]">{hint}</p>
+      {status ? <p className="text-[11px] text-[var(--warn)]">{status}</p> : null}
+      </div>
     </div>
   );
 }

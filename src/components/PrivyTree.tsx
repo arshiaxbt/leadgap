@@ -4,12 +4,12 @@ import { PrivyProvider, usePrivy, useWallets } from "@privy-io/react-auth";
 import { WagmiProvider, useSetActiveWallet } from "@privy-io/wagmi";
 import { useEffect, type ReactNode } from "react";
 import { useAccount } from "wagmi";
-import { getPrivyConfig, privyAppId } from "@/lib/privy";
+import { getPrivyConfig, isSecureOrigin, privyAppId } from "@/lib/privy";
 import { walletConfig } from "@/lib/wagmi";
 
 export function PrivyTree({ children }: { children: ReactNode }) {
   const appId = privyAppId();
-  if (!appId) return children;
+  if (!appId || !isSecureOrigin()) return children;
 
   return (
     <PrivyProvider appId={appId} config={getPrivyConfig()}>

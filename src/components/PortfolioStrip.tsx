@@ -115,8 +115,8 @@ function AccountChip() {
     <div className="flex items-center gap-3 text-[11px]">
       {state.funded ? (
         <>
-          <span className="text-[#7d8699]">
-            Eq <span className="num text-zinc-100">{fmtUsd(state.equity)}</span>
+          <span className="text-[var(--muted)]">
+            Eq <span className="num text-[var(--text)]">{fmtUsd(state.equity)}</span>
           </span>
         </>
       ) : null}
@@ -125,19 +125,19 @@ function AccountChip() {
           type="button"
           disabled={busy}
           onClick={() => void approvePerps()}
-          className="rounded bg-[#3ee0a8] px-2 py-0.5 text-[11px] font-semibold text-[#07080c] disabled:opacity-40"
+          className="border border-[color-mix(in_srgb,var(--signal)_45%,var(--line))] px-2 py-0.5 text-[11px] font-medium text-[var(--signal)] disabled:opacity-40"
         >
           {busy ? "…" : "Connect Perps"}
         </button>
       ) : null}
-      {state.note ? <span className="max-w-[180px] truncate text-amber-200">{state.note}</span> : null}
+      {state.note ? <span className="max-w-[180px] truncate text-[var(--warn)]">{state.note}</span> : null}
       {state.href ? (
-        <a href={state.href} target="_blank" rel="noreferrer" className="text-[#8bb4ff] hover:underline">
+        <a href={state.href} target="_blank" rel="noreferrer" className="text-[var(--signal)] hover:underline">
           Access
         </a>
       ) : null}
-      <Link href="/portfolio" className="text-[#7d8699] hover:text-white">
-        Portfolio
+      <Link href="/portfolio" className="text-[var(--muted)] hover:text-[var(--text)]">
+        Account
       </Link>
     </div>
   );

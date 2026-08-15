@@ -43,51 +43,35 @@ export function OrderBookPanel({
   });
 
   return (
-    <div className="flex h-full min-h-0 flex-col text-[10px] leading-4">
-      <div className="flex items-center justify-between px-2 py-1 text-[#5c6478]">
-        <span>Book</span>
-        <span className="num">{spread != null ? fmtPx(spread, decimals) : "—"}</span>
+    <div className="flex h-full min-h-0 flex-col bg-[var(--surface)] text-[10px] leading-4">
+      <div className="lg-toolbar justify-between">
+        <span className="lg-label">Book</span>
+        <span className="num text-[var(--perp)]">Spr {spread != null ? fmtPx(spread, decimals) : "—"}</span>
       </div>
-      <div className="grid grid-cols-3 px-2 text-[#5c6478]">
+      <div className="grid grid-cols-3 px-2 py-0.5 lg-label">
         <span>Price</span>
         <span className="text-right">Size</span>
         <span className="text-right">Sum</span>
       </div>
       <div className="min-h-0 flex-1 overflow-auto">
         {askRows.map((level) => (
-          <Row
-            key={`a-${level.price}`}
-            level={level}
-            maxCum={maxCum}
-            decimals={decimals}
-            side="ask"
-            onPrice={onPrice}
-          />
+          <Row key={`a-${level.price}`} level={level} maxCum={maxCum} decimals={decimals} side="ask" onPrice={onPrice} />
         ))}
-        <div className="flex items-center justify-between border-y border-[#1e2636] px-2 py-0.5">
-          <span className="num text-[11px] font-medium text-white">
-            {mid != null ? fmtPx(mid, decimals) : "—"}
-          </span>
-          <span className="text-[#5c6478]">Spread</span>
+        <div className="flex items-center justify-between border-y border-[var(--line)] bg-[var(--elevated)] px-2 py-1">
+          <span className="num text-[12px] font-medium text-[var(--text)]">{mid != null ? fmtPx(mid, decimals) : "—"}</span>
+          <span className="text-[var(--dim)]">Mid</span>
         </div>
         {bidRows.map((level) => (
-          <Row
-            key={`b-${level.price}`}
-            level={level}
-            maxCum={maxCum}
-            decimals={decimals}
-            side="bid"
-            onPrice={onPrice}
-          />
+          <Row key={`b-${level.price}`} level={level} maxCum={maxCum} decimals={decimals} side="bid" onPrice={onPrice} />
         ))}
       </div>
-      <div className="flex h-1.5 overflow-hidden">
-        <div className="bg-[#3ee0a8]" style={{ width: `${(bidQty / tot) * 100}%` }} />
-        <div className="bg-[#fb7185]" style={{ width: `${(askQty / tot) * 100}%` }} />
+      <div className="flex h-1 overflow-hidden">
+        <div className="bg-[var(--long)]" style={{ width: `${(bidQty / tot) * 100}%` }} />
+        <div className="bg-[var(--short)]" style={{ width: `${(askQty / tot) * 100}%` }} />
       </div>
-      <div className="flex justify-between px-2 py-0.5 text-[9px] text-[#5c6478]">
-        <span className="text-[#3ee0a8]">{((bidQty / tot) * 100).toFixed(0)}% bid</span>
-        <span className="text-rose-300">{((askQty / tot) * 100).toFixed(0)}% ask</span>
+      <div className="flex justify-between px-2 py-0.5 text-[9px] text-[var(--dim)]">
+        <span className="text-[var(--long)]">{((bidQty / tot) * 100).toFixed(0)}% bid</span>
+        <span className="text-[var(--short)]">{((askQty / tot) * 100).toFixed(0)}% ask</span>
       </div>
     </div>
   );
@@ -111,20 +95,20 @@ function Row({
     <button
       type="button"
       onClick={() => onPrice?.(level.price)}
-      className="relative grid w-full grid-cols-3 px-2 text-left hover:bg-white/[0.04]"
+      className="relative grid w-full grid-cols-3 px-2 text-left hover:bg-[var(--hover)]"
     >
       <span
-        className="absolute inset-y-0 right-0 opacity-25"
+        className="absolute inset-y-0 right-0 opacity-20"
         style={{
           width: `${pct}%`,
-          background: side === "bid" ? "#3ee0a8" : "#fb7185",
+          background: side === "bid" ? "var(--long)" : "var(--short)",
         }}
       />
-      <span className={`num relative ${side === "bid" ? "text-[#3ee0a8]" : "text-rose-300"}`}>
-        {fmtPx(level.price, decimals)}
+      <span className="num relative text-[var(--perp)]">{fmtPx(level.price, decimals)}</span>
+      <span className={`num relative text-right ${side === "bid" ? "text-[var(--long)]" : "text-[var(--short)]"}`}>
+        {fmtPx(level.quantity, 4)}
       </span>
-      <span className="num relative text-right text-zinc-300">{fmtPx(level.quantity, 4)}</span>
-      <span className="num relative text-right text-[#8b93a7]">{fmtPx(level.cum, 3)}</span>
+      <span className="num relative text-right text-[var(--dim)]">{fmtPx(level.cum, 3)}</span>
     </button>
   );
 }

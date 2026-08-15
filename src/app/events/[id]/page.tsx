@@ -16,7 +16,7 @@ export default async function EventPage({ params }: { params: Promise<{ id: stri
   if (!data || !symbol) {
     return (
       <PageShell>
-        <p className="py-16 text-sm text-[#8b93a7]">Event not found or not ingested yet.</p>
+        <p className="py-16 text-sm text-[var(--muted)]">Event not found or not ingested yet.</p>
       </PageShell>
     );
   }

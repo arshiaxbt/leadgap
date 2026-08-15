@@ -1,17 +1,31 @@
 import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import type { Metadata } from "next";
-import { Geist } from "next/font/google";
+import { IBM_Plex_Mono, IBM_Plex_Sans, Newsreader } from "next/font/google";
 import "./globals.css";
+import { Footer } from "@/components/Footer";
 import { Header } from "@/components/Header";
 import { Providers } from "@/components/Providers";
-import { APP_LOGO, APP_NAME, APP_ORIGIN, APP_TAGLINE } from "@/lib/brand";
+import { APP_LOGO, APP_LOGO_RASTER, APP_NAME, APP_ORIGIN, APP_TAGLINE } from "@/lib/brand";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+const plex = IBM_Plex_Sans({
+  variable: "--font-plex",
+  subsets: ["latin"],
+  weight: ["400", "500", "600"],
+  display: "swap",
+});
+
+const plexMono = IBM_Plex_Mono({
+  variable: "--font-plex-mono",
+  subsets: ["latin"],
+  weight: ["400", "500"],
+  display: "swap",
+});
+
+const newsreader = Newsreader({
+  variable: "--font-newsreader",
   subsets: ["latin"],
   display: "swap",
-  preload: true,
 });
 
 export const metadata: Metadata = {
@@ -21,30 +35,31 @@ export const metadata: Metadata = {
     template: `%s · ${APP_NAME}`,
   },
   description: APP_TAGLINE,
-  icons: { icon: APP_LOGO, apple: APP_LOGO },
+  icons: { icon: APP_LOGO, apple: APP_LOGO_RASTER },
   openGraph: {
     title: APP_NAME,
     description: APP_TAGLINE,
     url: APP_ORIGIN,
     siteName: APP_NAME,
-    images: [{ url: APP_LOGO, width: 512, height: 512, alt: APP_NAME }],
+    images: [{ url: APP_LOGO_RASTER, width: 512, height: 512, alt: APP_NAME }],
     type: "website",
   },
   twitter: {
     card: "summary",
     title: APP_NAME,
     description: APP_TAGLINE,
-    images: [APP_LOGO],
+    images: [APP_LOGO_RASTER],
   },
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="en" className={`${geistSans.variable} h-full`}>
-      <body className="flex h-full min-h-full flex-col font-sans text-[var(--foreground)] antialiased">
+    <html lang="en" className={`${plex.variable} ${plexMono.variable} ${newsreader.variable} h-full`}>
+      <body className="flex h-full min-h-full flex-col overflow-hidden font-sans text-[var(--foreground)] antialiased">
         <Providers>
           <Header />
-          <div className="flex min-h-0 flex-1 flex-col">{children}</div>
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden">{children}</div>
+          <Footer />
         </Providers>
         <Analytics />
         <SpeedInsights />

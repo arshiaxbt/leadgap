@@ -1,49 +1,33 @@
-import { fmtPct, signedClass } from "@/lib/format";
+import { fmtPct } from "@/lib/format";
 
 export function ExpectedActual({
   expected,
   actual,
+  emphasizeGap = false,
 }: {
   expected: number;
   actual: number;
+  emphasizeGap?: boolean;
 }) {
   const residual = expected - actual;
-  const scale = Math.max(Math.abs(expected), Math.abs(actual), Math.abs(residual), 0.004);
   return (
-    <div className="space-y-1">
-      <Bar label="Expected" value={expected} scale={scale} />
-      <Bar label="Actual" value={actual} scale={scale} />
-      <Bar label="Gap" value={residual} scale={scale} emphasize />
+    <div className="grid grid-cols-3 gap-px border border-[var(--line)] bg-[var(--line)]">
+      <Cell label="Expected" value={fmtPct(expected)} />
+      <Cell label="Actual" value={fmtPct(actual)} tone="text-[var(--perp)]" />
+      <Cell
+        label="Gap"
+        value={fmtPct(residual)}
+        tone={emphasizeGap ? "text-[var(--signal)]" : "text-[var(--dim)]"}
+      />
     </div>
   );
 }
 
-function Bar({
-  label,
-  value,
-  scale,
-  emphasize = false,
-}: {
-  label: string;
-  value: number;
-  scale: number;
-  emphasize?: boolean;
-}) {
-  const pct = Math.min(100, (Math.abs(value) / scale) * 100);
-  const pos = value >= 0;
+function Cell({ label, value, tone = "text-[var(--text)]" }: { label: string; value: string; tone?: string }) {
   return (
-    <div className="grid grid-cols-[52px_minmax(0,1fr)_48px] items-center gap-1.5 text-[11px]">
-      <span className="text-[#5c6478]">{label}</span>
-      <div className="relative h-2 overflow-hidden rounded-full bg-white/5">
-        <div className="absolute inset-y-0 left-1/2 w-px bg-white/10" />
-        <div
-          className={`absolute inset-y-0 ${pos ? "left-1/2" : "right-1/2"} rounded-full ${
-            pos ? "bg-[#3ee0a8]" : "bg-rose-400"
-          } ${emphasize ? "opacity-100" : "opacity-70"}`}
-          style={{ width: `${pct / 2}%` }}
-        />
-      </div>
-      <span className={`num text-right ${signedClass(value)}`}>{fmtPct(value)}</span>
+    <div className="bg-[var(--surface)] px-2 py-2">
+      <div className="lg-label">{label}</div>
+      <div className={`num mt-0.5 text-[13px] font-medium ${tone}`}>{value}</div>
     </div>
   );
 }

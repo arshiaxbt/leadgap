@@ -37,6 +37,26 @@ type FillRow = {
 
 export function Blotter({ instrumentId }: { instrumentId: number }) {
   const mount = usePrivyMount();
+  if (mount !== "ready") {
+    return (
+      <div className="flex h-full min-h-0 flex-col bg-[var(--surface)]">
+        <div className="lg-toolbar">
+          <span className="lg-label">Blotter</span>
+          <Link href="/portfolio" className="px-2 py-1 text-[var(--muted)] hover:text-[var(--text)]">
+            Account
+          </Link>
+          <span className="ml-auto truncate text-[var(--dim)]">
+            {mount === "insecure" ? "HTTPS required to log in." : "Log in to see positions and orders."}
+          </span>
+        </div>
+      </div>
+    );
+  }
+  return <BlotterSession instrumentId={instrumentId} />;
+}
+
+function BlotterSession({ instrumentId }: { instrumentId: number }) {
+  const mount = "ready" as const;
   const { isConnected } = useAccount();
   const { data: walletClient } = useWalletClient({ chainId: polygon.id });
   const [tab, setTab] = useState<Tab>("positions");
@@ -151,30 +171,34 @@ export function Blotter({ instrumentId }: { instrumentId: number }) {
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col bg-[#08090c]">
-      <div className="flex items-center gap-1 border-b border-[#1a2030] px-2 py-0.5 text-[11px]">
+    <div className="flex h-full min-h-0 flex-col bg-[var(--surface)]">
+      <div className="lg-toolbar">
         {(["positions", "orders", "fills"] as const).map((t) => (
           <button
             key={t}
             type="button"
             onClick={() => setTab(t)}
-            className={`rounded px-2 py-1 capitalize ${tab === t ? "bg-white/10 text-white" : "text-[#8b93a7]"}`}
+            className={`border-b-2 px-2 py-1 capitalize ${
+              tab === t
+                ? "border-[var(--signal)] text-[var(--text)]"
+                : "border-transparent text-[var(--muted)] hover:text-[var(--text)]"
+            }`}
           >
             {t}
           </button>
         ))}
-        <Link href="/portfolio" className="rounded px-2 py-1 text-[#8b93a7] hover:text-white">
-          Portfolio
+        <Link href="/portfolio" className="px-2 py-1 text-[var(--muted)] hover:text-[var(--text)]">
+          Account
         </Link>
-        {note ? <span className="ml-auto truncate text-[#5c6478]">{note}</span> : null}
+        {note ? <span className="ml-auto truncate text-[var(--dim)]">{note}</span> : null}
       </div>
       <div className="min-h-0 flex-1 overflow-auto px-2 py-1 text-[11px]">
         {tab === "positions" ? (
           positions.length === 0 ? (
-            <p className="text-[#5c6478]">No open positions.</p>
+            <p className="text-[var(--dim)]">No open positions.</p>
           ) : (
-            <table className="w-full text-left">
-              <thead className="text-[10px] uppercase text-[#5c6478]">
+            <table className="lg-table w-full text-left">
+              <thead>
                 <tr>
                   <th className="py-1">Market</th>
                   <th>Size</th>
@@ -186,19 +210,14 @@ export function Blotter({ instrumentId }: { instrumentId: number }) {
               </thead>
               <tbody>
                 {positions.map((p) => (
-                  <tr key={`${p.instrumentId}-${p.symbol}`} className="border-t border-[#1e2636]">
+                  <tr key={`${p.instrumentId}-${p.symbol}`}>
                     <td className="py-1.5">{p.symbol.replace("-USD", "")}</td>
                     <td className="num">{p.size}</td>
                     <td className="num">{fmtPx(Number(p.entryPrice))}</td>
                     <td className={`num ${signedClass(Number(p.unrealizedPnl))}`}>{p.unrealizedPnl}</td>
                     <td className="num">{fmtPx(Number(p.liquidationPrice))}</td>
                     <td>
-                      <button
-                        type="button"
-                        disabled={busy}
-                        onClick={() => void closePosition(p)}
-                        className="text-[#8bb4ff] hover:underline"
-                      >
+                      <button type="button" disabled={busy} onClick={() => void closePosition(p)} className="text-[var(--perp)] hover:underline">
                         Close
                       </button>
                     </td>
@@ -210,7 +229,7 @@ export function Blotter({ instrumentId }: { instrumentId: number }) {
         ) : null}
         {tab === "orders" ? (
           orders.length === 0 ? (
-            <p className="text-[#5c6478]">No open orders.</p>
+            <p className="text-[var(--dim)]">No open orders.</p>
           ) : (
             <ul className="space-y-1">
               {orders.map((o) => (
@@ -218,7 +237,7 @@ export function Blotter({ instrumentId }: { instrumentId: number }) {
                   <span className="num">
                     {o.side} {o.quantity} @ {o.price} · {o.status}
                   </span>
-                  <button type="button" disabled={busy} onClick={() => void cancel(o.id)} className="text-[#8bb4ff]">
+                  <button type="button" disabled={busy} onClick={() => void cancel(o.id)} className="text-[var(--perp)]">
                     Cancel
                   </button>
                 </li>
@@ -228,9 +247,9 @@ export function Blotter({ instrumentId }: { instrumentId: number }) {
         ) : null}
         {tab === "fills" ? (
           fills.length === 0 ? (
-            <p className="text-[#5c6478]">No fills yet.</p>
+            <p className="text-[var(--dim)]">No fills yet.</p>
           ) : (
-            <ul className="space-y-1 text-[#8b93a7]">
+            <ul className="space-y-1 text-[var(--perp)]">
               {fills.map((f, i) => (
                 <li key={`${f.side}-${f.price}-${i}`} className="num">
                   {f.side} {f.quantity} @ {f.price}

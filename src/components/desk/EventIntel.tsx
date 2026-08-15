@@ -2,8 +2,10 @@
 
 import { SignalCard } from "@/components/SignalCard";
 import { ResidualSpark } from "@/components/desk/ResidualSpark";
+import { MenuSelect } from "@/components/MenuSelect";
+import { PolymarketEventLink } from "@/components/ui";
 import { eventTitleKey, GAP_WINDOWS, residualPath, WINDOW_MS } from "@/lib/divergence";
-import { fmtPct, fmtScore, signedClass } from "@/lib/format";
+import { fmtPct, fmtScore } from "@/lib/format";
 import { residualTrend, scoreClass } from "@/lib/score";
 import { catalystImpact } from "@/lib/signal";
 import type { GapRow, GapTapePoint, GapWindow, NewsItem, ResidualPoint, ResolvedEvent, Snapshot } from "@/lib/types";
@@ -15,9 +17,9 @@ function horizonCopy(windows: Record<GapWindow, GapRow[]> | undefined, eventId: 
   const s15 = score("15m");
   const s1h = score("1h");
   const s1d = score("1d");
-  if (s1m > s15 + 8) return "Building on the 1m print — the residual is still opening.";
-  if (s1d > s15 + 8 && s1m < s15) return "Larger on the 1d than 15m — this move is older than the current window.";
-  if (s1h > 0 && s1m > 0 && Math.abs(s1h - s1m) < 8) return "Same setup across 1m–1h. Not a one-print spike.";
+  if (s1m > s15 + 8) return "Building on the 1m print — residual still opening.";
+  if (s1d > s15 + 8 && s1m < s15) return "Larger on 1d than 15m — older move.";
+  if (s1h > 0 && s1m > 0 && Math.abs(s1h - s1m) < 8) return "Same setup across 1m–1h.";
   return null;
 }
 
@@ -53,7 +55,11 @@ export function EventIntel({
       seen.add(key);
       out.push(item);
     }
-    return out;
+    return out.sort((a, b) => {
+      const sa = gaps.find((g) => g.eventId === a.id)?.score ?? 0;
+      const sb = gaps.find((g) => g.eventId === b.id)?.score ?? 0;
+      return sb - sa;
+    });
   })();
   const event = uniqueEvents.find((e) => e.id === selectedId) ?? uniqueEvents[0];
   const gap = event ? gaps.find((g) => g.eventId === event.id) : undefined;
@@ -80,75 +86,79 @@ export function EventIntel({
 
   if (!event) {
     return (
-      <div className="flex h-full flex-col justify-center px-3 text-[12px] text-[#7d8699]">
+      <div className="flex h-full flex-col justify-center px-3 text-[12px] text-[var(--muted)]">
         No mapped event. The perp still trades.
       </div>
     );
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-auto text-[11px]">
-      <div className="border-b border-[#1a2030] px-2 py-1">
-        <p className="text-[10px] uppercase tracking-wide text-[#7d8699]">Event intel</p>
-        {uniqueEvents.length > 1 ? (
-          <div className="mt-1 max-h-14 overflow-auto">
-            {uniqueEvents.slice(0, 5).map((item) => (
-              <button
-                key={item.id}
-                type="button"
-                onClick={() => onSelect(item.id)}
-                className={`block w-full truncate rounded px-1 py-0.5 text-left ${
-                  item.id === event.id ? "bg-white/[0.06] text-white" : "text-[#7d8699] hover:text-white"
-                }`}
-              >
-                {item.title}
-              </button>
-            ))}
-          </div>
-        ) : null}
+    <div className="flex h-full min-h-0 flex-col overflow-auto bg-[var(--surface)] text-[11px]">
+      <div className="lg-toolbar justify-between gap-2">
+        <span className="lg-label">Brief</span>
+        <div className="flex min-w-0 items-center gap-2">
+          {uniqueEvents.length > 1 ? (
+            <MenuSelect
+              ariaLabel="Event"
+              align="right"
+              className="max-w-[180px] py-0.5 text-[11px]"
+              menuClassName="w-72"
+              value={event.id}
+              onChange={onSelect}
+              options={uniqueEvents.slice(0, 8).map((item) => ({ id: item.id, label: item.title }))}
+            />
+          ) : null}
+          <PolymarketEventLink slug={event.slug} className="shrink-0 text-[11px] text-[var(--muted)] hover:text-[var(--signal)]" />
+        </div>
       </div>
 
-      <div className="space-y-1.5 px-2 py-1.5">
+      <div className="border-b border-[var(--line)] px-3 py-3">
         {gap ? <SignalCard row={gap} compact trade={false} /> : (
-          <p className="text-[13px] font-medium leading-4 text-zinc-100">{event.title}</p>
+          <div className="flex items-start justify-between gap-3">
+            <p className="event-title text-[15px] text-[var(--text)]">{event.title}</p>
+            <PolymarketEventLink slug={event.slug} className="shrink-0 text-[11px] text-[var(--muted)] hover:text-[var(--signal)]" />
+          </div>
         )}
+      </div>
 
-        <div className="grid grid-cols-4 gap-px overflow-hidden rounded border border-[#1a2030] bg-[#1a2030]">
+      <div className="border-b border-[var(--line)] px-3 py-2">
+        <div className="lg-label mb-1">Horizon</div>
+        <div className="grid grid-cols-4 gap-px border border-[var(--line)] bg-[var(--line)]">
           {GAP_WINDOWS.map((w) => {
             const row = windows?.[w]?.find((g) => g.eventId === event.id);
             return (
-              <div key={w} className="bg-[#0e1118] py-1 text-center">
-                <div className="text-[9px] uppercase text-[#7d8699]">{w}</div>
-                <div className={`num text-[11px] font-medium ${row ? scoreClass(row.score) : "text-[#7d8699]"}`}>
+              <div key={w} className="bg-[var(--surface)] py-1 text-center">
+                <div className="lg-label">{w}</div>
+                <div className={`num whitespace-nowrap text-[11px] ${row ? scoreClass(row.score) : "text-[var(--dim)]"}`}>
                   {row ? fmtScore(row.score) : "—"}
                 </div>
               </div>
             );
           })}
         </div>
-        {horizon ? <p className="leading-4 text-[#8b93a7]">{horizon}</p> : null}
-
-        <div>
-          <div className="mb-0.5 flex justify-between text-[9px] uppercase tracking-wide text-[#7d8699]">
-            <span>Expected vs actual</span>
-            <span className={trend === "expanding" ? "text-amber-200" : "text-[#7d8699]"}>
-              {trend === "expanding" ? "Gap expanding" : trend === "closing" ? "Gap closing" : "Stable"}
-            </span>
-          </div>
-          <ResidualSpark points={path} />
-        </div>
+        {horizon ? <p className="mt-1.5 text-[10px] leading-4 text-[var(--muted)]">{horizon}</p> : null}
       </div>
 
-      <div className="border-t border-[#1a2030] px-2 py-1.5">
-        <p className="mb-1 text-[9px] uppercase tracking-wide text-[#7d8699]">Catalyst</p>
-        {impact ? <p className="mb-1.5 leading-4 text-zinc-200">{impact}</p> : null}
+      <div className="border-b border-[var(--line)] px-3 py-2">
+        <div className="mb-1 flex items-center justify-between">
+          <span className="lg-label">Residual</span>
+          <span className={`text-[10px] ${trend === "expanding" ? "text-[var(--warn)]" : "text-[var(--dim)]"}`}>
+            {trend === "expanding" ? "Expanding" : trend === "closing" ? "Closing" : "Stable"}
+          </span>
+        </div>
+        <ResidualSpark points={path} />
+      </div>
+
+      <div className="border-b border-[var(--line)] px-3 py-2">
+        <div className="lg-label mb-1">Catalyst</div>
+        {impact ? <p className="mb-1.5 leading-4 text-[var(--text)]">{impact}</p> : null}
         {headlines.length === 0 ? (
-          <p className="text-[#7d8699]">No mapped headline. Impact above is from Yes probability, not a news summary.</p>
+          <p className="text-[10px] text-[var(--dim)]">No mapped headline. Impact from Yes probability.</p>
         ) : (
-          <ul className="space-y-1.5">
+          <ul className="space-y-1">
             {headlines.map((item) => (
               <li key={item.id}>
-                <a href={item.link} target="_blank" rel="noreferrer" className="leading-4 text-zinc-300 hover:text-white">
+                <a href={item.link} target="_blank" rel="noreferrer" className="leading-4 text-[var(--muted)] hover:text-[var(--text)]">
                   {item.title}
                 </a>
               </li>
@@ -158,17 +168,21 @@ export function EventIntel({
       </div>
 
       {prints.length > 0 ? (
-        <div className="border-t border-[#1a2030] px-2 py-1.5">
-          <p className="mb-1 text-[9px] uppercase tracking-wide text-[#7d8699]">Recent prints</p>
-          <ul className="space-y-0.5">
-            {prints.map((p, i) => (
-              <li key={`${p.t}-${i}`} className="flex justify-between gap-2 text-[#8b93a7]">
-                <span className="num">{new Date(p.t).toLocaleTimeString()}</span>
-                <span className={`num ${scoreClass(p.score)}`}>{fmtScore(p.score)}</span>
-                <span className={`num ${signedClass(p.gap)}`}>{fmtPct(p.gap)}</span>
-              </li>
-            ))}
-          </ul>
+        <div className="px-3 py-2">
+          <div className="lg-label mb-1">Prints</div>
+          <table className="w-full text-[10px]">
+            <tbody>
+              {prints.map((p, i) => (
+                <tr key={`${p.t}-${i}`} className="border-t border-[var(--line)]">
+                  <td className="num py-0.5 text-[var(--dim)]">{new Date(p.t).toLocaleTimeString()}</td>
+                  <td className={`num py-0.5 text-right ${scoreClass(p.score)}`}>{fmtScore(p.score)}</td>
+                  <td className={`num py-0.5 text-right ${p.leader === "odds" ? "text-[var(--signal)]" : "text-[var(--dim)]"}`}>
+                    {fmtPct(p.gap)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       ) : null}
     </div>

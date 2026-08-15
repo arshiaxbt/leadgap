@@ -37,13 +37,14 @@ export function fmtScore(n: number): string {
 
 export function fmtFunding(n: number): string {
   if (!Number.isFinite(n)) return "—";
-  return `${(n * 100).toFixed(4)}%`;
+  const sign = n > 0 ? "+" : "";
+  return `${sign}${(n * 100).toFixed(4)}%`;
 }
 
 export function signedClass(n: number): string {
-  if (n > 0.0000001) return "text-emerald-400";
-  if (n < -0.0000001) return "text-rose-400";
-  return "text-zinc-400";
+  if (n > 0.0000001) return "text-[var(--long)]";
+  if (n < -0.0000001) return "text-[var(--short)]";
+  return "text-[var(--dim)]";
 }
 
 export function sessionLabel(category: PerpsCategory, now = new Date()): SessionLabel {

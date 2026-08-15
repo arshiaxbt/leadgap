@@ -360,9 +360,19 @@ export function startIngestLoop() {
 
 export async function getMarkets() {
   const s = await ensureFresh();
+  const eventCounts: Record<string, number> = {};
+  for (const event of uniqueEvents(s.events)) {
+    const seen = new Set<string>();
+    for (const perp of event.perps) {
+      if (seen.has(perp.symbol)) continue;
+      seen.add(perp.symbol);
+      eventCounts[perp.symbol] = (eventCounts[perp.symbol] ?? 0) + 1;
+    }
+  }
   return {
     instruments: s.instruments,
     tickers: s.tickers,
+    eventCounts,
     error: s.error,
     asOf: s.lastIngest,
   };

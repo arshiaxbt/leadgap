@@ -8,7 +8,7 @@ export const metadata: Metadata = {
 
 export default function MarketsPage() {
   return (
-    <PageShell>
+    <PageShell full>
       <MarketsBoard />
     </PageShell>
   );

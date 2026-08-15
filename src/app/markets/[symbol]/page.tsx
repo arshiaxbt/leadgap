@@ -15,7 +15,7 @@ export default async function AssetPage({ params }: { params: Promise<{ symbol: 
   const { symbol } = await params;
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <Suspense fallback={<div className="m-4 h-64 animate-pulse rounded-xl bg-white/5" />}>
+      <Suspense fallback={<div className="m-4 h-64 animate-pulse bg-[var(--hover)]" />}>
         <TradeDesk symbol={decodeURIComponent(symbol).toUpperCase()} />
       </Suspense>
     </div>

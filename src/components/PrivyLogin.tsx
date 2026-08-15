@@ -14,7 +14,7 @@ export function PrivyLogin() {
   const email = user?.email?.address;
 
   if (!ready) {
-    return <span className="inline-block h-7 w-[3.75rem] rounded border border-transparent" aria-hidden />;
+    return <span className="inline-block h-7 w-[9.25rem] rounded border border-transparent" aria-hidden />;
   }
 
   if (authenticated) {
@@ -27,7 +27,7 @@ export function PrivyLogin() {
             resetPerpsSession();
             void logout();
           }}
-          className="rounded-lg border border-[#1e2636] px-3 py-1.5 text-xs text-zinc-200 hover:bg-white/5"
+          className="border border-[var(--line)] px-3 py-1.5 text-xs text-[var(--muted)] hover:bg-[var(--hover)]"
         >
           Log out
         </button>
@@ -42,9 +42,9 @@ export function PrivyLogin() {
         trackEvent("connect_wallet");
         void login();
       }}
-      className="rounded border border-[#1a2030] px-2.5 py-1 text-[12px] text-zinc-200 hover:bg-white/5"
+      className="whitespace-nowrap border border-[var(--line)] px-2.5 py-1 text-[12px] text-[var(--muted)] hover:bg-[var(--hover)]"
     >
-      Log in
+      Log in to Polymarket
     </button>
   );
 }

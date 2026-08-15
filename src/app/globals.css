@@ -1,55 +1,187 @@
 @import "tailwindcss";
 
 :root {
-  --background: #08090c;
-  --foreground: #d8dce6;
-  --elev: #0e1118;
-  --line: #1a2030;
-  --muted: #7d8699;
-  --lead: #3ee0a8;
-  --perp: #5b8def;
+  --bg: #100f0d;
+  --surface: #181614;
+  --elevated: #1f1c19;
+  --hover: #25211c;
+  --input: #0c0b0a;
+  --line: #2c2823;
+  --line-strong: #3d3730;
+  --text: #f0ebe3;
+  --muted: #9a9388;
+  --dim: #6e685f;
+  --signal: #c4a574;
+  --perp: #8e959e;
+  --long: #3f8f6e;
+  --short: #b85c4c;
+  --warn: #c4a35a;
+  --background: var(--bg);
+  --foreground: var(--text);
+  --elev: var(--surface);
+  --lead: var(--signal);
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  --color-surface: var(--surface);
+  --color-signal: var(--signal);
+  --color-perp: var(--perp);
+  --color-long: var(--long);
+  --color-short: var(--short);
+  --font-sans: var(--font-plex);
+  --font-serif: var(--font-newsreader);
+  --font-mono: var(--font-plex-mono);
 }
 
 html,
 body {
   height: 100%;
+  overflow: hidden;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
+  background: var(--bg);
+  color: var(--text);
 }
 
 .num {
+  font-family: var(--font-plex-mono), ui-monospace, monospace;
   font-variant-numeric: tabular-nums;
   font-feature-settings: "tnum" 1;
 }
 
+.event-title {
+  font-family: var(--font-newsreader), ui-serif, Georgia, serif;
+  font-optical-sizing: auto;
+}
+
+.lg-label {
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+
+.lg-pane {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 2px;
+}
+
+.lg-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 36px;
+  padding: 0 0.75rem;
+  border-bottom: 1px solid var(--line);
+  background: var(--bg);
+}
+
+.lg-input {
+  width: 100%;
+  border: 1px solid var(--line);
+  background: var(--input);
+  color: var(--text);
+  font-size: 12px;
+  border-radius: 2px;
+  outline: none;
+}
+
+.lg-input:focus {
+  border-color: color-mix(in srgb, var(--signal) 50%, var(--line));
+}
+
+.lg-input::placeholder {
+  color: var(--dim);
+}
+
+.lg-row:hover:not(.lg-row-on) {
+  background: var(--hover);
+}
+
+.lg-row-on {
+  background: var(--elevated);
+}
+
+.lg-row-on td:first-child {
+  box-shadow: inset 2px 0 0 var(--signal);
+}
+
+.lg-select {
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 11px;
+  padding: 0.2rem 0.4rem;
+  outline: none;
+  border-radius: 0;
+}
+
+.lg-select-lg {
+  font-size: 13px;
+  padding: 0.4rem 0.65rem;
+}
+
+.lg-tip {
+  position: absolute;
+  top: calc(100% + 5px);
+  z-index: 50;
+  width: 15.5rem;
+  display: none;
+  border: 1px solid var(--line);
+  background: var(--elevated);
+  padding: 0.45rem 0.6rem;
+  font-size: 11px;
+  font-weight: 400;
+  line-height: 1.4;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--muted);
+  text-align: left;
+  white-space: normal;
+  pointer-events: none;
+}
+
+.group:hover > .lg-tip,
+.group:focus-visible > .lg-tip {
+  display: block;
+}
+
+.lg-table th {
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--dim);
+  border-bottom: 1px solid var(--line);
+}
+
+.lg-table td {
+  border-bottom: 1px solid color-mix(in srgb, var(--line) 75%, transparent);
+}
+
 .desk-handle {
-  background-color: #1a2030;
-  transition: background-color 120ms ease;
+  background-color: var(--line);
+  transition: background-color 100ms ease;
 }
 
 .desk-handle:hover,
 .desk-handle:focus-visible,
 .desk-handle[data-active],
 .desk-handle[data-separator][data-state="active"] {
-  background-color: #3ee0a8;
+  background-color: var(--signal);
 }
 
-[data-group][data-orientation="horizontal"] > .desk-handle {
-  width: 4px;
-  min-width: 4px;
+.desk-handle[aria-orientation="vertical"] {
+  width: 3px;
+  min-width: 3px;
 }
 
-[data-group][data-orientation="vertical"] > .desk-handle {
-  height: 4px;
-  min-height: 4px;
+.desk-handle[aria-orientation="horizontal"] {
+  height: 3px;
+  min-height: 3px;
 }

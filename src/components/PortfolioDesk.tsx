@@ -84,6 +84,25 @@ const EMPTY: DeskState = {
 
 export function PortfolioDesk() {
   const mount = usePrivyMount();
+  if (mount !== "ready") {
+    return (
+      <div className="space-y-2">
+        <div>
+          <h1 className="event-title text-[22px] italic text-[var(--text)]">Account</h1>
+          <p className="text-[12px] text-[var(--muted)]">
+            {mount === "insecure"
+              ? "Open Leadgap over HTTPS to log in and trade."
+              : "Log in to load equity, risk, and event exposure."}
+          </p>
+        </div>
+      </div>
+    );
+  }
+  return <PortfolioDeskSession />;
+}
+
+function PortfolioDeskSession() {
+  const mount = "ready" as const;
   const { address, isConnected } = useAccount();
   const { data: walletClient } = useWalletClient({ chainId: polygon.id });
   const publicClient = usePublicClient({ chainId: polygon.id });
@@ -294,10 +313,10 @@ export function PortfolioDesk() {
     <div className="space-y-2">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-lg font-semibold tracking-tight text-white">Portfolio</h1>
-          <p className="text-[12px] text-[#8b93a7]">Equity, risk, and event exposure on Polymarket Perps.</p>
+          <h1 className="event-title text-[22px] italic text-[var(--text)]">Account</h1>
+          <p className="text-[12px] text-[var(--muted)]">Equity, risk, and event exposure on the perp.</p>
         </div>
-        <Link href="/markets" className="text-sm text-[#8b93a7] hover:text-white">
+        <Link href="/markets" className="text-sm text-[var(--muted)] hover:text-[var(--text)]">
           Back to markets
         </Link>
       </div>
@@ -311,19 +330,19 @@ export function PortfolioDesk() {
           type="button"
           disabled={busy}
           onClick={() => void approvePerps()}
-          className="rounded-md bg-[#3ee0a8] px-3 py-1.5 text-sm font-semibold text-[#07080c] disabled:opacity-40"
+          className="border border-[color-mix(in_srgb,var(--signal)_45%,var(--line))] px-3 py-1.5 text-sm font-medium text-[var(--signal)] disabled:opacity-40"
         >
           {busy ? "Waiting…" : "Connect Perps"}
         </button>
       ) : null}
-      {state.note ? <p className="text-sm text-amber-200">{state.note}</p> : null}
+      {state.note ? <p className="text-sm text-[var(--warn)]">{state.note}</p> : null}
       {state.href ? (
-        <a href={state.href} target="_blank" rel="noreferrer" className="text-sm text-[#8bb4ff] hover:underline">
+        <a href={state.href} target="_blank" rel="noreferrer" className="text-sm text-[var(--signal)] hover:underline">
           Request Perps access
         </a>
       ) : null}
 
-      <div className="grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-[#1e2636] bg-[#1e2636] sm:grid-cols-3 lg:grid-cols-6">
+      <div className="grid grid-cols-2 gap-px overflow-hidden border border-[var(--line)] bg-[var(--line)] sm:grid-cols-3 lg:grid-cols-6">
         <Stat label="Equity" value={fmtUsd(state.equity)} />
         <Stat label="PnL" value={fmtUsdSigned(state.upnl)} tone={signedClass(state.upnl)} />
         <Stat label="Margin" value={fmtUsd(state.used)} />
@@ -331,29 +350,29 @@ export function PortfolioDesk() {
         <Stat
           label="Realized"
           value={state.realized == null ? "—" : fmtUsdSigned(state.realized)}
-          tone={state.realized == null ? "text-[#8b93a7]" : signedClass(state.realized)}
+          tone={state.realized == null ? "text-[var(--muted)]" : signedClass(state.realized)}
         />
-        <div className="bg-[#10141c] px-4 py-3">
-          <div className="flex items-center justify-between text-[10px] uppercase tracking-wide text-[#5c6478]">
+        <div className="bg-[var(--surface)] px-4 py-3">
+          <div className="flex items-center justify-between text-[10px] uppercase tracking-[0.1em] text-[var(--dim)]">
             <span>Risk</span>
             {state.liquidation ? <Pill tone="danger">Liq</Pill> : null}
           </div>
-          <div className={`mt-1 num text-lg ${ratio > 0.8 ? "text-rose-300" : "text-zinc-100"}`}>
+          <div className={`mt-1 num text-lg ${ratio > 0.8 ? "text-[var(--short)]" : "text-[var(--text)]"}`}>
             {(usedPct * 100).toFixed(1)}%
           </div>
-          <div className="mt-2 h-1 overflow-hidden rounded-full bg-white/10">
+          <div className="mt-2 h-1 overflow-hidden bg-[var(--elevated)]">
             <div
-              className={`h-full ${ratio > 0.8 ? "bg-rose-400" : "bg-[#3ee0a8]"}`}
+              className={`h-full ${ratio > 0.8 ? "bg-[var(--short)]" : "bg-[var(--signal)]"}`}
               style={{ width: `${Math.min(100, usedPct * 100)}%` }}
             />
           </div>
-          <p className="mt-1 text-[10px] text-[#5c6478]">Maint {fmtUsd(state.maint)}</p>
+          <p className="mt-1 text-[10px] text-[var(--dim)]">Maint {fmtUsd(state.maint)}</p>
         </div>
       </div>
 
       {state.funded && walletClient ? (
-        <div className="rounded-xl border border-[#1e2636] bg-[#10141c] px-4 py-3">
-          <p className="mb-2 text-[11px] uppercase tracking-wide text-[#5c6478]">Deposit / Withdraw</p>
+        <div className="lg-pane px-4 py-3">
+          <p className="mb-2 text-[11px] uppercase tracking-[0.1em] text-[var(--dim)]">Deposit / Withdraw</p>
           <FundControls
             walletClient={walletClient}
             publicClient={publicClient}
@@ -371,18 +390,18 @@ export function PortfolioDesk() {
           <ul className="space-y-1.5">
             {exposures.map((row) => (
               <li key={`${row.symbol}-${row.side}`} className="flex flex-wrap items-baseline justify-between gap-2 text-sm">
-                <span className="text-zinc-200">
+                <span className="text-[var(--text)]">
                   {row.title}
-                  <span className="text-[#5c6478]"> → </span>
+                  <span className="text-[var(--dim)]"> → </span>
                   <Link
                     href={row.eventId ? `/markets/${row.symbol}?event=${row.eventId}` : `/markets/${row.symbol}`}
-                    className={row.side === "Long" ? "text-emerald-300 hover:underline" : "text-rose-300 hover:underline"}
+                    className={row.side === "Long" ? "text-[var(--long)] hover:underline" : "text-[var(--short)] hover:underline"}
                   >
                     {row.symbol.replace("-USD", "")} {row.side}
                   </Link>
                 </span>
                 {row.score > 0 ? (
-                  <span className="num text-[11px] text-[#8b93a7]">
+                  <span className="num text-[11px] text-[var(--muted)]">
                     score {Math.round(row.score)}
                     {row.aligned ? " · with signal" : " · vs signal"}
                   </span>
@@ -398,7 +417,7 @@ export function PortfolioDesk() {
           <Empty text="No open positions." />
         ) : (
           <table className="w-full min-w-[720px] text-left text-sm">
-            <thead className="text-[10px] uppercase tracking-wide text-[#5c6478]">
+            <thead className="text-[10px] uppercase tracking-[0.1em] text-[var(--dim)]">
               <tr>
                 <th className="py-2 font-medium">Symbol</th>
                 <th className="font-medium">Side</th>
@@ -414,26 +433,26 @@ export function PortfolioDesk() {
               {state.positions.map((p) => {
                 const mark = marks[p.symbol]?.markPrice;
                 return (
-                  <tr key={`${p.instrumentId}-${p.symbol}`} className="border-t border-[#1e2636]">
+                  <tr key={`${p.instrumentId}-${p.symbol}`} className="border-t border-[var(--line)]">
                     <td className="py-2">
-                      <Link href={`/markets/${p.symbol}`} className="text-zinc-100 hover:underline">
+                      <Link href={`/markets/${p.symbol}`} className="text-[var(--text)] hover:underline">
                         {p.symbol.replace("-USD", "")}
                       </Link>
                     </td>
-                    <td className={p.size > 0 ? "text-emerald-300" : "text-rose-300"}>
+                    <td className={p.size > 0 ? "text-[var(--long)]" : "text-[var(--short)]"}>
                       {p.size > 0 ? "Long" : "Short"}
                     </td>
-                    <td className="num text-zinc-200">{Math.abs(p.size)}</td>
-                    <td className="num text-zinc-300">{fmtPx(p.entry)}</td>
-                    <td className="num text-zinc-300">{mark != null ? fmtPx(mark) : "—"}</td>
+                    <td className="num text-[var(--text)]">{Math.abs(p.size)}</td>
+                    <td className="num text-[var(--perp)]">{fmtPx(p.entry)}</td>
+                    <td className="num text-[var(--perp)]">{mark != null ? fmtPx(mark) : "—"}</td>
                     <td className={`num ${signedClass(p.pnl)}`}>{fmtUsdSigned(p.pnl)}</td>
-                    <td className="num text-zinc-400">{fmtPx(p.liq)}</td>
+                    <td className="num text-[var(--muted)]">{fmtPx(p.liq)}</td>
                     <td className="text-right">
                       <button
                         type="button"
                         disabled={busy}
                         onClick={() => void closePosition(p)}
-                        className="text-xs text-[#8bb4ff] hover:underline disabled:opacity-40"
+                        className="text-xs text-[var(--signal)] hover:underline disabled:opacity-40"
                       >
                         Close
                       </button>
@@ -451,7 +470,7 @@ export function PortfolioDesk() {
           <Empty text="No open orders." />
         ) : (
           <table className="w-full text-left text-sm">
-            <thead className="text-[10px] uppercase tracking-wide text-[#5c6478]">
+            <thead className="text-[10px] uppercase tracking-[0.1em] text-[var(--dim)]">
               <tr>
                 <th className="py-2 font-medium">Side</th>
                 <th className="font-medium">Size</th>
@@ -462,17 +481,17 @@ export function PortfolioDesk() {
             </thead>
             <tbody>
               {state.orders.map((o) => (
-                <tr key={o.id} className="border-t border-[#1e2636]">
-                  <td className="py-2 capitalize text-zinc-200">{o.side}</td>
+                <tr key={o.id} className="border-t border-[var(--line)]">
+                  <td className="py-2 capitalize text-[var(--text)]">{o.side}</td>
                   <td className="num">{o.quantity}</td>
                   <td className="num">{o.price}</td>
-                  <td className="text-[#8b93a7]">{o.status}</td>
+                  <td className="text-[var(--muted)]">{o.status}</td>
                   <td className="text-right">
                     <button
                       type="button"
                       disabled={busy}
                       onClick={() => void cancel(o.id)}
-                      className="text-xs text-[#8bb4ff] hover:underline disabled:opacity-40"
+                      className="text-xs text-[var(--signal)] hover:underline disabled:opacity-40"
                     >
                       Cancel
                     </button>
@@ -489,7 +508,7 @@ export function PortfolioDesk() {
           <Empty text="No fills yet." />
         ) : (
           <table className="w-full text-left text-sm">
-            <thead className="text-[10px] uppercase tracking-wide text-[#5c6478]">
+            <thead className="text-[10px] uppercase tracking-[0.1em] text-[var(--dim)]">
               <tr>
                 <th className="py-2 font-medium">Side</th>
                 <th className="font-medium">Size</th>
@@ -498,8 +517,8 @@ export function PortfolioDesk() {
             </thead>
             <tbody>
               {state.fills.map((f, i) => (
-                <tr key={`${f.side}-${f.price}-${i}`} className="border-t border-[#1e2636]">
-                  <td className="py-2 capitalize text-zinc-200">{f.side}</td>
+                <tr key={`${f.side}-${f.price}-${i}`} className="border-t border-[var(--line)]">
+                  <td className="py-2 capitalize text-[var(--text)]">{f.side}</td>
                   <td className="num">{f.quantity}</td>
                   <td className="num">{f.price}</td>
                 </tr>
@@ -512,10 +531,10 @@ export function PortfolioDesk() {
   );
 }
 
-function Stat({ label, value, tone = "text-zinc-100" }: { label: string; value: string; tone?: string }) {
+function Stat({ label, value, tone = "text-[var(--text)]" }: { label: string; value: string; tone?: string }) {
   return (
-    <div className="bg-[#10141c] px-4 py-3">
-      <div className="text-[10px] uppercase tracking-wide text-[#5c6478]">{label}</div>
+    <div className="bg-[var(--surface)] px-4 py-3">
+      <div className="text-[10px] uppercase tracking-[0.1em] text-[var(--dim)]">{label}</div>
       <div className={`mt-1 num text-lg ${tone}`}>{value}</div>
     </div>
   );
@@ -523,13 +542,13 @@ function Stat({ label, value, tone = "text-zinc-100" }: { label: string; value: 
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <section className="overflow-x-auto rounded-xl border border-[#1e2636] bg-[#10141c] px-4 py-3">
-      <h2 className="mb-2 text-[11px] uppercase tracking-wide text-[#5c6478]">{title}</h2>
+    <section className="lg-pane overflow-x-auto px-4 py-3">
+      <h2 className="mb-2 text-[11px] uppercase tracking-[0.1em] text-[var(--dim)]">{title}</h2>
       {children}
     </section>
   );
 }
 
 function Empty({ text }: { text: string }) {
-  return <p className="py-4 text-sm text-[#5c6478]">{text}</p>;
+  return <p className="py-4 text-sm text-[var(--muted)]">{text}</p>;
 }

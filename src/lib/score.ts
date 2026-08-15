@@ -101,9 +101,9 @@ export function scoreTone(score: number): "lead" | "warn" | "mute" {
 }
 
 export function scoreClass(score: number): string {
-  if (score >= 55) return "text-[#3ee0a8]";
-  if (score >= 28) return "text-amber-200";
-  return "text-[#8b93a7]";
+  if (score >= 55) return "text-[var(--signal)]";
+  if (score >= 28) return "text-[var(--warn)]";
+  return "text-[var(--dim)]";
 }
 
 export function biasCopy(bias: Bias, symbol?: string): string {

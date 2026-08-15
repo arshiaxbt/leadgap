@@ -44,12 +44,12 @@ const XL = "(min-width: 1280px)";
 
 const PriceChart = dynamic(() => import("@/components/desk/PriceChart").then((m) => m.PriceChart), {
   ssr: false,
-  loading: () => <div className="h-full min-h-[240px] animate-pulse bg-white/5" />,
+  loading: () => <div className="h-full min-h-[240px] animate-pulse bg-[var(--hover)]" />,
 });
 
 const OrderTicket = dynamic(() => import("@/components/OrderTicket").then((m) => m.OrderTicket), {
   ssr: false,
-  loading: () => <div className="h-full min-h-[200px] animate-pulse bg-white/5" />,
+  loading: () => <div className="h-full min-h-[200px] animate-pulse bg-[var(--hover)]" />,
 });
 
 function subscribeXl(onStoreChange: () => void) {
@@ -185,8 +185,8 @@ export function TradeDesk({ symbol }: { symbol: string }) {
     };
   }, [yesTokenId]);
 
-  if (error) return <p className="p-6 text-sm text-rose-300">{error}</p>;
-  if (!data) return <div className="m-4 h-full animate-pulse rounded-xl bg-white/5" />;
+  if (error) return <p className="p-6 text-sm text-[var(--short)]">{error}</p>;
+  if (!data) return <div className="m-4 h-full animate-pulse bg-[var(--hover)]" />;
 
   const { instrument, ticker, events, news, gaps, oddsHistory, instruments, markHistory, windows, tape } = data;
   const selectedGap = eventId ? gaps.find((g) => g.eventId === eventId) : gaps[0];
@@ -270,7 +270,7 @@ export function TradeDesk({ symbol }: { symbol: string }) {
                 {intelPanel}
               </Panel>
               <Separator className="desk-handle" />
-              <Panel id="chart" minSize={280} className="min-h-0 overflow-hidden">
+              <Panel id="chart" defaultSize={360} minSize={280} className="min-h-0 overflow-hidden">
                 {chartPanel}
               </Panel>
               <Separator className="desk-handle" />
@@ -316,10 +316,10 @@ export function TradeDesk({ symbol }: { symbol: string }) {
   return (
     <div className="grid min-h-0 flex-1 grid-cols-1 overflow-auto">
       {tickerStrip}
-      <div className="min-h-[280px] border-b border-[#1a2030]">{chartPanel}</div>
-      <div className="min-h-[200px] border-b border-[#1a2030]">{intelPanel}</div>
-      <div className="min-h-[240px] border-b border-[#1a2030]">{bookPanel}</div>
-      <div className="min-h-[240px] border-b border-[#1a2030]">{ticketPanel}</div>
+      <div className="min-h-[220px] border-b border-[var(--line)]">{chartPanel}</div>
+      <div className="min-h-[200px] border-b border-[var(--line)]">{intelPanel}</div>
+      <div className="min-h-[240px] border-b border-[var(--line)]">{bookPanel}</div>
+      <div className="min-h-[240px] border-b border-[var(--line)]">{ticketPanel}</div>
       <div className="min-h-[92px]">{blotterPanel}</div>
     </div>
   );

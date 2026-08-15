@@ -65,11 +65,11 @@ export function PolyProfileChip({
       {profile?.profileImage ? (
         <img src={profile.profileImage} alt="" width={18} height={18} className="h-[18px] w-[18px] rounded-full object-cover" />
       ) : (
-        <span className="grid h-[18px] w-[18px] place-items-center rounded-full bg-white/10 text-[9px] text-[#8b93a7]">
+        <span className="grid h-[18px] w-[18px] place-items-center rounded-full bg-[var(--elevated)] text-[9px] text-[var(--muted)]">
           {(label[0] ?? "?").toUpperCase()}
         </span>
       )}
-      <span className="max-w-[120px] truncate text-[12px] text-zinc-200">{label}</span>
+      <span className="max-w-[120px] truncate text-[12px] text-[var(--text)]">{label}</span>
     </span>
   );
 
@@ -91,7 +91,7 @@ export function CopyAddr({ addr, label }: { addr: string; label?: string }) {
         setCopied(true);
         window.setTimeout(() => setCopied(false), 1200);
       }}
-      className="font-mono text-[12px] text-zinc-200 hover:text-white"
+      className="font-mono text-[12px] text-[var(--text)] hover:text-[var(--signal)]"
       title={addr}
     >
       {copied ? "Copied" : `${label ? `${label} ` : ""}${shortAddr(addr)}`}
@@ -114,36 +114,36 @@ export function PolyProfileCard({
   if (!eoa && !polymarketWallet) return null;
 
   return (
-    <div className="flex flex-wrap items-center gap-3 rounded-xl border border-[#1e2636] bg-[#10141c] px-4 py-3">
+    <div className="lg-pane flex flex-wrap items-center gap-3 px-4 py-3">
       {profile?.profileImage ? (
         <img src={profile.profileImage} alt="" width={40} height={40} className="h-10 w-10 rounded-full object-cover" />
       ) : (
-        <span className="grid h-10 w-10 place-items-center rounded-full bg-white/10 text-sm text-[#8b93a7]">
+        <span className="grid h-10 w-10 place-items-center rounded-full bg-[var(--elevated)] text-sm text-[var(--muted)]">
           {(name?.[0] ?? "?").toUpperCase()}
         </span>
       )}
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-2">
           {href && name ? (
-            <a href={href} target="_blank" rel="noreferrer" className="text-sm font-medium text-white hover:underline">
+            <a href={href} target="_blank" rel="noreferrer" className="text-sm font-medium text-[var(--text)] hover:underline">
               {name}
             </a>
           ) : (
-            <span className="text-sm font-medium text-white">{name ?? "Polymarket account"}</span>
+            <span className="text-sm font-medium text-[var(--text)]">{name ?? "Polymarket account"}</span>
           )}
-          {profile?.verifiedBadge ? <span className="text-[10px] text-[#3ee0a8]">Verified</span> : null}
+          {profile?.verifiedBadge ? <span className="text-[10px] text-[var(--signal)]">Verified</span> : null}
           {profile?.xUsername ? (
             <a
               href={`https://x.com/${profile.xUsername}`}
               target="_blank"
               rel="noreferrer"
-              className="text-[11px] text-[#8b93a7] hover:text-white"
+              className="text-[11px] text-[var(--muted)] hover:text-[var(--text)]"
             >
               @{profile.xUsername}
             </a>
           ) : null}
         </div>
-        <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-[#8b93a7]">
+        <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-[var(--muted)]">
           {wallet ? (
             <span>
               Polymarket <CopyAddr addr={wallet} />
@@ -157,7 +157,7 @@ export function PolyProfileCard({
         </div>
       </div>
       {href ? (
-        <a href={href} target="_blank" rel="noreferrer" className="text-[11px] text-[#8bb4ff] hover:underline">
+        <a href={href} target="_blank" rel="noreferrer" className="text-[11px] text-[var(--signal)] hover:underline">
           View on Polymarket
         </a>
       ) : null}

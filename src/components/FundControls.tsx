@@ -85,7 +85,7 @@ export function FundControls({
         type="button"
         disabled={!!busy}
         onClick={() => void run("deposit")}
-        className="rounded-lg bg-[#3ee0a8] px-3 py-1.5 text-xs font-medium text-[#07080c] disabled:opacity-40"
+        className="border border-[color-mix(in_srgb,var(--signal)_45%,var(--line))] px-3 py-1.5 text-xs font-medium text-[var(--signal)] disabled:opacity-40"
       >
         {busy === "deposit" ? "Depositing…" : "Deposit"}
       </button>
@@ -93,20 +93,20 @@ export function FundControls({
         type="button"
         disabled={!!busy}
         onClick={() => void run("withdraw")}
-        className="rounded-lg border border-[#1e2636] px-3 py-1.5 text-xs text-zinc-200 hover:bg-white/5 disabled:opacity-40"
+        className="border border-[var(--line)] px-3 py-1.5 text-xs text-[var(--muted)] hover:bg-[var(--hover)] disabled:opacity-40"
       >
         {busy === "withdraw" ? "Withdrawing…" : "Withdraw"}
       </button>
-      {walletPusd != null ? <span className="text-xs text-[#8b93a7]">Wallet {walletPusd} pUSD</span> : null}
+      {walletPusd != null ? <span className="text-xs text-[var(--muted)]">Wallet {walletPusd} pUSD</span> : null}
       <a
         href="https://polymarket.com"
         target="_blank"
         rel="noreferrer"
-        className="text-xs text-[#8b93a7] hover:text-white"
+        className="text-xs text-[var(--muted)] hover:text-[var(--text)]"
       >
         Fund on Polymarket
       </a>
-      {status ? <span className="text-xs text-amber-200">{status}</span> : null}
+      {status ? <span className="text-xs text-[var(--warn)]">{status}</span> : null}
     </div>
   );
 }

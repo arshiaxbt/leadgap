@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { allowRequest, clientIp } from "@/lib/rate-limit";
 
-/** Per-isolate only. Also set Vercel WAF on /api/builder/sign, /api/ingest, /api/book, /api/klines. */
+/** Per-isolate only. Vercel WAF rate limits for these paths need Pro; Hobby keeps this Map. */
 
 function bucket(path: string): { key: string; limit: number } {
   if (path === "/api/builder/sign") return { key: path, limit: 30 };

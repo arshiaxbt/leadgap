@@ -5,6 +5,7 @@ import {
   allowedBuilderMethod,
   allowedBuilderOrigin,
   allowedBuilderPath,
+  builderSignPathname,
   verifyPrivyBearer,
 } from "@/lib/privy-server";
 import { allowRequest, clientIp } from "@/lib/rate-limit";
@@ -40,9 +41,7 @@ export async function POST(req: Request) {
   const method = (body.method ?? "GET").toUpperCase();
   const path = body.path ?? "";
   if (!allowedBuilderMethod(method) || !allowedBuilderPath(path)) {
-    if (process.env.NODE_ENV !== "production") {
-      console.warn("[builder/sign] rejected", method, path.split("?")[0]);
-    }
+    console.warn("[builder/sign] rejected", method, builderSignPathname(path) ?? "(invalid)");
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { buildHmacSignature } from "@polymarket/client";
 import { builderApiCreds } from "@/lib/builder-server";
-import { geoFromRequest } from "@/lib/geo";
 import {
   allowedBuilderMethod,
   allowedBuilderOrigin,
@@ -20,11 +19,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const geo = geoFromRequest(req);
-  if (geo.blocked) {
-    return NextResponse.json({ error: geo.reason || "Forbidden" }, { status: 403 });
-  }
-
+  // Geo is enforced at the trading boundary (assertCanTrade / placeOrder), not HMAC signing.
   const signKey = `sign:${identity.userId}:${clientIp(req)}`;
   if (!allowRequest(signKey, 30)) {
     return NextResponse.json({ error: "Too many requests" }, { status: 429 });

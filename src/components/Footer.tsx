@@ -1,4 +1,4 @@
-import { APP_GITHUB, APP_NAME, APP_X } from "@/lib/brand";
+import { APP_BUILDER, APP_GITHUB, APP_NAME, APP_X } from "@/lib/brand";
 
 export function Footer() {
   return (
@@ -8,6 +8,9 @@ export function Footer() {
           {APP_NAME} · Probability is the signal. The perp is the trade. Not financial advice.
         </p>
         <div className="flex shrink-0 items-center gap-3">
+          <a href={APP_X} target="_blank" rel="noreferrer" className="hover:text-[var(--muted)]">
+            Built by {APP_BUILDER}
+          </a>
           <a href={APP_GITHUB} target="_blank" rel="noreferrer" aria-label="GitHub" className="hover:text-[var(--muted)]">
             <GitHubIcon />
           </a>

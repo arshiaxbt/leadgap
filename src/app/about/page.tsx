@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { LogoMark } from "@/components/LogoMark";
 import { PageShell } from "@/components/PageShell";
-import { APP_GITHUB, APP_NAME, APP_TAGLINE, APP_X, PERPS_WAITLIST_URL } from "@/lib/brand";
+import { APP_BUILDER, APP_GITHUB, APP_NAME, APP_TAGLINE, APP_X, PERPS_WAITLIST_URL } from "@/lib/brand";
 
 export const metadata: Metadata = {
   title: "About",
@@ -18,6 +18,12 @@ export default function AboutPage() {
           <h1 className="event-title text-[28px] italic leading-8 text-[var(--text)]">{APP_NAME}</h1>
         </div>
         <p className="mt-2 text-[15px] text-[var(--text)]">{APP_TAGLINE}</p>
+        <p className="mt-1 text-[13px]">
+          Built by{" "}
+          <a href={APP_X} target="_blank" rel="noreferrer" className="text-[var(--text)] hover:text-[var(--signal)]">
+            {APP_BUILDER}
+          </a>
+        </p>
         <p className="mt-3">
           This is not a prediction-market site and not a perp DEX. It is a wire for event probability that prints into a
           Polymarket perp ticket. Discover the question, read why the mark has not followed, then trade the instrument.
@@ -81,9 +87,8 @@ export default function AboutPage() {
         <section className="mt-8 border-t border-[var(--line)] pt-4">
           <h2 className="lg-label">Fees</h2>
           <p className="mt-3">
-            Leadgap does not add a fee. Builder maker and taker add-on is <span className="text-[var(--text)]">0% / 0%</span>.
-            Orders still attach a builder code so volume counts toward Polymarket’s builder program. You pay
-            Polymarket’s own trading, funding, and liquidation fees — the same as trading on polymarket.com.
+            Leadgap does not add a fee. You pay Polymarket’s own trading, funding, and liquidation fees — the same as
+            trading on polymarket.com.
           </p>
         </section>
 

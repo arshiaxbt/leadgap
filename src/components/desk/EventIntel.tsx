@@ -7,6 +7,7 @@ import { PolymarketEventLink } from "@/components/ui";
 import { eventTitleKey, GAP_WINDOWS, residualPath, WINDOW_MS } from "@/lib/divergence";
 import { fmtPct, fmtScore } from "@/lib/format";
 import { residualTrend, scoreClass } from "@/lib/score";
+import { safeHttpsUrl } from "@/lib/safe-url";
 import { catalystImpact } from "@/lib/signal";
 import type { GapRow, GapTapePoint, GapWindow, NewsItem, ResidualPoint, ResolvedEvent, Snapshot } from "@/lib/types";
 
@@ -156,13 +157,20 @@ export function EventIntel({
           <p className="text-[10px] text-[var(--dim)]">No mapped headline. Impact from Yes probability.</p>
         ) : (
           <ul className="space-y-1">
-            {headlines.map((item) => (
+            {headlines.map((item) => {
+              const href = safeHttpsUrl(item.link);
+              return (
               <li key={item.id}>
-                <a href={item.link} target="_blank" rel="noreferrer" className="leading-4 text-[var(--muted)] hover:text-[var(--text)]">
+                {href ? (
+                <a href={href} target="_blank" rel="noreferrer" className="leading-4 text-[var(--muted)] hover:text-[var(--text)]">
                   {item.title}
                 </a>
+                ) : (
+                  <span className="leading-4 text-[var(--muted)]">{item.title}</span>
+                )}
               </li>
-            ))}
+              );
+            })}
           </ul>
         )}
       </div>

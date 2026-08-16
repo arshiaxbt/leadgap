@@ -34,7 +34,17 @@ export async function createTradingClient(
     signer: signerFrom(walletClient),
     ...(funder ? { wallet: funder } : {}),
     ...(status.hasKeys
-      ? { apiKey: remoteBuilderSigning({ url: "/api/builder/sign" }) }
+      ? {
+          apiKey: remoteBuilderSigning({
+            url: "/api/builder/sign",
+            headers: async () => {
+              const { getAccessToken } = await import("@privy-io/react-auth");
+              const token = await getAccessToken();
+              if (!token) throw new Error("Log in to trade.");
+              return { Authorization: `Bearer ${token}` };
+            },
+          }),
+        }
       : {}),
   };
   if (options?.credentials) {

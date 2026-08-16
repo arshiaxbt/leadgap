@@ -15,10 +15,7 @@ export async function GET(req: Request) {
       depth === 100 || depth === 500 || depth === 1000 || (Number.isFinite(depth) && depth >= 8 && depth <= 40);
     const book = await fetchBook(id, allowed ? Math.floor(depth) : 10);
     return NextResponse.json(book);
-  } catch (err) {
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : "book failed" },
-      { status: 502 },
-    );
+  } catch {
+    return NextResponse.json({ error: "upstream failed" }, { status: 502 });
   }
 }

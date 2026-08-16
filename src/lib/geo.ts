@@ -25,7 +25,6 @@ export function geoFromRequest(req: Request): GeoDecision {
   const country = (
     header(req, "cf-ipcountry") ||
     header(req, "x-vercel-ip-country") ||
-    header(req, "x-country-code") ||
     "XX"
   ).toUpperCase();
   const region = (
@@ -48,3 +47,29 @@ export function geoFromRequest(req: Request): GeoDecision {
 
 export const GEO_COOKIE = "can_trade";
 export const GEO_COOKIE_MAX_AGE = 60 * 10;
+
+const UNVERIFIED: GeoDecision = {
+  country: "XX",
+  region: null,
+  blocked: true,
+  reason: "Could not verify location.",
+};
+
+export async function fetchTradeGeo(): Promise<GeoDecision> {
+  try {
+    const res = await fetch("/api/geo", { cache: "no-store" });
+    const geo = (await res.json()) as GeoDecision;
+    if (!res.ok || typeof geo?.blocked !== "boolean") return UNVERIFIED;
+    return geo;
+  } catch {
+    return UNVERIFIED;
+  }
+}
+
+export async function assertCanTrade(): Promise<GeoDecision> {
+  const geo = await fetchTradeGeo();
+  if (geo.blocked) {
+    throw new Error(geo.reason || UNVERIFIED.reason);
+  }
+  return geo;
+}

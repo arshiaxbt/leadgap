@@ -6,6 +6,7 @@ import type { WalletClient } from "viem";
 import { polygon } from "viem/chains";
 import { BUILDER_CODE } from "@/lib/builder";
 import { estLiq, fmtCountdown, fmtFunding, fmtPx, fmtUsd, mmr, signedClass } from "@/lib/format";
+import { assertCanTrade, fetchTradeGeo } from "@/lib/geo";
 import { explainPerpsError, type PerpsAccess } from "@/lib/perpsAccess";
 import { usePrivyMount } from "@/lib/usePrivyMount";
 import { trackEvent } from "@/lib/track";
@@ -80,10 +81,7 @@ function TicketForm({
   const [free, setFree] = useState<number | null>(null);
 
   useEffect(() => {
-    fetch("/api/geo")
-      .then((r) => r.json())
-      .then(setGeo)
-      .catch(() => setGeo({ blocked: true, country: "XX", reason: "Could not verify location." }));
+    void fetchTradeGeo().then(setGeo);
   }, []);
 
   useEffect(() => {
@@ -163,6 +161,8 @@ function TicketForm({
     setBusy(true);
     setStatus(null);
     try {
+      const geoCheck = await assertCanTrade();
+      setGeo(geoCheck);
       const { OrderSide, PerpsTimeInForce } = await import("@polymarket/client");
       const { openCachedPerpsSession } = await import("@/lib/perpsSession");
       const { session } = await openCachedPerpsSession(walletClient);
@@ -194,6 +194,8 @@ function TicketForm({
     if (!walletClient || !address) return;
     setBusy(true);
     try {
+      const geoCheck = await assertCanTrade();
+      setGeo(geoCheck);
       const { openCachedPerpsSession } = await import("@/lib/perpsSession");
       const { session } = await openCachedPerpsSession(walletClient);
       await session.cancelAllOrders({ instrumentId: instrument.instrumentId });

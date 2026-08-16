@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from "react"
 import { useAccount, usePublicClient, useWalletClient } from "wagmi";
 import { polygon } from "viem/chains";
 import { BUILDER_CODE } from "@/lib/builder";
+import { assertCanTrade } from "@/lib/geo";
 import { FundControls } from "@/components/FundControls";
 import { PolyProfileCard } from "@/components/PolyProfile";
 import { Pill } from "@/components/ui";
@@ -257,6 +258,7 @@ function PortfolioDeskSession() {
     if (!wc) return;
     setBusy(true);
     try {
+      await assertCanTrade();
       const { OrderSide, PerpsTimeInForce } = await import("@polymarket/client");
       const { openCachedPerpsSession } = await import("@/lib/perpsSession");
       const { session } = await openCachedPerpsSession(wc);
@@ -283,6 +285,7 @@ function PortfolioDeskSession() {
     if (!wc) return;
     setBusy(true);
     try {
+      await assertCanTrade();
       const { openCachedPerpsSession } = await import("@/lib/perpsSession");
       const { session } = await openCachedPerpsSession(wc);
       await session.cancelOrder({ orderId: id as never });

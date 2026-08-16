@@ -17,10 +17,7 @@ export async function GET(req: Request) {
   try {
     const candles = await fetchCandles(id, INTERVALS.has(interval) ? interval : "5m");
     return NextResponse.json({ candles });
-  } catch (err) {
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : "klines failed" },
-      { status: 502 },
-    );
+  } catch {
+    return NextResponse.json({ error: "upstream failed" }, { status: 502 });
   }
 }

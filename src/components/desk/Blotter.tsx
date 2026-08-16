@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useAccount, useWalletClient } from "wagmi";
 import { polygon } from "viem/chains";
 import { BUILDER_CODE } from "@/lib/builder";
+import { assertCanTrade } from "@/lib/geo";
 import { explainPerpsError } from "@/lib/perpsAccess";
 import { fmtFunding, fmtPx, fmtUsd, fmtUsdSigned, signedClass } from "@/lib/format";
 import { usePrivyMount } from "@/lib/usePrivyMount";
@@ -192,6 +193,7 @@ function BlotterSession({
     if (!walletClient) return;
     setBusy(true);
     try {
+      await assertCanTrade();
       const { OrderSide, PerpsTimeInForce } = await import("@polymarket/client");
       const { openCachedPerpsSession } = await import("@/lib/perpsSession");
       const { session } = await openCachedPerpsSession(walletClient);
@@ -217,6 +219,7 @@ function BlotterSession({
     if (!walletClient) return;
     setBusy(true);
     try {
+      await assertCanTrade();
       const { openCachedPerpsSession } = await import("@/lib/perpsSession");
       const { session } = await openCachedPerpsSession(walletClient);
       await session.cancelOrder({ orderId: id as never });
@@ -233,6 +236,7 @@ function BlotterSession({
     if (!tpDraft && !slDraft) return;
     setBusy(true);
     try {
+      await assertCanTrade();
       const { openCachedPerpsSession } = await import("@/lib/perpsSession");
       const { session } = await openCachedPerpsSession(walletClient);
       if (tpDraft && slDraft) {

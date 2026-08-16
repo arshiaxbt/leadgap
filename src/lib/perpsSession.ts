@@ -25,7 +25,8 @@ export type OpenedPerpsSession = {
   session: Awaited<ReturnType<SecureClient["openPerpsSession"]>>;
 };
 
-const STORAGE_KEY = "leadgap:perps-session:v1";
+const STORAGE_KEY = "leadgap:perps-session:v2";
+const LEGACY_STORAGE_KEY = "leadgap:perps-session:v1";
 const EXPIRY_BUFFER_MS = 60_000;
 
 let opened: OpenedPerpsSession | null = null;
@@ -46,10 +47,16 @@ function signerAddress(walletClient: WalletClient): string | undefined {
   return raw?.toLowerCase();
 }
 
+function dropLegacyStore() {
+  if (typeof window === "undefined") return;
+  window.localStorage.removeItem(LEGACY_STORAGE_KEY);
+}
+
 function readStore(): Record<string, StoredSession> {
   if (typeof window === "undefined") return {};
+  dropLegacyStore();
   try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
+    const raw = window.sessionStorage.getItem(STORAGE_KEY);
     if (!raw) return {};
     const parsed = JSON.parse(raw) as Record<string, StoredSession>;
     return parsed && typeof parsed === "object" ? parsed : {};
@@ -60,7 +67,7 @@ function readStore(): Record<string, StoredSession> {
 
 function writeStore(store: Record<string, StoredSession>) {
   if (typeof window === "undefined") return;
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
+  window.sessionStorage.setItem(STORAGE_KEY, JSON.stringify(store));
 }
 
 function saveStored(row: StoredSession) {
@@ -71,7 +78,10 @@ function saveStored(row: StoredSession) {
 
 function clearStored(address?: string) {
   if (!address) {
-    if (typeof window !== "undefined") window.localStorage.removeItem(STORAGE_KEY);
+    if (typeof window !== "undefined") {
+      window.sessionStorage.removeItem(STORAGE_KEY);
+      dropLegacyStore();
+    }
     return;
   }
   const store = readStore();

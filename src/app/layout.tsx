@@ -35,20 +35,18 @@ export const metadata: Metadata = {
     template: `%s · ${APP_NAME}`,
   },
   description: APP_TAGLINE,
-  icons: { icon: APP_LOGO, apple: APP_LOGO_RASTER },
+  icons: { icon: [{ url: APP_LOGO, type: "image/svg+xml" }], apple: APP_LOGO_RASTER },
   openGraph: {
     title: APP_NAME,
     description: APP_TAGLINE,
     url: APP_ORIGIN,
     siteName: APP_NAME,
-    images: [{ url: APP_LOGO_RASTER, width: 512, height: 512, alt: APP_NAME }],
     type: "website",
   },
   twitter: {
-    card: "summary",
+    card: "summary_large_image",
     title: APP_NAME,
     description: APP_TAGLINE,
-    images: [APP_LOGO_RASTER],
   },
 };
 

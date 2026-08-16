@@ -43,7 +43,5 @@ export function getPrivyConfig(): PrivyClientConfig {
 }
 
 export function privyAppId(): string | undefined {
-  const id = process.env.NEXT_PUBLIC_PRIVY_APP_ID?.trim();
-  // Public Privy app ID (safe to ship in the client bundle).
-  return id || "cmss4bb8q012z0cjrqtxptpsa";
+  return process.env.NEXT_PUBLIC_PRIVY_APP_ID?.trim() || undefined;
 }

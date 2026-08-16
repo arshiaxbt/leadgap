@@ -5,6 +5,7 @@ const BLOCKED = new Set([
   "IR",
   "KP",
   "SY",
+  "T1", // Cloudflare Tor
   "UA-43", // Crimea
   "UA-14", // Donetsk
   "UA-09", // Luhansk
@@ -21,6 +22,10 @@ function header(req: Request, name: string): string | null {
   return req.headers.get(name);
 }
 
+const JURISDICTION_REASON =
+  "Order placement is not permitted from this jurisdiction. Market data remains visible.";
+const UNVERIFIED_REASON = "Could not verify location.";
+
 export function geoFromRequest(req: Request): GeoDecision {
   const country = (
     header(req, "cf-ipcountry") ||
@@ -34,14 +39,15 @@ export function geoFromRequest(req: Request): GeoDecision {
   ).toUpperCase() || null;
 
   const geoKey = region && country === "UA" ? `UA-${region}` : country;
-  const blocked = BLOCKED.has(country) || BLOCKED.has(geoKey);
+  const listed = BLOCKED.has(country) || BLOCKED.has(geoKey);
+  const unknown = country === "XX" || country === "";
+  const failClosedUnknown = Boolean(process.env.VERCEL) && unknown;
+  const blocked = listed || failClosedUnknown;
   return {
     country,
     region,
     blocked,
-    reason: blocked
-      ? "Order placement is not permitted from this jurisdiction. Market data remains visible."
-      : "",
+    reason: blocked ? (listed ? JURISDICTION_REASON : UNVERIFIED_REASON) : "",
   };
 }
 
@@ -52,7 +58,7 @@ const UNVERIFIED: GeoDecision = {
   country: "XX",
   region: null,
   blocked: true,
-  reason: "Could not verify location.",
+  reason: UNVERIFIED_REASON,
 };
 
 export async function fetchTradeGeo(): Promise<GeoDecision> {

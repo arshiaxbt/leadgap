@@ -7,7 +7,7 @@ import { PolymarketEventLink } from "@/components/ui";
 import { eventTitleKey, GAP_WINDOWS, residualPath, WINDOW_MS } from "@/lib/divergence";
 import { fmtPct, fmtScore } from "@/lib/format";
 import { residualTrend, scoreClass } from "@/lib/score";
-import { safeHttpsUrl } from "@/lib/safe-url";
+import { NEWS_LINK_HOSTS, safeHttpsUrl } from "@/lib/safe-url";
 import { catalystImpact } from "@/lib/signal";
 import type { GapRow, GapTapePoint, GapWindow, NewsItem, ResidualPoint, ResolvedEvent, Snapshot } from "@/lib/types";
 
@@ -158,7 +158,7 @@ export function EventIntel({
         ) : (
           <ul className="space-y-1">
             {headlines.map((item) => {
-              const href = safeHttpsUrl(item.link);
+              const href = safeHttpsUrl(item.link, NEWS_LINK_HOSTS);
               return (
               <li key={item.id}>
                 {href ? (

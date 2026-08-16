@@ -1,19 +1,33 @@
 import { NextResponse } from "next/server";
 import { buildHmacSignature } from "@polymarket/client";
 import { builderApiCreds } from "@/lib/builder-server";
+import { geoFromRequest } from "@/lib/geo";
 import {
   allowedBuilderMethod,
   allowedBuilderOrigin,
   allowedBuilderPath,
   verifyPrivyBearer,
 } from "@/lib/privy-server";
+import { allowRequest, clientIp } from "@/lib/rate-limit";
 
 export async function POST(req: Request) {
   if (!allowedBuilderOrigin(req)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
-  if (!(await verifyPrivyBearer(req))) {
+
+  const identity = await verifyPrivyBearer(req);
+  if (!identity) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const geo = geoFromRequest(req);
+  if (geo.blocked) {
+    return NextResponse.json({ error: geo.reason || "Forbidden" }, { status: 403 });
+  }
+
+  const signKey = `sign:${identity.userId}:${clientIp(req)}`;
+  if (!allowRequest(signKey, 30)) {
+    return NextResponse.json({ error: "Too many requests" }, { status: 429 });
   }
 
   const credentials = builderApiCreds();
@@ -29,8 +43,11 @@ export async function POST(req: Request) {
   }
 
   const method = (body.method ?? "GET").toUpperCase();
-  const path = body.path ?? "/";
+  const path = body.path ?? "";
   if (!allowedBuilderMethod(method) || !allowedBuilderPath(path)) {
+    if (process.env.NODE_ENV !== "production") {
+      console.warn("[builder/sign] rejected", method, path.split("?")[0]);
+    }
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

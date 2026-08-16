@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { shortAddr } from "@/lib/format";
 import type { PublicProfile } from "@/lib/gamma";
-import { safeHttpsUrl, safeXProfileUrl } from "@/lib/safe-url";
+import { PROFILE_IMAGE_HOSTS, safeHttpsUrl, safeXProfileUrl } from "@/lib/safe-url";
 
 function profileHref(profile: PublicProfile): string {
   if (profile.displayUsernamePublic && profile.name) {
@@ -60,7 +60,7 @@ export function PolyProfileChip({
   const profile = usePolyProfile([address]);
   const label = profile ? displayName(profile, address ?? fallback) : (fallback ?? (address ? shortAddr(address) : "Signed in"));
   const href = profile ? profileHref(profile) : address ? `https://polymarket.com/profile/${address}` : undefined;
-  const image = safeHttpsUrl(profile?.profileImage);
+  const image = safeHttpsUrl(profile?.profileImage, PROFILE_IMAGE_HOSTS);
 
   const inner = (
     <span className="flex items-center gap-1.5">
@@ -112,7 +112,7 @@ export function PolyProfileCard({
   const name = profile ? displayName(profile, polymarketWallet ?? eoa) : null;
   const href = profile ? profileHref(profile) : polymarketWallet ? `https://polymarket.com/profile/${polymarketWallet}` : undefined;
   const wallet = profile?.proxyWallet ?? polymarketWallet;
-  const image = safeHttpsUrl(profile?.profileImage);
+  const image = safeHttpsUrl(profile?.profileImage, PROFILE_IMAGE_HOSTS);
   const xHref = safeXProfileUrl(profile?.xUsername);
 
   if (!eoa && !polymarketWallet) return null;

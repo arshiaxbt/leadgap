@@ -1,10 +1,10 @@
 "use client";
 
-import { safeHttpsUrl } from "@/lib/safe-url";
+import { NEWS_LINK_HOSTS, safeHttpsUrl } from "@/lib/safe-url";
 import type { NewsItem } from "@/lib/types";
 
 function NewsLink({ href, title }: { href: string; title: string }) {
-  const safe = safeHttpsUrl(href);
+  const safe = safeHttpsUrl(href, NEWS_LINK_HOSTS);
   if (!safe) return <span className="text-sm text-[var(--text)]">{title}</span>;
   return (
     <a

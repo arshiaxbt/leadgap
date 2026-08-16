@@ -4,7 +4,7 @@ const CONTENT_SECURITY_POLICY = [
   "default-src 'self'",
   "script-src 'self' 'unsafe-inline' https://va.vercel-scripts.com https://vitals.vercel-insights.com https://challenges.cloudflare.com",
   "style-src 'self' 'unsafe-inline'",
-  "img-src 'self' data: blob: https:",
+  "img-src 'self' data: blob: https://*.polymarket.com https://polymarket.com https://*.googleusercontent.com https://*.amazonaws.com https://*.cloudfront.net https://*.privy.io https://*.walletconnect.com",
   "font-src 'self' data:",
   [
     "connect-src 'self'",

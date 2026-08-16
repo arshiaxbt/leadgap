@@ -5,10 +5,12 @@ import dynamic from "next/dynamic";
 import { useSearchParams } from "next/navigation";
 import { Group, Panel, Separator, useDefaultLayout } from "react-resizable-panels";
 import { Blotter } from "@/components/desk/Blotter";
-import { EventIntel } from "@/components/desk/EventIntel";
+import { EventRail } from "@/components/desk/EventRail";
 import { OrderBookPanel } from "@/components/desk/OrderBookPanel";
 import { TickerStrip } from "@/components/desk/TickerStrip";
 import type { TicketPreview } from "@/components/OrderTicket";
+import { APP_NAME } from "@/lib/brand";
+import { fmtPx } from "@/lib/format";
 import { chartStory, thesisLine } from "@/lib/signal";
 import { trackEvent } from "@/lib/track";
 import type {
@@ -25,6 +27,7 @@ import type {
   ResolvedEvent,
   Snapshot,
 } from "@/lib/types";
+import { cn } from "@/lib/utils";
 
 type Payload = {
   instrument: PerpsInstrument;
@@ -41,7 +44,10 @@ type Payload = {
   asOf: number;
 };
 
+type DeskTab = "chart" | "book" | "trade" | "event" | "positions";
+
 const XL = "(min-width: 1280px)";
+const INTERVALS: KlineInterval[] = ["1m", "5m", "15m", "30m", "1h", "4h", "1d"];
 
 const PriceChart = dynamic(() => import("@/components/desk/PriceChart").then((m) => m.PriceChart), {
   ssr: false,
@@ -63,29 +69,58 @@ function xlMatches() {
   return window.matchMedia(XL).matches;
 }
 
+function readInterval(symbol: string): KlineInterval {
+  try {
+    const v = sessionStorage.getItem(`lg-interval:${symbol}`);
+    if (INTERVALS.includes(v as KlineInterval)) return v as KlineInterval;
+  } catch {
+    // ignore
+  }
+  return "5m";
+}
+
 export function TradeDesk({ symbol }: { symbol: string }) {
   const search = useSearchParams();
   const eventParam = search.get("event");
   const [data, setData] = useState<Payload | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [eventId, setEventId] = useState<string | null>(eventParam);
-  const [klineInterval, setKlineInterval] = useState<KlineInterval>("5m");
+  const [klineInterval, setKlineInterval] = useState<KlineInterval>(() => readInterval(symbol));
   const [candles, setCandles] = useState<Candle[]>([]);
   const [book, setBook] = useState<PerpsBook | null>(null);
   const [clickPrice, setClickPrice] = useState<string | undefined>();
   const [chartOdds, setChartOdds] = useState<Snapshot[] | undefined>();
   const [preview, setPreview] = useState<TicketPreview | null>(null);
+  const [tab, setTab] = useState<DeskTab>("chart");
+  const [railCollapsed, setRailCollapsed] = useState(false);
   const wide = useSyncExternalStore(subscribeXl, xlMatches, () => false);
   const cols = useDefaultLayout({
-    id: "leadgap-desk-h",
-    panelIds: ["intel", "chart", "book", "ticket"],
+    id: "leadgap-desk-h3",
+    panelIds: ["cluster", "side"],
     onlySaveAfterUserInteractions: true,
   });
   const rows = useDefaultLayout({
-    id: "leadgap-desk-v",
-    panelIds: ["main", "blotter"],
+    id: "leadgap-desk-v2",
+    panelIds: ["chartbook", "blotter"],
     onlySaveAfterUserInteractions: true,
   });
+  const chartBook = useDefaultLayout({
+    id: "leadgap-desk-cb",
+    panelIds: ["chart", "book"],
+    onlySaveAfterUserInteractions: true,
+  });
+
+  useEffect(() => {
+    setKlineInterval(readInterval(symbol));
+  }, [symbol]);
+
+  useEffect(() => {
+    try {
+      sessionStorage.setItem(`lg-interval:${symbol}`, klineInterval);
+    } catch {
+      // ignore
+    }
+  }, [klineInterval, symbol]);
 
   useEffect(() => {
     let stop = false;
@@ -187,6 +222,34 @@ export function TradeDesk({ symbol }: { symbol: string }) {
     };
   }, [yesTokenId]);
 
+  useEffect(() => {
+    const mark = data?.ticker?.markPrice;
+    const base = symbol.replace("-USD", "");
+    const fallback = `${base} · ${APP_NAME}`;
+    if (mark == null || !Number.isFinite(mark)) return undefined;
+    const shown =
+      Math.abs(mark) >= 100
+        ? mark.toLocaleString("en-US", { maximumFractionDigits: 0 })
+        : fmtPx(mark, data?.instrument.priceDecimals ?? 2);
+    const next = `${shown} | ${base} · ${APP_NAME}`;
+    const apply = () => {
+      if (document.title !== next) document.title = next;
+    };
+    apply();
+    const titleEl = document.querySelector("title");
+    if (!titleEl) {
+      return () => {
+        document.title = fallback;
+      };
+    }
+    const observer = new MutationObserver(apply);
+    observer.observe(titleEl, { childList: true, characterData: true, subtree: true });
+    return () => {
+      observer.disconnect();
+      document.title = fallback;
+    };
+  }, [data?.instrument.priceDecimals, data?.ticker?.markPrice, symbol]);
+
   if (error) return <p className="p-6 text-sm text-[var(--short)]">{error}</p>;
   if (!data) return <div className="m-4 h-full animate-pulse bg-[var(--hover)]" />;
 
@@ -194,18 +257,21 @@ export function TradeDesk({ symbol }: { symbol: string }) {
   const selectedGap = eventId ? gaps.find((g) => g.eventId === eventId) : gaps[0];
   const story = selectedGap ? chartStory(selectedGap.leader) : undefined;
 
+  function toggleRail() {
+    setRailCollapsed((v) => !v);
+  }
+
   const tickerStrip = (
     <TickerStrip
       instrument={instrument}
       ticker={ticker}
       instruments={instruments}
-      interval={klineInterval}
-      onInterval={setKlineInterval}
+      events={events}
       preview={preview}
     />
   );
   const intelPanel = (
-    <EventIntel
+    <EventRail
       symbol={instrument.symbol}
       events={events}
       selectedId={eventId}
@@ -216,14 +282,16 @@ export function TradeDesk({ symbol }: { symbol: string }) {
       markHistory={markHistory}
       tape={tape}
       news={news}
+      collapsed={wide && railCollapsed}
+      onToggle={wide ? toggleRail : undefined}
     />
   );
   const chartPanel = (
     <PriceChart
-      key={`${instrument.instrumentId}-${klineInterval}`}
       candles={candles}
       odds={selectedOdds}
       interval={klineInterval}
+      onInterval={setKlineInterval}
       oddsLabel={events.find((e) => e.id === eventId)?.title ?? "Yes %"}
       gapMarks={(tape ?? []).filter((p) => p.symbol === instrument.symbol && (!eventId || p.eventId === eventId))}
       story={story}
@@ -257,82 +325,118 @@ export function TradeDesk({ symbol }: { symbol: string }) {
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
         {tickerStrip}
         <Group
-          id="leadgap-desk-v"
-          orientation="vertical"
+          id="leadgap-desk-h3"
+          orientation="horizontal"
           className="min-h-0 flex-1"
-          defaultLayout={rows.defaultLayout}
-          onLayoutChanged={rows.onLayoutChanged}
+          defaultLayout={cols.defaultLayout}
+          onLayoutChanged={cols.onLayoutChanged}
         >
-          <Panel id="main" minSize={240} className="min-h-0 overflow-hidden">
+          <Panel id="cluster" minSize={280} className="min-h-0 overflow-hidden">
             <Group
-              id="leadgap-desk-h"
-              orientation="horizontal"
+              id="leadgap-desk-v2"
+              orientation="vertical"
               className="h-full"
-              defaultLayout={cols.defaultLayout}
-              onLayoutChanged={cols.onLayoutChanged}
+              defaultLayout={rows.defaultLayout}
+              onLayoutChanged={rows.onLayoutChanged}
             >
+              <Panel id="chartbook" minSize={200} className="min-h-0 overflow-hidden">
+                <Group
+                  id="leadgap-desk-cb"
+                  orientation="horizontal"
+                  className="h-full"
+                  defaultLayout={chartBook.defaultLayout}
+                  onLayoutChanged={chartBook.onLayoutChanged}
+                >
+                  <Panel id="chart" minSize={220} className="min-h-0 overflow-hidden">
+                    {chartPanel}
+                  </Panel>
+                  <Separator className="desk-handle" />
+                  <Panel
+                    id="book"
+                    defaultSize={200}
+                    minSize={140}
+                    maxSize={360}
+                    groupResizeBehavior="preserve-pixel-size"
+                    className="min-h-0 overflow-hidden"
+                  >
+                    {bookPanel}
+                  </Panel>
+                </Group>
+              </Panel>
+              <Separator className="desk-handle" />
               <Panel
-                id="intel"
-                defaultSize={220}
-                minSize={168}
-                maxSize={420}
+                id="blotter"
+                defaultSize={140}
+                minSize={72}
+                maxSize={280}
                 groupResizeBehavior="preserve-pixel-size"
                 className="min-h-0 overflow-hidden"
               >
-                {intelPanel}
-              </Panel>
-              <Separator className="desk-handle" />
-              <Panel id="chart" defaultSize={360} minSize={280} className="min-h-0 overflow-hidden">
-                {chartPanel}
-              </Panel>
-              <Separator className="desk-handle" />
-              <Panel
-                id="book"
-                defaultSize={184}
-                minSize={140}
-                maxSize={360}
-                groupResizeBehavior="preserve-pixel-size"
-                className="min-h-0 overflow-hidden"
-              >
-                {bookPanel}
-              </Panel>
-              <Separator className="desk-handle" />
-              <Panel
-                id="ticket"
-                defaultSize={252}
-                minSize={200}
-                maxSize={420}
-                groupResizeBehavior="preserve-pixel-size"
-                className="min-h-0 overflow-hidden"
-              >
-                {ticketPanel}
+                {blotterPanel}
               </Panel>
             </Group>
           </Panel>
           <Separator className="desk-handle" />
           <Panel
-            id="blotter"
-            defaultSize={92}
-            minSize={64}
-            maxSize={280}
+            id="side"
+            defaultSize={552}
+            minSize={260}
+            maxSize={760}
             groupResizeBehavior="preserve-pixel-size"
             className="min-h-0 overflow-hidden"
           >
-            {blotterPanel}
+            <div className="flex h-full min-h-0 min-w-0">
+              <div
+                className={cn(
+                  "min-h-0 shrink-0 overflow-hidden border-r border-[var(--line)]",
+                  railCollapsed ? "w-10" : "w-[272px]",
+                )}
+              >
+                {intelPanel}
+              </div>
+              <div className="min-h-0 min-w-0 flex-1 overflow-hidden">{ticketPanel}</div>
+            </div>
           </Panel>
         </Group>
       </div>
     );
   }
 
+  const tabs: { id: DeskTab; label: string }[] = [
+    { id: "chart", label: "Chart" },
+    { id: "book", label: "Book" },
+    { id: "trade", label: "Trade" },
+    { id: "event", label: "Event" },
+    { id: "positions", label: "Positions" },
+  ];
+
   return (
-    <div className="grid min-h-0 flex-1 grid-cols-1 overflow-auto">
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
       {tickerStrip}
-      <div className="min-h-[220px] border-b border-[var(--line)]">{chartPanel}</div>
-      <div className="min-h-[200px] border-b border-[var(--line)]">{intelPanel}</div>
-      <div className="min-h-[240px] border-b border-[var(--line)]">{bookPanel}</div>
-      <div className="min-h-[240px] border-b border-[var(--line)]">{ticketPanel}</div>
-      <div className="min-h-[92px]">{blotterPanel}</div>
+      <div className="flex shrink-0 gap-1 overflow-x-auto border-b border-[var(--line)] px-2">
+        {tabs.map((item) => (
+          <button
+            key={item.id}
+            type="button"
+            onClick={() => setTab(item.id)}
+            className={cn(
+              "lg-focus shrink-0 border-b-2 px-2 py-1.5 text-[12px]",
+              tab === item.id
+                ? "border-[var(--text)] text-[var(--text)]"
+                : "border-transparent text-[var(--muted)] hover:text-[var(--text)]",
+            )}
+          >
+            {item.label}
+          </button>
+        ))}
+      </div>
+      <div className="min-h-0 flex-1 overflow-hidden">
+        {tab === "chart" ? chartPanel : null}
+        {tab === "book" ? bookPanel : null}
+        {tab === "trade" ? ticketPanel : null}
+        {tab === "event" ? intelPanel : null}
+        {tab === "positions" ? blotterPanel : null}
+      </div>
     </div>
   );
 }

@@ -93,7 +93,7 @@ export function CopyAddr({ addr, label }: { addr: string; label?: string }) {
         setCopied(true);
         window.setTimeout(() => setCopied(false), 1200);
       }}
-      className="font-mono text-[12px] text-[var(--text)] hover:text-[var(--signal)]"
+      className="font-mono text-[12px] text-[var(--text)] hover:text-[var(--muted)]"
       title={addr}
     >
       {copied ? "Copied" : `${label ? `${label} ` : ""}${shortAddr(addr)}`}
@@ -118,7 +118,7 @@ export function PolyProfileCard({
   if (!eoa && !polymarketWallet) return null;
 
   return (
-    <div className="lg-pane flex flex-wrap items-center gap-3 px-4 py-3">
+    <div className="flex flex-wrap items-center gap-3">
       {image ? (
         <img src={image} alt="" width={40} height={40} className="h-10 w-10 rounded-full object-cover" />
       ) : (
@@ -135,7 +135,7 @@ export function PolyProfileCard({
           ) : (
             <span className="text-sm font-medium text-[var(--text)]">{name ?? "Polymarket account"}</span>
           )}
-          {profile?.verifiedBadge ? <span className="text-[10px] text-[var(--signal)]">Verified</span> : null}
+          {profile?.verifiedBadge ? <span className="text-[11px] text-[var(--odds)]">Verified</span> : null}
           {xHref ? (
             <a
               href={xHref}
@@ -161,7 +161,7 @@ export function PolyProfileCard({
         </div>
       </div>
       {href ? (
-        <a href={href} target="_blank" rel="noreferrer" className="text-[11px] text-[var(--signal)] hover:underline">
+        <a href={href} target="_blank" rel="noreferrer" className="text-[11px] text-[var(--muted)] hover:text-[var(--text)]">
           View on Polymarket
         </a>
       ) : null}

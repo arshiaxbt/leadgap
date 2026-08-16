@@ -61,7 +61,7 @@ export function MenuSelect<T extends string>({
         aria-expanded={open}
         aria-haspopup="listbox"
         onClick={() => setOpen((v) => !v)}
-        className={`inline-flex max-w-full items-center gap-1.5 border border-[var(--line)] bg-[var(--surface)] px-2 py-1 text-[12px] text-[var(--text)] hover:bg-[var(--hover)] ${className}`}
+        className={`lg-focus inline-flex max-w-full items-center gap-1.5 border border-[var(--line)] bg-[var(--surface)] px-2 py-1 text-[12px] text-[var(--text)] hover:bg-[var(--hover)] ${className}`}
       >
         <span className="min-w-0 truncate">{current}</span>
         <svg viewBox="0 0 12 12" className={`h-2 w-2 shrink-0 text-[var(--muted)] ${open ? "rotate-180" : ""}`} aria-hidden>
@@ -87,7 +87,7 @@ export function MenuSelect<T extends string>({
                   onChange(opt.id);
                   setOpen(false);
                 }}
-                className={`block w-full truncate px-3 py-1.5 text-left text-[13px] ${
+                className={`lg-focus block w-full truncate px-3 py-1.5 text-left text-[13px] ${
                   on
                     ? "bg-[var(--hover)] text-[var(--text)]"
                     : "text-[var(--muted)] hover:bg-[var(--hover)] hover:text-[var(--text)]"

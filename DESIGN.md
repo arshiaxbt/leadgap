@@ -1,58 +1,75 @@
-# Leadgap — Wire desk
+# Leadgap — Causal Split
 
-Leadgap is not a prediction-market site and not a perp DEX. It is a **wire for event probability** that prints into a **perp ticket**. Discover the question, read why the mark has not followed, execute the instrument.
+Leadgap is a probability-to-perp workstation. Ranked Polymarket events whose Yes odds moved before the mapped perpetual. The residual is the product. The perp is the trade.
 
-## Why the current UI fails
+## Voice
 
-Production is a dark SaaS dashboard with mint CTAs, a slogan H1, a featured card, pinging “Live,” and a table that repeats the card. Score competes with Yes %. The journey (discover → understand → execute) is three widgets, not one motion. Mint is used for brand, long, and Yes % at once. It looks generated.
+Plain English. **Signals, Markets, Trade, Portfolio, Guide.** Filters: Tradeable / Watching / All. Do not invent wire/brief/dispatch language in chrome.
 
-Rejected directions we will not repeat: Bloomberg amber tape, Hyperliquid neon, Polymarket purple tiles, indigo “institutional terminal.”
+## Identity
 
-## Philosophy
+Ice path leads, stone path lags, the empty band is the gap. That is the GapMark and the Yes% overlay. Not a DEX. Not Polymarket tiles. Not a newspaper.
 
-The product is a **causal chain**. Layout is the product.
+Interactive chrome is white at varying opacity. Ice is data (Yes %, odds-led gap, selected-row inset), never nav underline.
 
-1. **Wire** — ranked event questions. This is discovery.
-2. **Brief** — Yes path, expected vs actual, gap, one thesis line. This is understanding.
-3. **Desk** — mark, book, ticket. This is execution.
+## Color
 
-If a trader cannot see that chain in two seconds, the UI is wrong.
+| Token | Hex | Role |
+| --- | --- | --- |
+| `--bg` | `#07090C` | ink / page |
+| `--surface` | `#0B0E14` | panel |
+| `--elevated` | `#10141B` | raise |
+| `--line` | `#191E27` | rare hairline |
+| `--text` | `#E4E8EF` | ash |
+| `--muted` | `#79818F` | mute text |
+| `--dim` | `#535B69` | dim text |
+| `--odds` | `#8FC9F2` | Yes %, overlay, odds-led gap |
+| `--odds-deep` | `#4E86AE` | search / control focus |
+| `--mark` | `#8A909B` | perp mark, book prices |
+| `--long` | `#3ECF8E` | buy / pnl+ |
+| `--short` | `#F0564E` | sell / pnl− |
+| `--warn` | `#d4a017` | warnings |
 
-## Visual direction
+`--signal` and `--perp` are aliases of `--odds` and `--mark` so mixed pages keep working during the rebuild.
 
-Warm carbon, not cool navy. Event titles in a **serif** (questions are language). Numbers in **tabular mono**. One accent: **copper** for probability. Stone gray for the perp. Forest / brick only for long, short, and PnL.
+Focus ring is `--odds` at 40% on controls. Dark only. No light theme.
 
-| Token | Role |
-| --- | --- |
-| `--bg` `#100f0d` | page |
-| `--surface` `#181614` | pane |
-| `--line` `#2c2823` | hairline |
-| `--text` `#f0ebe3` | ivory |
-| `--muted` `#9a9388` | secondary |
-| `--signal` `#c4a574` | Yes %, odds-led gap |
-| `--perp` `#8e959e` | mark, book prices |
-| `--long` `#3f8f6e` | buy / pnl+ |
-| `--short` `#b85c4c` | sell / pnl− |
+## Type
 
-Radius 2px max. No pills-as-identity. No mint fill. No ping dots. No hero cards.
+Geist Sans for UI and event titles. Geist Mono for numbers. Scale: 12/13 body, 15/18/22 titles, 11 secondary. Labels are sentence case, not 10px uppercase tracking.
 
-**Mark** — square, 2px radius, hairline. Copper step leads; stone step lags. The empty band between them is the gap. Same geometry as the residual spark. Not mint, not neon, not a letter.
+## Shape
 
-## Component system
+Panels 8px, controls 6px, chips 4px, table cells 0. Depth from a 1px surface shift, not a grid of borders.
 
-- `Panel` — hairline pane
-- `Pill` — square outline, not rounded-full
-- `Segmented` — inset, not white chip
-- `LiveDot` — static copper
-- `Metric` — 10px label / 15px value
-- `SignalCard` — four-beat brief (event, Yes path, expected/actual/gap, thesis)
+## Mark
 
-## Pages
+GapMark, viewBox 24. Ice stroke leads, stone stroke lags, 16% ice fill in the band. Wordmark Geist 15px, not italic. The empty band is the gap.
 
-- `/` **Wire** — list + inspector. Selecting a row is understanding. Opening desk is execution. On small screens the brief docks to the bottom so the chain stays on screen.
-- `/markets/[symbol]` **Desk** — same brief in intel; chart Yes % in copper; ticket uses long/short only.
-- `/markets` **Markets** — full-bleed instrument table, stone marks.
-- `/portfolio` **Account** — equity, event exposure, blotter language.
-- `/about` **About** — how to read Act / Lead / All, fees, the desk, and login.
+## Motion
+
+120ms hover. 80ms row flash on live print. No ping dots. Live = a static 6px ice square + timestamp.
+
+## Chrome
+
+- Header: GapMark + Leadgap, Signals / Markets / Portfolio / Guide. Trade is not a nav item.
+- Cmd/Ctrl+K searches events and instruments.
+- No marketing sentence on app chrome. 24px status strip: live clock, not financial advice (md+), Created by 0xarshia.eth, GitHub and X logos. Guide footer repeats the credit. Mobile strip sits above the tab bar.
+- < 768: bottom nav Signals, Markets, Trade (when on a symbol), Portfolio.
+
+## Surfaces
+
+- `/` Signals — 62/38 ranked monitor + inspector
+- `/markets` Markets — instrument table
+- `/markets/[symbol]` Trade — chart beside book, blotter under that cluster, EventRail then ticket
+- `/portfolio` Portfolio — equity, positions, fund
+- `/about` Guide — short product guide
+
+## Primitives
+
+- `OddsFigure` — Yes% in `--odds`, signed delta beside it
+- `GapMeter` — expected (ice tick) vs actual (stone tick); the band is the residual
+- `DataTable` — sentence-case headers, selected ice inset, 80ms print flash, column-faithful skeleton
+- Buttons: ghost chrome, filled long (`--long`), filled short (`--short`)
 
 Routes, APIs, scoring, Privy, session, and `placeOrder` stay as they are.

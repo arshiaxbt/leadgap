@@ -1,26 +1,30 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import Link from "next/link";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import {
+  DataTable,
+  DataTableBody,
+  DataTableCell,
+  DataTableEmpty,
+  DataTableHead,
+  DataTableHeader,
+  DataTableRow,
+  DataTableSkeleton,
+} from "@/components/DataTable";
+import { LiveDot, Segmented, TextInput } from "@/components/ui";
 import { fmtFunding, fmtPct, fmtPx, signedClass } from "@/lib/format";
 import { mapBySymbol } from "@/lib/mapping";
+import { perpName } from "@/lib/signal";
 import type { PerpsInstrument, PerpsTicker } from "@/lib/types";
-import { LiveDot, Pill, Segmented, TextInput } from "@/components/ui";
-
-type Payload = {
-  instruments: PerpsInstrument[];
-  tickers: Record<string, PerpsTicker>;
-  eventCounts?: Record<string, number>;
-  error: string | null;
-  asOf: number;
-};
+import { useMarkets } from "@/lib/useMarkets";
+import { cn } from "@/lib/utils";
 
 type SortCol = "name" | "mark" | "index" | "change" | "funding" | "oi" | "lev" | "events";
 type SortDir = "asc" | "desc";
+type CatFilter = "all" | "index" | "commodity" | "crypto" | "equity";
 
-const EMPTY_COUNTS: Record<string, number> = {};
-
-const CATS = [
+const CATS: { id: CatFilter; label: string }[] = [
   { id: "all", label: "All" },
   { id: "index", label: "Index" },
   { id: "commodity", label: "Commodities" },
@@ -59,35 +63,64 @@ function sortValue(
   }
 }
 
+function isTypingTarget(el: EventTarget | null): boolean {
+  if (!(el instanceof HTMLElement)) return false;
+  if (el.isContentEditable) return true;
+  const tag = el.tagName;
+  if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return true;
+  if (el.closest("[role='dialog']") || el.closest("thead")) return true;
+  return false;
+}
+
+function SortHead({
+  id,
+  label,
+  align = "right",
+  sticky = false,
+  sort,
+  dir,
+  onSort,
+}: {
+  id: SortCol;
+  label: string;
+  align?: "left" | "right";
+  sticky?: boolean;
+  sort: SortCol;
+  dir: SortDir;
+  onSort: (id: SortCol) => void;
+}) {
+  const on = sort === id;
+  return (
+    <DataTableHead
+      align={align}
+      aria-sort={on ? (dir === "asc" ? "ascending" : "descending") : "none"}
+      className={cn(sticky && "sticky left-0 z-20 bg-[var(--bg)] px-3")}
+    >
+      <button
+        type="button"
+        onClick={() => onSort(id)}
+        className={cn("lg-focus hover:text-[var(--text)]", on ? "text-[var(--text)]" : undefined)}
+      >
+        {label}
+        {on ? (dir === "desc" ? " ↓" : " ↑") : ""}
+      </button>
+    </DataTableHead>
+  );
+}
+
 export function MarketsBoard() {
-  const [data, setData] = useState<Payload | null>(null);
-  const [filter, setFilter] = useState("all");
+  const router = useRouter();
+  const { instruments, tickers, eventCounts, error, asOf, loading } = useMarkets();
+  const [filter, setFilter] = useState<CatFilter>("all");
   const [q, setQ] = useState("");
   const [sort, setSort] = useState<SortCol>("events");
   const [dir, setDir] = useState<SortDir>("desc");
+  const [selected, setSelected] = useState<string | null>(null);
   const mapped = useMemo(() => mapBySymbol(), []);
-
-  useEffect(() => {
-    let stop = false;
-    async function load() {
-      const res = await fetch("/api/markets");
-      const json = (await res.json()) as Payload;
-      if (!stop) setData(json);
-    }
-    load();
-    const id = setInterval(load, 20_000);
-    return () => {
-      stop = true;
-      clearInterval(id);
-    };
-  }, []);
-
-  const eventCounts = data?.eventCounts ?? EMPTY_COUNTS;
 
   const rows = useMemo(() => {
     const needle = q.trim().toLowerCase();
-    const tickers = data?.tickers ?? {};
-    return (data?.instruments ?? [])
+    return instruments
       .filter((i) => {
         if (filter !== "all" && i.category !== filter) return false;
         if (!needle) return true;
@@ -102,7 +135,13 @@ export function MarketsBoard() {
         if (cmp !== 0) return dir === "asc" ? cmp : -cmp;
         return a.symbol.localeCompare(b.symbol);
       });
-  }, [data, dir, eventCounts, filter, q, sort]);
+  }, [dir, eventCounts, filter, instruments, q, sort, tickers]);
+
+  useEffect(() => {
+    const first = rows[0]?.symbol;
+    if (!first) return;
+    setSelected((cur) => (cur && rows.some((row) => row.symbol === cur) ? cur : first));
+  }, [rows]);
 
   function onSort(col: SortCol) {
     if (sort === col) {
@@ -113,109 +152,169 @@ export function MarketsBoard() {
     setDir(col === "name" ? "asc" : "desc");
   }
 
+  const openMarket = useCallback(
+    (symbol: string) => {
+      router.push(`/markets/${symbol}`);
+    },
+    [router],
+  );
+
+  useEffect(() => {
+    function onKey(event: KeyboardEvent) {
+      if (isTypingTarget(event.target)) return;
+      if (event.metaKey || event.ctrlKey || event.altKey) return;
+      if (!rows.length) return;
+      const keys = rows.map((row) => row.symbol);
+      const cur = selected && keys.includes(selected) ? selected : keys[0]!;
+      const idx = keys.indexOf(cur);
+
+      if (event.key === "j" || event.key === "ArrowDown") {
+        event.preventDefault();
+        const next = keys[Math.min(idx + 1, keys.length - 1)]!;
+        setSelected(next);
+        document.getElementById(`mkt-${next}`)?.focus({ preventScroll: true });
+        document.getElementById(`mkt-${next}`)?.scrollIntoView({ block: "nearest" });
+        return;
+      }
+      if (event.key === "k" || event.key === "ArrowUp") {
+        event.preventDefault();
+        const next = keys[Math.max(idx - 1, 0)]!;
+        setSelected(next);
+        document.getElementById(`mkt-${next}`)?.focus({ preventScroll: true });
+        document.getElementById(`mkt-${next}`)?.scrollIntoView({ block: "nearest" });
+        return;
+      }
+      if (event.key === "Enter") {
+        event.preventDefault();
+        openMarket(cur);
+      }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [openMarket, rows, selected]);
+
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="lg-toolbar flex-wrap justify-between gap-2 py-1.5">
-        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-          <h1 className="event-title text-[17px] italic text-[var(--text)]">Markets</h1>
-          <span className="text-[12px] text-[var(--muted)]">
-            <span className="num text-[var(--text)]">{data?.instruments.length ?? "—"}</span> instruments
-          </span>
-          <LiveDot />
+      <div className="lg-toolbar flex-wrap gap-x-2 gap-y-1">
+        <LiveDot label={asOf ? new Date(asOf).toLocaleTimeString() : "Live"} />
+        <span className="text-[12px] text-[var(--muted)]">
+          <span className="num text-[var(--text)]">{loading ? "—" : instruments.length}</span> instruments
+        </span>
+        <div className="w-36">
+          <TextInput
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="Search"
+            aria-label="Search markets"
+          />
         </div>
-        <div className="flex flex-wrap items-center gap-1.5">
-          <div className="w-40">
-            <TextInput value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search" />
-          </div>
-          <Segmented compact options={CATS} value={filter} onChange={setFilter} />
-        </div>
+        <Segmented compact options={CATS} value={filter} onChange={setFilter} />
       </div>
-      {data?.error ? <p className="px-3 py-1 text-[12px] text-[var(--warn)]">{data.error}</p> : null}
-      <div className="min-h-0 flex-1 overflow-auto">
-        <table className="lg-table w-full min-w-[760px] text-left text-sm">
-          <thead className="sticky top-0 bg-[var(--bg)]">
+
+      {error ? <p className="px-3 py-1 text-[12px] text-[var(--warn)]">{error}</p> : null}
+
+      {loading ? (
+        <DataTableSkeleton
+          columns={8}
+          rows={14}
+          columnWidths={[22, 12, 12, 10, 12, 12, 8, 10]}
+          containerClassName="flex-1"
+        />
+      ) : rows.length === 0 ? (
+        <DataTableEmpty>
+          <p>No markets match.</p>
+          {q.trim() || filter !== "all" ? (
+            <button
+              type="button"
+              className="lg-focus mt-2 text-[var(--text)] underline underline-offset-2"
+              onClick={() => {
+                setQ("");
+                setFilter("all");
+              }}
+            >
+              Clear search and filters
+            </button>
+          ) : null}
+        </DataTableEmpty>
+      ) : (
+        <DataTable
+          className="min-w-[760px]"
+          containerClassName="flex-1"
+          role="listbox"
+          aria-label="Markets"
+          aria-activedescendant={selected ? `mkt-${selected}` : undefined}
+        >
+          <DataTableHeader>
             <tr>
-              <Head id="name" label="Market" pad="px-3" sort={sort} dir={dir} onSort={onSort} />
-              <Head id="mark" label="Mark" sort={sort} dir={dir} onSort={onSort} />
-              <Head id="index" label="Index" sort={sort} dir={dir} onSort={onSort} />
-              <Head id="change" label="1h" sort={sort} dir={dir} onSort={onSort} />
-              <Head id="funding" label="Funding" sort={sort} dir={dir} onSort={onSort} />
-              <Head id="oi" label="OI" sort={sort} dir={dir} onSort={onSort} />
-              <Head id="lev" label="Lev" sort={sort} dir={dir} onSort={onSort} />
-              <Head id="events" label="Events" pad="px-3" sort={sort} dir={dir} onSort={onSort} />
+              <SortHead id="name" label="Market" align="left" sticky sort={sort} dir={dir} onSort={onSort} />
+              <SortHead id="mark" label="Mark" sort={sort} dir={dir} onSort={onSort} />
+              <SortHead id="index" label="Index" sort={sort} dir={dir} onSort={onSort} />
+              <SortHead id="change" label="1h" sort={sort} dir={dir} onSort={onSort} />
+              <SortHead id="funding" label="Funding" sort={sort} dir={dir} onSort={onSort} />
+              <SortHead id="oi" label="OI" sort={sort} dir={dir} onSort={onSort} />
+              <SortHead id="lev" label="Lev" sort={sort} dir={dir} onSort={onSort} />
+              <SortHead id="events" label="Events" sort={sort} dir={dir} onSort={onSort} />
             </tr>
-          </thead>
-          <tbody>
+          </DataTableHeader>
+          <DataTableBody>
             {rows.map((inst) => {
-              const t = data?.tickers[inst.symbol];
+              const t = tickers[inst.symbol];
               const change = t?.change1h ?? null;
               const cluster = mapped.get(inst.symbol)?.cluster;
               const events = eventCounts[inst.symbol] ?? 0;
+              const on = selected === inst.symbol;
               return (
-                <tr key={inst.symbol} className="lg-row">
-                  <td className="px-3 py-2">
-                    <Link href={`/markets/${inst.symbol}`} className="font-medium text-[var(--text)] hover:underline">
-                      {inst.symbol.replace("-USD", "")}
-                    </Link>
-                    <div className="mt-0.5 flex items-center gap-2 text-[11px] text-[var(--dim)]">
+                <DataTableRow
+                  key={inst.symbol}
+                  id={`mkt-${inst.symbol}`}
+                  role="option"
+                  aria-selected={on}
+                  selected={on}
+                  interactive
+                  tabIndex={on ? 0 : -1}
+                  onClick={() => openMarket(inst.symbol)}
+                  onFocus={() => setSelected(inst.symbol)}
+                >
+                  <DataTableCell
+                    className={cn(
+                      "sticky left-0 z-[1] px-3 bg-[var(--bg)]",
+                      "group-hover:bg-[var(--hover)]",
+                      on && "bg-[var(--elevated)] group-hover:bg-[var(--elevated)]",
+                    )}
+                  >
+                    <div className="font-medium text-[var(--text)]">{perpName(inst.symbol)}</div>
+                    <div className="mt-0.5 text-[11px] text-[var(--dim)]">
                       <span className="capitalize">{inst.category}</span>
-                      {cluster ? <Pill>{cluster}</Pill> : null}
+                      {cluster ? <span className="text-[var(--muted)]"> · {cluster}</span> : null}
                     </div>
-                  </td>
-                  <td className="num px-2 py-2 text-[var(--perp)]">{t ? fmtPx(t.markPrice, inst.priceDecimals) : "—"}</td>
-                  <td className="num px-2 py-2 text-[var(--muted)]">
+                  </DataTableCell>
+                  <DataTableCell numeric className="text-[var(--mark)]">
+                    {t ? fmtPx(t.markPrice, inst.priceDecimals) : "—"}
+                  </DataTableCell>
+                  <DataTableCell numeric className="text-[var(--muted)]">
                     {t ? fmtPx(t.indexPrice, inst.priceDecimals) : "—"}
-                  </td>
-                  <td className={`num px-2 py-2 ${change != null ? signedClass(change) : "text-[var(--dim)]"}`}>
+                  </DataTableCell>
+                  <DataTableCell numeric className={change != null ? signedClass(change) : "text-[var(--dim)]"}>
                     {change != null ? fmtPct(change) : "—"}
-                  </td>
-                  <td className={`num px-2 py-2 ${t ? signedClass(t.fundingRate) : "text-[var(--dim)]"}`}>
+                  </DataTableCell>
+                  <DataTableCell numeric className={t ? signedClass(t.fundingRate) : "text-[var(--dim)]"}>
                     {t ? fmtFunding(t.fundingRate) : "—"}
-                  </td>
-                  <td className="num px-2 py-2 text-[var(--muted)]">{t ? fmtPx(t.openInterest, 2) : "—"}</td>
-                  <td className="num px-2 py-2 text-[var(--muted)]">{inst.maxLeverage}x</td>
-                  <td className={`num px-3 py-2 ${events > 0 ? "text-[var(--text)]" : "text-[var(--dim)]"}`}>
+                  </DataTableCell>
+                  <DataTableCell numeric className="text-[var(--muted)]">
+                    {t ? fmtPx(t.openInterest, 2) : "—"}
+                  </DataTableCell>
+                  <DataTableCell numeric className="text-[var(--muted)]">
+                    {inst.maxLeverage}x
+                  </DataTableCell>
+                  <DataTableCell numeric className={events > 0 ? "text-[var(--text)]" : "text-[var(--dim)]"}>
                     {events}
-                  </td>
-                </tr>
+                  </DataTableCell>
+                </DataTableRow>
               );
             })}
-          </tbody>
-        </table>
-      </div>
+          </DataTableBody>
+        </DataTable>
+      )}
     </div>
-  );
-}
-
-function Head({
-  id,
-  label,
-  pad = "px-2",
-  sort,
-  dir,
-  onSort,
-}: {
-  id: SortCol;
-  label: string;
-  pad?: string;
-  sort: SortCol;
-  dir: SortDir;
-  onSort: (id: SortCol) => void;
-}) {
-  const on = sort === id;
-  return (
-    <th
-      aria-sort={on ? (dir === "asc" ? "ascending" : "descending") : "none"}
-      className={`${pad} py-2 font-medium`}
-    >
-      <button
-        type="button"
-        onClick={() => onSort(id)}
-        className={on ? "text-[var(--text)]" : "hover:text-[var(--muted)]"}
-      >
-        {label}
-        {on ? (dir === "desc" ? " ↓" : " ↑") : ""}
-      </button>
-    </th>
   );
 }

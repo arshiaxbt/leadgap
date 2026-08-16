@@ -31,7 +31,7 @@ export function PrivyLogin() {
             forgetStoredPerpsSession(address);
             void logout();
           }}
-          className="border border-[var(--line)] px-3 py-1.5 text-xs text-[var(--muted)] hover:bg-[var(--hover)]"
+          className="lg-focus border border-[var(--line)] px-3 py-1.5 text-xs text-[var(--muted)] hover:bg-[var(--hover)]"
         >
           Log out
         </button>
@@ -46,9 +46,9 @@ export function PrivyLogin() {
         trackEvent("connect_wallet");
         void login();
       }}
-      className="whitespace-nowrap border border-[var(--line)] px-2.5 py-1 text-[12px] text-[var(--muted)] hover:bg-[var(--hover)]"
+      className="lg-focus whitespace-nowrap border border-[var(--line)] px-2.5 py-1 text-[12px] text-[var(--muted)] hover:bg-[var(--hover)]"
     >
-      Log in to Polymarket
+      Log in
     </button>
   );
 }

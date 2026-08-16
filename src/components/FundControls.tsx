@@ -6,7 +6,7 @@ export function FundControls() {
       href={POLYMARKET_ORIGIN}
       target="_blank"
       rel="noreferrer"
-      className="text-[12px] text-[var(--signal)] hover:underline"
+      className="text-[12px] text-[var(--text)] hover:underline"
     >
       Fund on Polymarket
     </a>

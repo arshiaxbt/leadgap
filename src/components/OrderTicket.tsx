@@ -1,17 +1,21 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { usePrivy } from "@privy-io/react-auth";
 import { useAccount, useWalletClient } from "wagmi";
 import type { WalletClient } from "viem";
 import { polygon } from "viem/chains";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { BUILDER_CODE } from "@/lib/builder";
 import { estLiq, fmtCountdown, fmtFunding, fmtPx, fmtUsd, mmr, signedClass } from "@/lib/format";
 import { assertCanTrade, fetchTradeGeo } from "@/lib/geo";
+import { notifyErr, notifyOk } from "@/lib/notify";
 import { explainPerpsError, type PerpsAccess } from "@/lib/perpsAccess";
 import { usePrivyMount } from "@/lib/usePrivyMount";
 import { trackEvent } from "@/lib/track";
 import type { Bias } from "@/lib/score";
 import type { PerpsInstrument, PerpsTicker } from "@/lib/types";
+import { cn } from "@/lib/utils";
 
 type Geo = { blocked: boolean; country: string; reason: string };
 
@@ -44,9 +48,37 @@ export function OrderTicket(props: TicketProps) {
 function TicketSession(props: TicketProps) {
   const { address, isConnected } = useAccount();
   const { data: walletClient } = useWalletClient({ chainId: polygon.id });
+  const { login } = usePrivy();
   return (
-    <TicketForm {...props} mount="ready" address={address} isConnected={isConnected} walletClient={walletClient} />
+    <TicketForm
+      {...props}
+      mount="ready"
+      address={address}
+      isConnected={isConnected}
+      walletClient={walletClient}
+      onLogin={login}
+    />
   );
+}
+
+function readTicketSide(): "BUY" | "SELL" {
+  try {
+    const v = sessionStorage.getItem("lg-ticket-side");
+    if (v === "BUY" || v === "SELL") return v;
+  } catch {
+    // ignore
+  }
+  return "BUY";
+}
+
+function readTicketTif(): "IOC" | "GTC" {
+  try {
+    const v = sessionStorage.getItem("lg-ticket-tif");
+    if (v === "IOC" || v === "GTC") return v;
+  } catch {
+    // ignore
+  }
+  return "GTC";
 }
 
 function TicketForm({
@@ -60,15 +92,17 @@ function TicketForm({
   address,
   isConnected = false,
   walletClient,
+  onLogin,
 }: TicketProps & {
   mount: ReturnType<typeof usePrivyMount>;
   address?: string;
   isConnected?: boolean;
   walletClient?: WalletClient;
+  onLogin?: () => void;
 }) {
   const [geo, setGeo] = useState<Geo | null>(null);
-  const [side, setSide] = useState<"BUY" | "SELL">("BUY");
-  const [tif, setTif] = useState<"IOC" | "GTC">("GTC");
+  const [side, setSide] = useState<"BUY" | "SELL">(readTicketSide);
+  const [tif, setTif] = useState<"IOC" | "GTC">(readTicketTif);
   const [qty, setQty] = useState("0.01");
   const [price, setPrice] = useState(ticker ? String(ticker.markPrice) : "");
   const [leverage, setLeverage] = useState(Math.min(5, instrument.maxLeverage));
@@ -96,6 +130,15 @@ function TicketForm({
     if (bias === "long") setSide("BUY");
     else if (bias === "short") setSide("SELL");
   }, [bias]);
+
+  useEffect(() => {
+    try {
+      sessionStorage.setItem("lg-ticket-side", side);
+      sessionStorage.setItem("lg-ticket-tif", tif);
+    } catch {
+      // ignore
+    }
+  }, [side, tif]);
 
   useEffect(() => {
     trackEvent("open_ticket", { symbol: instrument.symbol });
@@ -179,12 +222,15 @@ function TicketForm({
       if (sl) request.stopLoss = { triggerPrice: sl };
       const placed = await session.placeOrder(request as never);
       trackEvent("submit_order", { symbol: instrument.symbol, side });
-      setStatus(`Order ${placed.order.id} ${placed.order.status}`);
+      const line = `Order ${placed.order.id} ${placed.order.status}`;
+      setStatus(line);
+      notifyOk(line);
       await session.armAutoCancel({ cancelAt: Date.now() + 15 * 60_000 }).catch(() => undefined);
     } catch (err) {
       const access = explainPerpsError(err);
       setPerpsAccess(access);
       setStatus(access.message);
+      notifyErr(access.message);
     } finally {
       setBusy(false);
     }
@@ -200,21 +246,26 @@ function TicketForm({
       const { session } = await openCachedPerpsSession(walletClient);
       await session.cancelAllOrders({ instrumentId: instrument.instrumentId });
       setStatus("Canceled open orders.");
+      notifyOk("Canceled open orders.");
     } catch (err) {
       const access = explainPerpsError(err);
       setPerpsAccess(access);
       setStatus(access.message);
+      notifyErr(access.message);
     } finally {
       setBusy(false);
     }
   }
 
   const long = side === "BUY";
+  const loggedOut = mount === "ready" && !isConnected;
   const levPresets = [...new Set([1, 2, 5, 10, 25, 50, instrument.maxLeverage].filter((n) => n <= instrument.maxLeverage))].sort(
     (a, b) => a - b,
   );
   const field = "lg-input num mt-0.5 w-full px-2 py-1 text-[12px]";
   const fromEvent = bias === "long" || bias === "short";
+  const primaryDisabled = busy || (loggedOut ? !onLogin : !canTrade);
+  const primaryLabel = busy ? "Submitting…" : loggedOut ? "Log in to trade" : `${long ? "Long" : "Short"} ${base}`;
 
   useEffect(() => {
     onPreview?.({
@@ -230,40 +281,27 @@ function TicketForm({
   }, [leverage, liq, marginEst, onPreview, px, side, size, sl, tp]);
 
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-auto bg-[var(--surface)] text-[11px]">
-      <div className="lg-toolbar justify-between">
-        <span className="lg-label">Ticket</span>
-        <span className="num text-[var(--muted)]">{free != null ? `${fmtUsd(free)} free` : "—"}</span>
-      </div>
-
-      <div className="flex min-h-0 flex-1 flex-col gap-2 px-2 py-2">
+    <div className="flex h-full min-h-0 flex-col overflow-auto bg-[var(--surface)] text-[12px]">
+      <div className="flex min-h-0 flex-1 flex-col gap-2.5 px-3 py-3">
       {thesis ? (
         <div>
-          <p className="lg-label mb-0.5">{fromEvent ? "From event" : "Thesis"}</p>
-          <p className="leading-4 text-[var(--text)]">{thesis}</p>
+          <p className="mb-0.5 text-[11px] text-[var(--dim)]">{fromEvent ? "From event" : "Thesis"}</p>
+          <p className="leading-5 text-[var(--text)]">{thesis}</p>
         </div>
       ) : null}
 
-      <div className="grid grid-cols-2 gap-px border border-[var(--line)] bg-[var(--line)]">
+      <div className="grid grid-cols-2 gap-1">
         <button
           type="button"
           onClick={() => setSide("BUY")}
-          className={`py-1.5 text-[12px] font-semibold tracking-wide ${
-            long
-              ? "bg-[color-mix(in_srgb,var(--long)_18%,var(--surface))] text-[var(--long)]"
-              : "bg-[var(--surface)] text-[var(--dim)] hover:text-[var(--muted)]"
-          }`}
+          className={cn(buttonVariants({ variant: long ? "long" : "ghost", size: "sm" }), "h-9 rounded-[6px]")}
         >
           Long
         </button>
         <button
           type="button"
           onClick={() => setSide("SELL")}
-          className={`py-1.5 text-[12px] font-semibold tracking-wide ${
-            !long
-              ? "bg-[color-mix(in_srgb,var(--short)_18%,var(--surface))] text-[var(--short)]"
-              : "bg-[var(--surface)] text-[var(--dim)] hover:text-[var(--muted)]"
-          }`}
+          className={cn(buttonVariants({ variant: !long ? "short" : "ghost", size: "sm" }), "h-9 rounded-[6px]")}
         >
           Short
         </button>
@@ -275,39 +313,48 @@ function TicketForm({
             key={id}
             type="button"
             onClick={() => setTif(id)}
-            className={`flex-1 border py-1 text-[11px] font-medium ${
+            className={cn(
+              "flex-1 rounded-[6px] py-1.5 text-[12px] font-medium focus-visible:ring-2 focus-visible:ring-[color-mix(in_srgb,var(--odds)_40%,transparent)]",
               tif === id
-                ? "border-[var(--line-strong)] bg-[var(--hover)] text-[var(--text)]"
-                : "border-[var(--line)] bg-[var(--bg)] text-[var(--dim)] hover:text-[var(--muted)]"
-            }`}
+                ? "bg-[var(--elevated)] text-[var(--text)]"
+                : "text-[var(--dim)] hover:text-[var(--muted)]",
+            )}
           >
             {id === "IOC" ? "Market" : "Limit"}
           </button>
         ))}
-        <label className="flex items-center gap-1 px-1 text-[10px] text-[var(--dim)]">
+        <label className="flex items-center gap-1 px-1 text-[12px] text-[var(--dim)]">
           <input type="checkbox" checked={reduceOnly} onChange={(e) => setReduceOnly(e.target.checked)} />
           Reduce
         </label>
       </div>
 
       {tif === "GTC" ? (
-        <label className="block lg-label">
+        <label className="block text-[11px] text-[var(--dim)]">
           Price
           <input value={price} onChange={(e) => setPrice(e.target.value)} className={field} />
         </label>
       ) : null}
 
-      <label className="block lg-label">
+      <label className="block text-[11px] text-[var(--dim)]">
         <span className="flex justify-between">
           Size ({base})
-          <span className="num normal-case tracking-normal text-[var(--muted)]">{fmtUsd(notional)}</span>
+          <span className="num text-[12px] text-[var(--muted)]">{fmtUsd(notional)}</span>
         </span>
         <div className="mt-0.5 flex gap-1">
-          <button type="button" onClick={() => bump(-1)} className="w-7 border border-[var(--line)] bg-[var(--bg)] text-[var(--muted)] hover:bg-[var(--hover)]">
+          <button
+            type="button"
+            onClick={() => bump(-1)}
+            className="w-7 rounded-[6px] bg-[var(--elevated)] text-[var(--muted)] hover:bg-[var(--hover)]"
+          >
             −
           </button>
           <input value={qty} onChange={(e) => setQty(e.target.value)} className={field} />
-          <button type="button" onClick={() => bump(1)} className="w-7 border border-[var(--line)] bg-[var(--bg)] text-[var(--muted)] hover:bg-[var(--hover)]">
+          <button
+            type="button"
+            onClick={() => bump(1)}
+            className="w-7 rounded-[6px] bg-[var(--elevated)] text-[var(--muted)] hover:bg-[var(--hover)]"
+          >
             +
           </button>
         </div>
@@ -318,16 +365,16 @@ function TicketForm({
             key={pct}
             type="button"
             onClick={() => applyPct(pct)}
-            className="border border-[var(--line)] bg-[var(--bg)] py-0.5 text-[10px] text-[var(--dim)] hover:bg-[var(--hover)]"
+            className="rounded-[4px] bg-[var(--elevated)] py-1 text-[11px] text-[var(--dim)] hover:bg-[var(--hover)] hover:text-[var(--text)]"
           >
             {pct * 100}%
           </button>
         ))}
       </div>
 
-      <div className="flex items-center justify-between lg-label">
+      <div className="flex items-center justify-between text-[11px] text-[var(--dim)]">
         <span>Leverage</span>
-        <span className="num text-[var(--text)]">{leverage}x</span>
+        <span className="num text-[12px] text-[var(--text)]">{leverage}x</span>
       </div>
       <div className="flex flex-wrap gap-1">
         {levPresets.map((n) => (
@@ -335,11 +382,12 @@ function TicketForm({
             key={n}
             type="button"
             onClick={() => setLeverage(n)}
-            className={`border px-1.5 py-0.5 text-[10px] ${
+            className={cn(
+              "rounded-[4px] px-1.5 py-0.5 text-[11px]",
               leverage === n
-                ? "border-[var(--line-strong)] bg-[var(--hover)] text-[var(--text)]"
-                : "border-[var(--line)] bg-[var(--bg)] text-[var(--dim)]"
-            }`}
+                ? "bg-[var(--elevated)] text-[var(--text)]"
+                : "text-[var(--dim)] hover:text-[var(--muted)]",
+            )}
           >
             {n}x
           </button>
@@ -351,66 +399,75 @@ function TicketForm({
         max={instrument.maxLeverage}
         value={leverage}
         onChange={(e) => setLeverage(Number(e.target.value))}
-        className="w-full accent-[var(--signal)]"
+        className="w-full accent-[var(--mark)]"
       />
 
-      <div className="grid grid-cols-2 gap-1.5">
-        <label className="lg-label">
-          TP
-          <input value={tp} onChange={(e) => setTp(e.target.value)} placeholder="—" className={field} />
-        </label>
-        <label className="lg-label">
-          SL
-          <input value={sl} onChange={(e) => setSl(e.target.value)} placeholder="—" className={field} />
-        </label>
-      </div>
+      <details className="rounded-[6px] bg-[var(--elevated)] px-2 py-1.5">
+        <summary className="cursor-pointer text-[12px] text-[var(--muted)]">Advanced</summary>
+        <div className="mt-2 grid grid-cols-2 gap-1.5">
+          <label className="text-[11px] text-[var(--dim)]">
+            TP
+            <input value={tp} onChange={(e) => setTp(e.target.value)} placeholder="—" className={field} />
+          </label>
+          <label className="text-[11px] text-[var(--dim)]">
+            SL
+            <input value={sl} onChange={(e) => setSl(e.target.value)} placeholder="—" className={field} />
+          </label>
+        </div>
+      </details>
 
-      <div className="grid grid-cols-3 gap-1 border-t border-[var(--line)] pt-2 text-[10px] text-[var(--dim)]">
+      <div className="grid grid-cols-3 gap-1 pt-1 text-[11px] text-[var(--dim)]">
         <div>
           Margin
-          <div className="num text-[var(--text)]">{fmtPx(marginEst, 2)}</div>
+          <div className="num text-[12px] text-[var(--text)]">{fmtPx(marginEst, 2)}</div>
         </div>
         <div>
           Est. liq
-          <div className="num text-[var(--text)]">{liq != null ? fmtPx(liq, instrument.priceDecimals) : "—"}</div>
+          <div className="num text-[12px] text-[var(--text)]">{liq != null ? fmtPx(liq, instrument.priceDecimals) : "—"}</div>
         </div>
         <div className="text-right">
           Funding
-          <div className={`num ${ticker ? signedClass(ticker.fundingRate) : "text-[var(--text)]"}`}>
+          <div className={`num text-[12px] ${ticker ? signedClass(ticker.fundingRate) : "text-[var(--text)]"}`}>
             {ticker ? fmtFunding(ticker.fundingRate) : "—"}
           </div>
           <div className="num text-[var(--muted)]">{ticker ? fmtCountdown(ticker.nextFunding) : ""}</div>
         </div>
       </div>
-      <button
+      {free != null ? (
+        <p className="num text-[11px] text-[var(--muted)]">{fmtUsd(free)} free</p>
+      ) : null}
+      <Button
         type="button"
-        disabled={!canTrade || busy}
-        onClick={() => void submit()}
-        className={`w-full border py-2 text-[13px] font-semibold tracking-wide disabled:opacity-40 ${
-          long
-            ? "border-[color-mix(in_srgb,var(--long)_50%,var(--line))] text-[var(--long)]"
-            : "border-[color-mix(in_srgb,var(--short)_50%,var(--line))] text-[var(--short)]"
-        }`}
+        variant={long ? "long" : "short"}
+        disabled={primaryDisabled}
+        onClick={() => {
+          if (loggedOut) {
+            onLogin?.();
+            return;
+          }
+          void submit();
+        }}
+        className="h-10 w-full rounded-[6px] text-[13px]"
       >
-        {busy ? "Submitting…" : `${long ? "Long" : "Short"} ${base}`}
-      </button>
+        {primaryLabel}
+      </Button>
       <div className="flex items-center justify-between gap-2">
         <button
           type="button"
           disabled={!canTrade || busy}
           onClick={() => void cancelAll()}
-          className="text-[10px] text-[var(--dim)] hover:text-[var(--muted)] disabled:opacity-40"
+          className="lg-focus text-[12px] text-[var(--dim)] hover:text-[var(--muted)] disabled:opacity-40"
         >
           Cancel open
         </button>
         {perpsAccess?.href ? (
-          <a href={perpsAccess.href} target="_blank" rel="noreferrer" className="text-[10px] text-[var(--perp)] hover:underline">
+          <a href={perpsAccess.href} target="_blank" rel="noreferrer" className="text-[12px] text-[var(--mark)] hover:underline">
             Request access
           </a>
         ) : null}
       </div>
-      {hint ? <p className="text-[10px] leading-3 text-[var(--dim)]">{hint}</p> : null}
-      {status ? <p className="text-[11px] text-[var(--warn)]">{status}</p> : null}
+      {hint ? <p className="text-[12px] leading-4 text-[var(--muted)]">{hint}</p> : null}
+      {status ? <p className="text-[13px] leading-4 text-[var(--warn)]">{status}</p> : null}
       </div>
     </div>
   );

@@ -102,16 +102,28 @@ function buildGapMarkers(
       time: logical as UTCTimestamp,
       position: mark.bias === "short" ? "aboveBar" : "belowBar",
       shape: gapMarkerShape(mark.bias),
-      color: mark.bias === "short" ? "#b85c4c" : "#3f8f6e",
+      color: mark.bias === "short" ? "#F0564E" : "#3ECF8E",
       text: String(Math.round(mark.score)),
       size: 1,
     }));
 }
 
+const INTERVALS: KlineInterval[] = ["1m", "5m", "15m", "30m", "1h", "4h", "1d"];
+
+const ICE = "#8FC9F2";
+const STONE = "#8A909B";
+const LONG = "#3ECF8E";
+const SHORT = "#F0564E";
+const LINE = "#191E27";
+const ELEV = "#10141B";
+const INK = "#07090C";
+const MUTE = "#79818F";
+
 export function PriceChart({
   candles,
   odds,
   interval = "5m",
+  onInterval,
   oddsLabel = "Yes %",
   gapMarks,
   story,
@@ -120,6 +132,7 @@ export function PriceChart({
   candles: Candle[];
   odds?: Snapshot[];
   interval?: KlineInterval;
+  onInterval?: (v: KlineInterval) => void;
   oddsLabel?: string;
   gapMarks?: GapTapePoint[];
   story?: string;
@@ -167,30 +180,30 @@ export function PriceChart({
     const chart = createChart(el, {
       autoSize: true,
       layout: {
-        background: { type: ColorType.Solid, color: "#181614" },
-        textColor: "#9a9388",
-        fontFamily: "var(--font-plex), sans-serif",
+        background: { type: ColorType.Solid, color: INK },
+        textColor: MUTE,
+        fontFamily: "var(--font-geist-sans), sans-serif",
         fontSize: 11,
       },
       grid: {
-        vertLines: { color: "#2c2823" },
-        horzLines: { color: "#2c2823" },
+        vertLines: { color: LINE },
+        horzLines: { color: LINE },
       },
       rightPriceScale: {
-        borderColor: "#2c2823",
+        borderColor: LINE,
         scaleMargins: { top: 0.08, bottom: 0.1 },
         minimumWidth: 72,
       },
       leftPriceScale: {
         visible: false,
-        borderColor: "#2c2823",
+        borderColor: LINE,
       },
       localization: {
         timeFormatter: (t: Time) => clock(realByLogical.current.get(Number(t)) ?? Number(t), true),
         priceFormatter: (p: number) => fmtN(p, digitsRef.current),
       },
       timeScale: {
-        borderColor: "#2c2823",
+        borderColor: LINE,
         timeVisible: true,
         secondsVisible: false,
         rightOffset: 8,
@@ -200,8 +213,8 @@ export function PriceChart({
       },
       crosshair: {
         mode: CrosshairMode.Magnet,
-        vertLine: { color: "#c4a57455", labelBackgroundColor: "#1f1c19" },
-        horzLine: { color: "#c4a57455", labelBackgroundColor: "#1f1c19" },
+        vertLine: { color: `${ICE}55`, labelBackgroundColor: ELEV },
+        horzLine: { color: `${ICE}55`, labelBackgroundColor: ELEV },
       },
       handleScroll: {
         mouseWheel: true,
@@ -212,17 +225,17 @@ export function PriceChart({
       handleScale: { axisPressedMouseMove: true, mouseWheel: true, pinch: true },
     });
     const candlesSeries = chart.addSeries(CandlestickSeries, {
-      upColor: "#3f8f6e",
-      downColor: "#b85c4c",
-      borderUpColor: "#3f8f6e",
-      borderDownColor: "#b85c4c",
-      wickUpColor: "#3f8f6e",
-      wickDownColor: "#b85c4c",
+      upColor: LONG,
+      downColor: SHORT,
+      borderUpColor: LONG,
+      borderDownColor: SHORT,
+      wickUpColor: LONG,
+      wickDownColor: SHORT,
       visible: false,
       priceFormat: seriesPriceFormat(digitsRef.current),
     });
     const closeSeries = chart.addSeries(LineSeries, {
-      color: "#8e959e",
+      color: STONE,
       lineWidth: 2,
       visible: true,
       lastValueVisible: true,
@@ -232,9 +245,9 @@ export function PriceChart({
     const oddsSeries = chart.addSeries(
       AreaSeries,
       {
-        lineColor: "#c4a574",
-        topColor: "rgba(196, 165, 116, 0.22)",
-        bottomColor: "rgba(196, 165, 116, 0.02)",
+        lineColor: ICE,
+        topColor: "rgba(143, 201, 242, 0.22)",
+        bottomColor: "rgba(143, 201, 242, 0.02)",
         lineWidth: 2,
         priceScaleId: "right",
         lastValueVisible: true,
@@ -272,7 +285,7 @@ export function PriceChart({
       if (active === "hline") {
         const line = series.createPriceLine({
           price,
-          color: "#c4a574",
+          color: ICE,
           lineWidth: 1,
           lineStyle: LineStyle.Dashed,
           axisLabelVisible: true,
@@ -292,7 +305,7 @@ export function PriceChart({
       pendingTrend.current = null;
       const [p1, p2] = a.time <= point.time ? [a, point] : [point, a];
       const trend = chart.addSeries(LineSeries, {
-        color: "#c4a574",
+        color: ICE,
         lineWidth: 2,
         lastValueVisible: false,
         priceLineVisible: false,
@@ -476,54 +489,62 @@ export function PriceChart({
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col bg-[var(--surface)]">
-      <div className="lg-toolbar flex-wrap gap-1 text-[10px]">
-        {hover ? (
-          <span className="num mr-2 text-[var(--dim)]">
-            O {fmtN(hover.o, digitsRef.current)} H {fmtN(hover.h, digitsRef.current)} L {fmtN(hover.l, digitsRef.current)}{" "}
-            C{" "}
-            <span className={hover.c >= hover.o ? "text-[var(--long)]" : "text-[var(--short)]"}>
-              {fmtN(hover.c, digitsRef.current)}
-            </span>
-            {oddsOn && hover.odds != null ? (
-              <span className="ml-2 text-[var(--signal)]">Yes {hover.odds.toFixed(1)}%</span>
-            ) : null}
-          </span>
-        ) : (
-          <span className="lg-label">Chart</span>
-        )}
-        <span className="mx-1 h-3 w-px bg-[var(--line)]" />
-        <ToolBtn active={tool === "cursor"} onClick={() => setTool("cursor")} label="Cursor" />
-        <ToolBtn active={tool === "hline"} onClick={() => setTool("hline")} label="H-line" />
-        <ToolBtn active={tool === "trend"} onClick={() => setTool("trend")} label="Trend" />
-        <ToolBtn active={false} onClick={clearDrawings} label="Clear" />
-        <span className="ml-auto inline-flex border border-[var(--line)]">
+    <div className="relative flex h-full min-h-0 flex-col bg-[var(--bg)]">
+      <div className="pointer-events-none absolute inset-x-0 top-0 z-10 flex flex-wrap items-start gap-x-2 gap-y-1 px-2 py-1.5">
+        <div className="pointer-events-auto flex min-w-0 flex-wrap items-center gap-1 rounded-[6px] bg-[color-mix(in_srgb,var(--bg)_82%,transparent)] px-1 py-0.5">
+          {onInterval
+            ? INTERVALS.map((id) => (
+                <ToolBtn key={id} active={interval === id} onClick={() => onInterval(id)} label={id} />
+              ))
+            : null}
+          <span className="mx-0.5 h-3 w-px bg-[var(--line)]" />
           <ToolBtn active={style === "candle"} onClick={() => setStyle("candle")} label="Candles" />
           <ToolBtn active={style === "line"} onClick={() => setStyle("line")} label="Line" />
-        </span>
-        <ToolBtn active={oddsOn} onClick={() => setOddsOn((v) => !v)} label="Yes %" />
-        <ToolBtn active={log} onClick={() => setLog((v) => !v)} label="Log" />
-        <ToolBtn
-          active={false}
-          onClick={() => {
-            userTouched.current = false;
-            ignoreRange.current = true;
-            chartRef.current?.timeScale().fitContent();
-            requestAnimationFrame(() => {
-              ignoreRange.current = false;
-            });
-          }}
-          label="Fit"
-        />
-        {tool !== "cursor" ? (
-          <span className="ml-2 text-[var(--dim)]">
-            {tool === "hline" ? "Click for price line" : "Click two points"}
-          </span>
-        ) : null}
+          <ToolBtn active={oddsOn} onClick={() => setOddsOn((v) => !v)} label="Yes %" />
+          <ToolBtn active={log} onClick={() => setLog((v) => !v)} label="Log" />
+          <span className="mx-0.5 h-3 w-px bg-[var(--line)]" />
+          <ToolBtn active={tool === "cursor"} onClick={() => setTool("cursor")} label="Cursor" />
+          <ToolBtn active={tool === "hline"} onClick={() => setTool("hline")} label="H-line" />
+          <ToolBtn active={tool === "trend"} onClick={() => setTool("trend")} label="Trend" />
+          <ToolBtn active={false} onClick={clearDrawings} label="Clear" />
+          <ToolBtn
+            active={false}
+            onClick={() => {
+              userTouched.current = false;
+              ignoreRange.current = true;
+              chartRef.current?.timeScale().fitContent();
+              requestAnimationFrame(() => {
+                ignoreRange.current = false;
+              });
+            }}
+            label="Fit"
+          />
+        </div>
+        <div className="pointer-events-none ml-auto flex min-w-0 flex-col items-end gap-0.5">
+          {hover ? (
+            <span className="num rounded-[6px] bg-[color-mix(in_srgb,var(--bg)_82%,transparent)] px-1.5 py-0.5 text-[11px] text-[var(--dim)]">
+              O {fmtN(hover.o, digitsRef.current)} H {fmtN(hover.h, digitsRef.current)} L{" "}
+              {fmtN(hover.l, digitsRef.current)} C{" "}
+              <span className={hover.c >= hover.o ? "text-[var(--long)]" : "text-[var(--short)]"}>
+                {fmtN(hover.c, digitsRef.current)}
+              </span>
+              {oddsOn && hover.odds != null ? (
+                <span className="ml-2 text-[var(--odds)]">Yes {hover.odds.toFixed(1)}%</span>
+              ) : null}
+            </span>
+          ) : null}
+          {story ? (
+            <span className="max-w-[min(100%,28rem)] truncate rounded-[6px] bg-[color-mix(in_srgb,var(--bg)_82%,transparent)] px-1.5 py-0.5 text-[11px] text-[var(--muted)]">
+              {story}
+            </span>
+          ) : null}
+          {tool !== "cursor" ? (
+            <span className="rounded-[6px] bg-[color-mix(in_srgb,var(--bg)_82%,transparent)] px-1.5 py-0.5 text-[11px] text-[var(--dim)]">
+              {tool === "hline" ? "Click for price line" : "Click two points"}
+            </span>
+          ) : null}
+        </div>
       </div>
-      {story ? (
-        <p className="border-b border-[var(--line)] px-2 py-0.5 text-[10px] text-[var(--muted)]">{story}</p>
-      ) : null}
       <div ref={host} className="min-h-0 flex-1" />
     </div>
   );
@@ -542,7 +563,9 @@ function ToolBtn({
     <button
       type="button"
       onClick={onClick}
-      className={`border-r border-[var(--line)] px-1.5 py-0.5 text-[10px] last:border-r-0 ${active ? "bg-[var(--hover)] text-[var(--text)]" : "text-[var(--muted)] hover:text-[var(--text)]"}`}
+      className={`rounded-[4px] px-1.5 py-0.5 text-[11px] focus-visible:ring-2 focus-visible:ring-[color-mix(in_srgb,var(--odds)_40%,transparent)] ${
+        active ? "text-[var(--text)]" : "text-[var(--muted)] hover:text-[var(--text)]"
+      }`}
     >
       {label}
     </button>

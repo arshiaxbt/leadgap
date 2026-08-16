@@ -1,4 +1,5 @@
 import type { ResidualPoint } from "@/lib/types";
+import { cn } from "@/lib/utils";
 
 export function ResidualSpark({
   points,
@@ -8,7 +9,7 @@ export function ResidualSpark({
   className?: string;
 }) {
   if (points.length < 3) {
-    return <div className={`h-10 text-[11px] text-[var(--dim)] ${className}`}>Collecting residual history…</div>;
+    return <div className={cn("h-10 text-[11px] text-[var(--dim)]", className)}>Collecting residual history…</div>;
   }
   const exp = points.map((p) => p.expected);
   const act = points.map((p) => p.actual);
@@ -24,9 +25,9 @@ export function ResidualSpark({
       })
       .join(" ");
   return (
-    <svg viewBox="0 0 200 40" className={`h-10 w-full ${className}`}>
-      <path d={toPath(exp)} fill="none" stroke="#c4a574" strokeWidth="1.5" strokeLinejoin="round" />
-      <path d={toPath(act)} fill="none" stroke="#8e959e" strokeWidth="1.5" strokeLinejoin="round" />
+    <svg viewBox="0 0 200 40" className={cn("h-10 w-full", className)} aria-hidden>
+      <path d={toPath(exp)} fill="none" stroke="var(--odds)" strokeWidth="1.5" strokeLinejoin="round" />
+      <path d={toPath(act)} fill="none" stroke="var(--mark)" strokeWidth="1.5" strokeLinejoin="round" />
     </svg>
   );
 }

@@ -8,7 +8,7 @@ export default function NotFound() {
         <p className="text-sm text-[var(--muted)]">404</p>
         <h1 className="event-title text-2xl italic text-[var(--text)]">That page is not here.</h1>
         <Link href="/" className="text-sm text-[var(--signal)] hover:underline">
-          Back to the wire
+          Signals
         </Link>
       </div>
     </PageShell>

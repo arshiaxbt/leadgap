@@ -1,20 +1,31 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { usePrivy } from "@privy-io/react-auth";
 import { useAccount, usePublicClient, useWalletClient } from "wagmi";
 import { polygon } from "viem/chains";
-import { BUILDER_CODE } from "@/lib/builder";
-import { assertCanTrade } from "@/lib/geo";
+import {
+  DataTable,
+  DataTableBody,
+  DataTableCell,
+  DataTableHead,
+  DataTableHeader,
+  DataTableRow,
+} from "@/components/DataTable";
 import { FundControls } from "@/components/FundControls";
 import { PolyProfileCard } from "@/components/PolyProfile";
-import { Pill } from "@/components/ui";
+import { Button } from "@/components/ui/button";
+import { BUILDER_CODE } from "@/lib/builder";
+import { assertCanTrade } from "@/lib/geo";
+import { notifyErr, notifyOk } from "@/lib/notify";
 import { explainPerpsError } from "@/lib/perpsAccess";
 import { fmtPx, fmtUsd, fmtUsdSigned, signedClass } from "@/lib/format";
 import { ERC20_BALANCE_ABI, formatPusd, PUSD_TOKEN } from "@/lib/pusd";
 import { usePrivyMount } from "@/lib/usePrivyMount";
 import { trackEvent } from "@/lib/track";
 import type { GapRow, PerpsTicker } from "@/lib/types";
+import { cn } from "@/lib/utils";
 
 type Pos = {
   instrumentId: number;
@@ -24,6 +35,10 @@ type Pos = {
   leverage: number;
   pnl: number;
   liq: number;
+  margin: number;
+  funding: number;
+  tp: string;
+  sl: string;
 };
 
 type Order = {
@@ -62,6 +77,8 @@ type DeskState = {
   walletPusd?: string;
 };
 
+type Tab = "positions" | "orders" | "fills" | "exposure";
+
 function num(v: string | number | undefined): number {
   const n = typeof v === "number" ? v : Number(v);
   return Number.isFinite(n) ? n : 0;
@@ -85,26 +102,43 @@ const EMPTY: DeskState = {
 
 export function PortfolioDesk() {
   const mount = usePrivyMount();
-  if (mount !== "ready") {
-    return (
-      <div className="space-y-2">
-        <div>
-          <h1 className="event-title text-[22px] italic text-[var(--text)]">Account</h1>
-          <p className="text-[12px] text-[var(--muted)]">
-            {mount === "insecure"
-              ? "Open Leadgap over HTTPS to log in and trade."
-              : "Log in to load equity, risk, and event exposure."}
-          </p>
-        </div>
-      </div>
-    );
-  }
+  if (mount !== "ready") return <LoggedOutPanel mount={mount} />;
   return <PortfolioDeskSession />;
+}
+
+function LoggedOutPanel({
+  mount,
+  onLogin,
+}: {
+  mount: ReturnType<typeof usePrivyMount>;
+  onLogin?: () => void;
+}) {
+  const insecure = mount === "insecure";
+  return (
+    <div className="flex min-h-0 flex-1 items-center justify-center px-4 py-10">
+      <div className="max-w-md">
+        <h1 className="text-[22px] font-medium text-[var(--text)]">Portfolio</h1>
+        <p className="mt-2 text-[13px] leading-5 text-[var(--muted)]">
+          Equity, open positions, orders, and event exposure for the same Polymarket account you trade with.
+        </p>
+        {insecure ? (
+          <p className="mt-4 text-[13px] text-[var(--warn)]">Open Leadgap over HTTPS to log in and trade.</p>
+        ) : onLogin ? (
+          <Button type="button" className="mt-5 h-10 rounded-[6px]" onClick={() => onLogin()}>
+            Log in
+          </Button>
+        ) : (
+          <p className="mt-4 text-[13px] text-[var(--muted)]">Log in from the header to load this page.</p>
+        )}
+      </div>
+    </div>
+  );
 }
 
 function PortfolioDeskSession() {
   const mount = "ready" as const;
   const { address, isConnected } = useAccount();
+  const { login } = usePrivy();
   const { data: walletClient } = useWalletClient({ chainId: polygon.id });
   const publicClient = usePublicClient({ chainId: polygon.id });
   const walletClientRef = useRef(walletClient);
@@ -112,6 +146,7 @@ function PortfolioDeskSession() {
   const signerReady = Boolean(walletClient?.account?.address);
   const [retry, setRetry] = useState(0);
   const [busy, setBusy] = useState(false);
+  const [tab, setTab] = useState<Tab>("positions");
   const [marks, setMarks] = useState<Record<string, PerpsTicker>>({});
   const [gaps, setGaps] = useState<GapRow[]>([]);
   const [state, setState] = useState<DeskState>(EMPTY);
@@ -147,17 +182,35 @@ function PortfolioDeskSession() {
       ]);
       const margin = portfolio.margin ?? {};
       const extra = margin as { availableOrderMargin?: string };
+      const tpSl: Record<number, { tp: string; sl: string }> = {};
+      for (const o of openOrders ?? []) {
+        const id = Number(o.instrumentId);
+        const kind = o.tpSl?.kind;
+        const trigger = o.tpSl?.triggerPrice;
+        if (!kind || trigger == null || !Number.isFinite(id)) continue;
+        const cur = tpSl[id] ?? { tp: "", sl: "" };
+        if (kind === "tp") cur.tp = String(trigger);
+        if (kind === "sl") cur.sl = String(trigger);
+        tpSl[id] = cur;
+      }
       const positions = (portfolio.positions ?? [])
         .filter((p) => Number(p.size) !== 0)
-        .map((p) => ({
-          instrumentId: Number(p.instrumentId),
-          symbol: p.symbol,
-          size: num(p.size),
-          entry: num(p.entryPrice),
-          leverage: Number(p.leverage) || 0,
-          pnl: num(p.unrealizedPnl),
-          liq: num(p.liquidationPrice),
-        }));
+        .map((p) => {
+          const id = Number(p.instrumentId);
+          return {
+            instrumentId: id,
+            symbol: p.symbol,
+            size: num(p.size),
+            entry: num(p.entryPrice),
+            leverage: Number(p.leverage) || 0,
+            pnl: num(p.unrealizedPnl),
+            liq: num(p.liquidationPrice),
+            margin: num(p.initialMargin),
+            funding: num(p.cumulativeFunding),
+            tp: tpSl[id]?.tp ?? "",
+            sl: tpSl[id]?.sl ?? "",
+          };
+        });
       let realized: number | null = null;
       try {
         const page = await session.listPnlHistory({
@@ -190,9 +243,7 @@ function PortfolioDeskSession() {
         equity: num(margin.totalAccountValue ?? portfolio.withdrawable),
         used: num(margin.totalInitialMargin),
         maint: num(margin.totalMaintenanceMargin),
-        available: extra.availableOrderMargin
-          ? num(extra.availableOrderMargin)
-          : num(portfolio.withdrawable),
+        available: extra.availableOrderMargin ? num(extra.availableOrderMargin) : num(portfolio.withdrawable),
         upnl: positions.reduce((s, p) => s + p.pnl, 0),
         realized,
         positions,
@@ -248,6 +299,7 @@ function PortfolioDeskSession() {
     } catch (err) {
       const access = explainPerpsError(err);
       setState((s) => ({ ...s, note: access.message, href: access.href }));
+      notifyErr(access.message);
     } finally {
       setBusy(false);
     }
@@ -273,8 +325,11 @@ function PortfolioDeskSession() {
       } as never);
       trackEvent("close_position", { symbol: row.symbol });
       await refresh();
+      notifyOk("Position closed.");
     } catch (err) {
-      setState((s) => ({ ...s, note: explainPerpsError(err).message }));
+      const message = explainPerpsError(err).message;
+      setState((s) => ({ ...s, note: message }));
+      notifyErr(message);
     } finally {
       setBusy(false);
     }
@@ -290,12 +345,17 @@ function PortfolioDeskSession() {
       const { session } = await openCachedPerpsSession(wc);
       await session.cancelOrder({ orderId: id as never });
       await refresh();
+      notifyOk("Order canceled.");
     } catch (err) {
-      setState((s) => ({ ...s, note: explainPerpsError(err).message }));
+      const message = explainPerpsError(err).message;
+      setState((s) => ({ ...s, note: message }));
+      notifyErr(message);
     } finally {
       setBusy(false);
     }
   }
+
+  if (!isConnected) return <LoggedOutPanel mount="ready" onLogin={login} />;
 
   const ratio = state.equity > 0 ? state.maint / state.equity : 0;
   const usedPct = state.equity > 0 ? state.used / state.equity : 0;
@@ -312,238 +372,270 @@ function PortfolioDeskSession() {
     };
   });
 
-  return (
-    <div className="space-y-2">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="event-title text-[22px] italic text-[var(--text)]">Account</h1>
-          <p className="text-[12px] text-[var(--muted)]">Equity, risk, and event exposure on the perp.</p>
-        </div>
-        <Link href="/markets" className="text-sm text-[var(--muted)] hover:text-[var(--text)]">
-          Back to markets
-        </Link>
-      </div>
+  const tabs: { id: Tab; label: string }[] = [
+    { id: "positions", label: "Positions" },
+    { id: "orders", label: "Orders" },
+    { id: "fills", label: "Fills" },
+    { id: "exposure", label: "Event exposure" },
+  ];
 
+  const rail = (
+    <aside className="flex w-full shrink-0 flex-col gap-4 border-[var(--line)] px-4 py-4 lg:w-[280px] lg:border-l">
       {address || state.polymarketWallet ? (
         <PolyProfileCard eoa={address} polymarketWallet={state.polymarketWallet} />
       ) : null}
+      <div>
+        <p className="text-[11px] text-[var(--dim)]">Fund</p>
+        <div className="mt-1">
+          <FundControls />
+        </div>
+        {state.walletPusd ? (
+          <p className="mt-1 num text-[12px] text-[var(--muted)]">{state.walletPusd} on Polymarket</p>
+        ) : null}
+      </div>
+    </aside>
+  );
 
-      {state.needsSignature ? (
-        <button
-          type="button"
-          disabled={busy}
-          onClick={() => void approvePerps()}
-          className="border border-[color-mix(in_srgb,var(--signal)_45%,var(--line))] px-3 py-1.5 text-sm font-medium text-[var(--signal)] disabled:opacity-40"
-        >
-          {busy ? "Waiting…" : "Connect Perps"}
-        </button>
-      ) : null}
-      {state.note ? <p className="text-sm text-[var(--warn)]">{state.note}</p> : null}
-      {state.href ? (
-        <a href={state.href} target="_blank" rel="noreferrer" className="text-sm text-[var(--signal)] hover:underline">
-          Request Perps access
-        </a>
-      ) : null}
-
-      <div className="grid grid-cols-2 gap-px overflow-hidden border border-[var(--line)] bg-[var(--line)] sm:grid-cols-3 lg:grid-cols-6">
-        <Stat label="Equity" value={fmtUsd(state.equity)} />
-        <Stat label="PnL" value={fmtUsdSigned(state.upnl)} tone={signedClass(state.upnl)} />
-        <Stat label="Margin" value={fmtUsd(state.used)} />
-        <Stat label="Available" value={fmtUsd(state.available)} />
-        <Stat
+  return (
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+      <div className="flex flex-wrap items-baseline gap-x-6 gap-y-2 border-b border-[var(--line)] px-4 py-3">
+        <Kpi label="Equity" value={fmtUsd(state.equity)} />
+        <Kpi label="uPnL" value={fmtUsdSigned(state.upnl)} className={signedClass(state.upnl)} />
+        <Kpi label="Margin" value={fmtUsd(state.used)} />
+        <Kpi label="Available" value={fmtUsd(state.available)} />
+        <Kpi
           label="Realized"
           value={state.realized == null ? "—" : fmtUsdSigned(state.realized)}
-          tone={state.realized == null ? "text-[var(--muted)]" : signedClass(state.realized)}
+          className={state.realized == null ? "text-[var(--muted)]" : signedClass(state.realized)}
         />
-        <div className="bg-[var(--surface)] px-4 py-3">
-          <div className="flex items-center justify-between text-[10px] uppercase tracking-[0.1em] text-[var(--dim)]">
-            <span>Risk</span>
-            {state.liquidation ? <Pill tone="danger">Liq</Pill> : null}
-          </div>
-          <div className={`mt-1 num text-lg ${ratio > 0.8 ? "text-[var(--short)]" : "text-[var(--text)]"}`}>
+        <div className="min-w-[7rem]">
+          <p className="text-[11px] text-[var(--dim)]">
+            Risk
+            {state.liquidation ? <span className="ml-1.5 text-[var(--short)]">Liq</span> : null}
+          </p>
+          <p className={cn("num text-[15px]", ratio > 0.8 ? "text-[var(--short)]" : "text-[var(--text)]")}>
             {(usedPct * 100).toFixed(1)}%
-          </div>
-          <div className="mt-2 h-1 overflow-hidden bg-[var(--elevated)]">
-            <div
-              className={`h-full ${ratio > 0.8 ? "bg-[var(--short)]" : "bg-[var(--signal)]"}`}
-              style={{ width: `${Math.min(100, usedPct * 100)}%` }}
-            />
-          </div>
-          <p className="mt-1 text-[10px] text-[var(--dim)]">Maint {fmtUsd(state.maint)}</p>
+          </p>
+          <p className="text-[11px] text-[var(--dim)]">Maint {fmtUsd(state.maint)}</p>
         </div>
       </div>
 
-      <div className="lg-pane px-4 py-3">
-        <p className="mb-2 text-[11px] uppercase tracking-[0.1em] text-[var(--dim)]">Fund</p>
-        <FundControls />
-      </div>
+      {state.needsSignature || state.note || state.href ? (
+        <div className="flex flex-wrap items-center gap-3 border-b border-[var(--line)] px-4 py-2 text-[13px]">
+          {state.needsSignature ? (
+            <Button type="button" size="sm" disabled={busy} onClick={() => void approvePerps()}>
+              {busy ? "Waiting…" : "Connect Perps"}
+            </Button>
+          ) : null}
+          {state.note ? <p className="text-[var(--warn)]">{state.note}</p> : null}
+          {state.href ? (
+            <a href={state.href} target="_blank" rel="noreferrer" className="text-[var(--text)] hover:underline">
+              Request Perps access
+            </a>
+          ) : null}
+        </div>
+      ) : null}
 
-      <Section title="Event exposure">
-        {exposures.length === 0 ? (
-          <Empty text="No open positions mapped to events." />
-        ) : (
-          <ul className="space-y-1.5">
-            {exposures.map((row) => (
-              <li key={`${row.symbol}-${row.side}`} className="flex flex-wrap items-baseline justify-between gap-2 text-sm">
-                <span className="text-[var(--text)]">
-                  {row.title}
-                  <span className="text-[var(--dim)]"> → </span>
-                  <Link
-                    href={row.eventId ? `/markets/${row.symbol}?event=${row.eventId}` : `/markets/${row.symbol}`}
-                    className={row.side === "Long" ? "text-[var(--long)] hover:underline" : "text-[var(--short)] hover:underline"}
-                  >
-                    {row.symbol.replace("-USD", "")} {row.side}
-                  </Link>
-                </span>
-                {row.score > 0 ? (
-                  <span className="num text-[11px] text-[var(--muted)]">
-                    score {Math.round(row.score)}
-                    {row.aligned ? " · with signal" : " · vs signal"}
-                  </span>
-                ) : null}
-              </li>
+      <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+          <div className="flex shrink-0 gap-1 overflow-x-auto border-b border-[var(--line)] px-2">
+            {tabs.map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => setTab(item.id)}
+                className={cn(
+                  "shrink-0 border-b-2 px-2 py-1.5 text-[12px] focus-visible:ring-2 focus-visible:ring-[color-mix(in_srgb,var(--odds)_40%,transparent)]",
+                  tab === item.id
+                    ? "border-[var(--text)] text-[var(--text)]"
+                    : "border-transparent text-[var(--muted)] hover:text-[var(--text)]",
+                )}
+              >
+                {item.label}
+              </button>
             ))}
-          </ul>
-        )}
-      </Section>
-
-      <Section title="Open positions">
-        {state.positions.length === 0 ? (
-          <Empty text="No open positions." />
-        ) : (
-          <table className="w-full min-w-[720px] text-left text-sm">
-            <thead className="text-[10px] uppercase tracking-[0.1em] text-[var(--dim)]">
-              <tr>
-                <th className="py-2 font-medium">Symbol</th>
-                <th className="font-medium">Side</th>
-                <th className="font-medium">Size</th>
-                <th className="font-medium">Entry</th>
-                <th className="font-medium">Mark</th>
-                <th className="font-medium">PnL</th>
-                <th className="font-medium">Liq</th>
-                <th />
-              </tr>
-            </thead>
-            <tbody>
-              {state.positions.map((p) => {
-                const mark = marks[p.symbol]?.markPrice;
-                return (
-                  <tr key={`${p.instrumentId}-${p.symbol}`} className="border-t border-[var(--line)]">
-                    <td className="py-2">
-                      <Link href={`/markets/${p.symbol}`} className="text-[var(--text)] hover:underline">
-                        {p.symbol.replace("-USD", "")}
-                      </Link>
-                    </td>
-                    <td className={p.size > 0 ? "text-[var(--long)]" : "text-[var(--short)]"}>
-                      {p.size > 0 ? "Long" : "Short"}
-                    </td>
-                    <td className="num text-[var(--text)]">{Math.abs(p.size)}</td>
-                    <td className="num text-[var(--perp)]">{fmtPx(p.entry)}</td>
-                    <td className="num text-[var(--perp)]">{mark != null ? fmtPx(mark) : "—"}</td>
-                    <td className={`num ${signedClass(p.pnl)}`}>{fmtUsdSigned(p.pnl)}</td>
-                    <td className="num text-[var(--muted)]">{fmtPx(p.liq)}</td>
-                    <td className="text-right">
-                      <button
-                        type="button"
-                        disabled={busy}
-                        onClick={() => void closePosition(p)}
-                        className="text-xs text-[var(--signal)] hover:underline disabled:opacity-40"
-                      >
-                        Close
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        )}
-      </Section>
-
-      <Section title="Open orders">
-        {state.orders.length === 0 ? (
-          <Empty text="No open orders." />
-        ) : (
-          <table className="w-full text-left text-sm">
-            <thead className="text-[10px] uppercase tracking-[0.1em] text-[var(--dim)]">
-              <tr>
-                <th className="py-2 font-medium">Side</th>
-                <th className="font-medium">Size</th>
-                <th className="font-medium">Price</th>
-                <th className="font-medium">Status</th>
-                <th />
-              </tr>
-            </thead>
-            <tbody>
-              {state.orders.map((o) => (
-                <tr key={o.id} className="border-t border-[var(--line)]">
-                  <td className="py-2 capitalize text-[var(--text)]">{o.side}</td>
-                  <td className="num">{o.quantity}</td>
-                  <td className="num">{o.price}</td>
-                  <td className="text-[var(--muted)]">{o.status}</td>
-                  <td className="text-right">
-                    <button
-                      type="button"
-                      disabled={busy}
-                      onClick={() => void cancel(o.id)}
-                      className="text-xs text-[var(--signal)] hover:underline disabled:opacity-40"
-                    >
-                      Cancel
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </Section>
-
-      <Section title="Trade history">
-        {state.fills.length === 0 ? (
-          <Empty text="No fills yet." />
-        ) : (
-          <table className="w-full text-left text-sm">
-            <thead className="text-[10px] uppercase tracking-[0.1em] text-[var(--dim)]">
-              <tr>
-                <th className="py-2 font-medium">Side</th>
-                <th className="font-medium">Size</th>
-                <th className="font-medium">Price</th>
-              </tr>
-            </thead>
-            <tbody>
-              {state.fills.map((f, i) => (
-                <tr key={`${f.side}-${f.price}-${i}`} className="border-t border-[var(--line)]">
-                  <td className="py-2 capitalize text-[var(--text)]">{f.side}</td>
-                  <td className="num">{f.quantity}</td>
-                  <td className="num">{f.price}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </Section>
+          </div>
+          <div className="min-h-0 flex-1 overflow-auto">
+            {tab === "positions" ? (
+              state.positions.length === 0 ? (
+                <Empty text="No open positions" href="/markets" action="Open Markets" />
+              ) : (
+                <DataTable containerClassName="min-h-0">
+                  <DataTableHeader>
+                    <tr>
+                      <DataTableHead>Market</DataTableHead>
+                      <DataTableHead align="right">Size</DataTableHead>
+                      <DataTableHead align="right">Entry</DataTableHead>
+                      <DataTableHead align="right">Mark</DataTableHead>
+                      <DataTableHead align="right">PnL</DataTableHead>
+                      <DataTableHead align="right">Liq</DataTableHead>
+                      <DataTableHead align="right">Margin</DataTableHead>
+                      <DataTableHead align="right">Funding</DataTableHead>
+                      <DataTableHead align="right">TP</DataTableHead>
+                      <DataTableHead align="right">SL</DataTableHead>
+                      <DataTableHead />
+                    </tr>
+                  </DataTableHeader>
+                  <DataTableBody>
+                    {state.positions.map((p) => {
+                      const mark = marks[p.symbol]?.markPrice;
+                      return (
+                        <DataTableRow key={`${p.instrumentId}-${p.symbol}`}>
+                          <DataTableCell>
+                            <Link href={`/markets/${p.symbol}`} className="text-[var(--text)] hover:underline">
+                              {p.symbol.replace("-USD", "")}
+                            </Link>
+                          </DataTableCell>
+                          <DataTableCell numeric className={p.size > 0 ? "text-[var(--long)]" : "text-[var(--short)]"}>
+                            {p.size}
+                          </DataTableCell>
+                          <DataTableCell numeric>{fmtPx(p.entry)}</DataTableCell>
+                          <DataTableCell numeric>{mark != null ? fmtPx(mark) : "—"}</DataTableCell>
+                          <DataTableCell numeric className={signedClass(p.pnl)}>
+                            {fmtUsdSigned(p.pnl)}
+                          </DataTableCell>
+                          <DataTableCell numeric>{fmtPx(p.liq)}</DataTableCell>
+                          <DataTableCell numeric>{fmtUsd(p.margin)}</DataTableCell>
+                          <DataTableCell numeric className={signedClass(p.funding)}>
+                            {fmtUsdSigned(p.funding)}
+                          </DataTableCell>
+                          <DataTableCell numeric>{p.tp ? fmtPx(Number(p.tp)) : "—"}</DataTableCell>
+                          <DataTableCell numeric>{p.sl ? fmtPx(Number(p.sl)) : "—"}</DataTableCell>
+                          <DataTableCell align="right">
+                            <button
+                              type="button"
+                              disabled={busy}
+                              onClick={() => void closePosition(p)}
+                              className="text-[12px] text-[var(--muted)] hover:text-[var(--text)] disabled:opacity-40"
+                            >
+                              Close
+                            </button>
+                          </DataTableCell>
+                        </DataTableRow>
+                      );
+                    })}
+                  </DataTableBody>
+                </DataTable>
+              )
+            ) : null}
+            {tab === "orders" ? (
+              state.orders.length === 0 ? (
+                <Empty text="No open orders" />
+              ) : (
+                <DataTable>
+                  <DataTableHeader>
+                    <tr>
+                      <DataTableHead>Side</DataTableHead>
+                      <DataTableHead align="right">Size</DataTableHead>
+                      <DataTableHead align="right">Price</DataTableHead>
+                      <DataTableHead>Status</DataTableHead>
+                      <DataTableHead />
+                    </tr>
+                  </DataTableHeader>
+                  <DataTableBody>
+                    {state.orders.map((o) => (
+                      <DataTableRow key={o.id}>
+                        <DataTableCell className="capitalize">{o.side}</DataTableCell>
+                        <DataTableCell numeric>{o.quantity}</DataTableCell>
+                        <DataTableCell numeric>{o.price}</DataTableCell>
+                        <DataTableCell>{o.status}</DataTableCell>
+                        <DataTableCell align="right">
+                          <button
+                            type="button"
+                            disabled={busy}
+                            onClick={() => void cancel(o.id)}
+                            className="text-[12px] text-[var(--muted)] hover:text-[var(--text)] disabled:opacity-40"
+                          >
+                            Cancel
+                          </button>
+                        </DataTableCell>
+                      </DataTableRow>
+                    ))}
+                  </DataTableBody>
+                </DataTable>
+              )
+            ) : null}
+            {tab === "fills" ? (
+              state.fills.length === 0 ? (
+                <Empty text="No fills yet" />
+              ) : (
+                <DataTable>
+                  <DataTableHeader>
+                    <tr>
+                      <DataTableHead>Side</DataTableHead>
+                      <DataTableHead align="right">Size</DataTableHead>
+                      <DataTableHead align="right">Price</DataTableHead>
+                    </tr>
+                  </DataTableHeader>
+                  <DataTableBody>
+                    {state.fills.map((f, i) => (
+                      <DataTableRow key={`${f.side}-${f.price}-${i}`}>
+                        <DataTableCell className="capitalize">{f.side}</DataTableCell>
+                        <DataTableCell numeric>{f.quantity}</DataTableCell>
+                        <DataTableCell numeric>{f.price}</DataTableCell>
+                      </DataTableRow>
+                    ))}
+                  </DataTableBody>
+                </DataTable>
+              )
+            ) : null}
+            {tab === "exposure" ? (
+              exposures.length === 0 ? (
+                <Empty text="No open positions mapped to events" href="/markets" action="Open Markets" />
+              ) : (
+                <ul className="divide-y divide-[var(--line)] px-4 py-1">
+                  {exposures.map((row) => (
+                    <li key={`${row.symbol}-${row.side}`} className="flex flex-wrap items-baseline justify-between gap-2 py-2.5 text-[13px]">
+                      <span className="min-w-0 text-[var(--text)]">
+                        {row.title}
+                        <span className="text-[var(--dim)]"> → </span>
+                        <Link
+                          href={row.eventId ? `/markets/${row.symbol}?event=${row.eventId}` : `/markets/${row.symbol}`}
+                          className={row.side === "Long" ? "text-[var(--long)] hover:underline" : "text-[var(--short)] hover:underline"}
+                        >
+                          {row.symbol.replace("-USD", "")} {row.side}
+                        </Link>
+                      </span>
+                      {row.score > 0 ? (
+                        <span className="num shrink-0 text-[12px] text-[var(--muted)]">
+                          score {Math.round(row.score)}
+                          {row.aligned ? " · with signal" : " · vs signal"}
+                        </span>
+                      ) : null}
+                    </li>
+                  ))}
+                </ul>
+              )
+            ) : null}
+          </div>
+        </div>
+        {rail}
+      </div>
     </div>
   );
 }
 
-function Stat({ label, value, tone = "text-[var(--text)]" }: { label: string; value: string; tone?: string }) {
+function Kpi({ label, value, className = "" }: { label: string; value: string; className?: string }) {
   return (
-    <div className="bg-[var(--surface)] px-4 py-3">
-      <div className="text-[10px] uppercase tracking-[0.1em] text-[var(--dim)]">{label}</div>
-      <div className={`mt-1 num text-lg ${tone}`}>{value}</div>
+    <div>
+      <p className="text-[11px] text-[var(--dim)]">{label}</p>
+      <p className={cn("num text-[15px] text-[var(--text)]", className)}>{value}</p>
     </div>
   );
 }
 
-function Section({ title, children }: { title: string; children: ReactNode }) {
+function Empty({ text, href, action }: { text: string; href?: string; action?: string }) {
   return (
-    <section className="lg-pane overflow-x-auto px-4 py-3">
-      <h2 className="mb-2 text-[11px] uppercase tracking-[0.1em] text-[var(--dim)]">{title}</h2>
-      {children}
-    </section>
+    <div className="px-4 py-8 text-[13px] text-[var(--muted)]">
+      <p>{text}</p>
+      {href && action ? (
+        <Link
+          href={href}
+          className="lg-focus mt-2 inline-block text-[var(--text)] underline underline-offset-2"
+        >
+          {action}
+        </Link>
+      ) : null}
+    </div>
   );
-}
-
-function Empty({ text }: { text: string }) {
-  return <p className="py-4 text-sm text-[var(--muted)]">{text}</p>;
 }

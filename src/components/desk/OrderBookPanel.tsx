@@ -43,12 +43,8 @@ export function OrderBookPanel({
   });
 
   return (
-    <div className="flex h-full min-h-0 flex-col bg-[var(--surface)] text-[10px] leading-4">
-      <div className="lg-toolbar justify-between">
-        <span className="lg-label">Book</span>
-        <span className="num text-[var(--perp)]">Spr {spread != null ? fmtPx(spread, decimals) : "—"}</span>
-      </div>
-      <div className="grid grid-cols-3 px-2 py-0.5 lg-label">
+    <div className="flex h-full min-h-0 flex-col bg-[var(--surface)] text-[11px] leading-4">
+      <div className="grid grid-cols-3 px-2 py-1 text-[11px] text-[var(--dim)]">
         <span>Price</span>
         <span className="text-right">Size</span>
         <span className="text-right">Sum</span>
@@ -57,9 +53,11 @@ export function OrderBookPanel({
         {askRows.map((level) => (
           <Row key={`a-${level.price}`} level={level} maxCum={maxCum} decimals={decimals} side="ask" onPrice={onPrice} />
         ))}
-        <div className="flex items-center justify-between border-y border-[var(--line)] bg-[var(--elevated)] px-2 py-1">
+        <div className="flex items-center justify-between bg-[var(--elevated)] px-2 py-1">
           <span className="num text-[12px] font-medium text-[var(--text)]">{mid != null ? fmtPx(mid, decimals) : "—"}</span>
-          <span className="text-[var(--dim)]">Mid</span>
+          <span className="text-[11px] text-[var(--dim)]">
+            Mid{spread != null ? ` · ${fmtPx(spread, decimals)}` : ""}
+          </span>
         </div>
         {bidRows.map((level) => (
           <Row key={`b-${level.price}`} level={level} maxCum={maxCum} decimals={decimals} side="bid" onPrice={onPrice} />
@@ -104,7 +102,7 @@ function Row({
           background: side === "bid" ? "var(--long)" : "var(--short)",
         }}
       />
-      <span className="num relative text-[var(--perp)]">{fmtPx(level.price, decimals)}</span>
+      <span className="num relative text-[var(--mark)]">{fmtPx(level.price, decimals)}</span>
       <span className={`num relative text-right ${side === "bid" ? "text-[var(--long)]" : "text-[var(--short)]"}`}>
         {fmtPx(level.quantity, 4)}
       </span>

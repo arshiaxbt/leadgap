@@ -8,7 +8,7 @@ export const metadata: Metadata = {
 
 export default function PortfolioPage() {
   return (
-    <PageShell>
+    <PageShell full>
       <PortfolioDesk />
     </PageShell>
   );

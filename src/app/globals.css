@@ -1,74 +1,143 @@
 @import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
 
 :root {
-  --bg: #100f0d;
-  --surface: #181614;
-  --elevated: #1f1c19;
-  --hover: #25211c;
-  --input: #0c0b0a;
-  --line: #2c2823;
-  --line-strong: #3d3730;
-  --text: #f0ebe3;
-  --muted: #9a9388;
-  --dim: #6e685f;
-  --signal: #c4a574;
-  --perp: #8e959e;
-  --long: #3f8f6e;
-  --short: #b85c4c;
-  --warn: #c4a35a;
+  --bg: #07090c;
+  --surface: #0b0e14;
+  --elevated: #10141b;
+  --hover: #141a24;
+  --input: #06080c;
+  --line: #191e27;
+  --line-strong: #252b36;
+  --text: #e4e8ef;
+  --muted: #79818f;
+  --dim: #535b69;
+  --odds: #8fc9f2;
+  --odds-deep: #4e86ae;
+  --mark: #8a909b;
+  --long: #3ecf8e;
+  --short: #f0564e;
+  --warn: #d4a017;
+  --signal: var(--odds);
+  --perp: var(--mark);
+  --lead: var(--odds);
   --background: var(--bg);
   --foreground: var(--text);
   --elev: var(--surface);
-  --lead: var(--signal);
+  --card: var(--surface);
+  --card-foreground: var(--text);
+  --popover: var(--elevated);
+  --popover-foreground: var(--text);
+  --primary: var(--text);
+  --primary-foreground: var(--bg);
+  --secondary: var(--elevated);
+  --secondary-foreground: var(--text);
+  --accent: var(--elevated);
+  --accent-foreground: var(--text);
+  --destructive: var(--short);
+  --destructive-foreground: var(--text);
+  --border: var(--line);
+  --ring: color-mix(in srgb, var(--odds) 40%, transparent);
+  --sidebar: var(--surface);
+  --sidebar-foreground: var(--text);
+  --sidebar-primary: var(--text);
+  --sidebar-primary-foreground: var(--bg);
+  --sidebar-accent: var(--elevated);
+  --sidebar-accent-foreground: var(--text);
+  --sidebar-border: var(--line);
+  --sidebar-ring: var(--ring);
+  --radius: 0.5rem;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--elevated);
+  --color-muted-foreground: var(--muted);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--line);
+  --color-ring: var(--ring);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
   --color-surface: var(--surface);
   --color-signal: var(--signal);
+  --color-odds: var(--odds);
   --color-perp: var(--perp);
+  --color-mark: var(--mark);
   --color-long: var(--long);
   --color-short: var(--short);
-  --font-sans: var(--font-plex);
-  --font-serif: var(--font-newsreader);
-  --font-mono: var(--font-plex-mono);
+  --color-warn: var(--warn);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+  --font-heading: var(--font-geist-sans);
+  --radius-sm: 0.25rem;
+  --radius-md: 0.375rem;
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
 }
 
-html,
-body {
-  height: 100%;
-  overflow: hidden;
-}
+@layer base {
+  * {
+    @apply border-border;
+  }
 
-body {
-  background: var(--bg);
-  color: var(--text);
+  html,
+  body {
+    height: 100%;
+    overflow: hidden;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-synthesis-weight: none;
+    text-rendering: optimizeLegibility;
+  }
 }
 
 .num {
-  font-family: var(--font-plex-mono), ui-monospace, monospace;
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
   font-variant-numeric: tabular-nums;
   font-feature-settings: "tnum" 1;
 }
 
 .event-title {
-  font-family: var(--font-newsreader), ui-serif, Georgia, serif;
+  font-family: inherit;
   font-optical-sizing: auto;
 }
 
 .lg-label {
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 500;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
+  letter-spacing: 0;
+  text-transform: none;
   color: var(--dim);
 }
 
 .lg-pane {
   background: var(--surface);
   border: 1px solid var(--line);
-  border-radius: 2px;
+  border-radius: 8px;
 }
 
 .lg-toolbar {
@@ -87,12 +156,22 @@ body {
   background: var(--input);
   color: var(--text);
   font-size: 12px;
-  border-radius: 2px;
+  border-radius: 6px;
   outline: none;
 }
 
 .lg-input:focus {
-  border-color: color-mix(in srgb, var(--signal) 50%, var(--line));
+  border-color: var(--odds-deep);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--odds) 40%, transparent);
+}
+
+.lg-focus {
+  outline: none;
+}
+
+.lg-focus:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--odds) 40%, transparent);
+  outline-offset: 2px;
 }
 
 .lg-input::placeholder {
@@ -108,7 +187,7 @@ body {
 }
 
 .lg-row-on td:first-child {
-  box-shadow: inset 2px 0 0 var(--signal);
+  box-shadow: inset 2px 0 0 var(--odds);
 }
 
 .lg-select {
@@ -118,7 +197,11 @@ body {
   font-size: 11px;
   padding: 0.2rem 0.4rem;
   outline: none;
-  border-radius: 0;
+  border-radius: 6px;
+}
+
+.lg-select:focus-visible {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--odds) 40%, transparent);
 }
 
 .lg-select-lg {
@@ -144,6 +227,7 @@ body {
   text-align: left;
   white-space: normal;
   pointer-events: none;
+  border-radius: 6px;
 }
 
 .group:hover > .lg-tip,
@@ -152,10 +236,10 @@ body {
 }
 
 .lg-table th {
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 500;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  letter-spacing: 0;
+  text-transform: none;
   color: var(--dim);
   border-bottom: 1px solid var(--line);
 }
@@ -166,14 +250,14 @@ body {
 
 .desk-handle {
   background-color: var(--line);
-  transition: background-color 100ms ease;
+  transition: background-color 120ms ease;
 }
 
 .desk-handle:hover,
 .desk-handle:focus-visible,
 .desk-handle[data-active],
 .desk-handle[data-separator][data-state="active"] {
-  background-color: var(--signal);
+  background-color: color-mix(in srgb, var(--text) 28%, var(--line));
 }
 
 .desk-handle[aria-orientation="vertical"] {
@@ -184,4 +268,17 @@ body {
 .desk-handle[aria-orientation="horizontal"] {
   height: 3px;
   min-height: 3px;
+}
+
+@keyframes lg-print-flash {
+  from {
+    background-color: color-mix(in srgb, var(--odds) 22%, transparent);
+  }
+  to {
+    background-color: transparent;
+  }
+}
+
+.lg-print-flash {
+  animation: lg-print-flash 80ms ease-out;
 }

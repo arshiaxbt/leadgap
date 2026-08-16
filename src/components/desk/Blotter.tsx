@@ -6,6 +6,7 @@ import { useAccount, useWalletClient } from "wagmi";
 import { polygon } from "viem/chains";
 import { BUILDER_CODE } from "@/lib/builder";
 import { assertCanTrade } from "@/lib/geo";
+import { notifyErr, notifyOk } from "@/lib/notify";
 import { explainPerpsError } from "@/lib/perpsAccess";
 import { fmtFunding, fmtPx, fmtUsd, fmtUsdSigned, signedClass } from "@/lib/format";
 import { usePrivyMount } from "@/lib/usePrivyMount";
@@ -59,14 +60,17 @@ export function Blotter({
   if (mount !== "ready") {
     return (
       <div className="flex h-full min-h-0 flex-col bg-[var(--surface)]">
-        <div className="lg-toolbar">
-          <span className="lg-label">Blotter</span>
-          <Link href="/portfolio" className="px-2 py-1 text-[var(--muted)] hover:text-[var(--text)]">
-            Account
+        <div className="flex items-center gap-1 border-b border-[var(--line)] px-2">
+          <span className="px-2 py-1.5 text-[12px] text-[var(--muted)]">Positions</span>
+          <Link href="/portfolio" className="ml-auto px-2 py-1.5 text-[12px] text-[var(--muted)] hover:text-[var(--text)]">
+            Portfolio
           </Link>
-          <span className="ml-auto truncate text-[var(--dim)]">
+        </div>
+        <div className="flex flex-1 flex-col justify-center px-4 py-6 text-[12px]">
+          <p className="text-[var(--text)]">No open positions</p>
+          <p className="mt-1 text-[var(--muted)]">
             {mount === "insecure" ? "HTTPS required to log in." : "Log in to see positions and orders."}
-          </span>
+          </p>
         </div>
       </div>
     );
@@ -208,8 +212,11 @@ function BlotterSession({
         builderCode: BUILDER_CODE,
       } as never);
       await refresh();
+      notifyOk("Position closed.");
     } catch (err) {
-      setNote(explainPerpsError(err).message);
+      const message = explainPerpsError(err).message;
+      setNote(message);
+      notifyErr(message);
     } finally {
       setBusy(false);
     }
@@ -224,8 +231,11 @@ function BlotterSession({
       const { session } = await openCachedPerpsSession(walletClient);
       await session.cancelOrder({ orderId: id as never });
       await refresh();
+      notifyOk("Order canceled.");
     } catch (err) {
-      setNote(explainPerpsError(err).message);
+      const message = explainPerpsError(err).message;
+      setNote(message);
+      notifyErr(message);
     } finally {
       setBusy(false);
     }
@@ -258,8 +268,11 @@ function BlotterSession({
       }
       await refresh();
       setEditId(null);
+      notifyOk("TP/SL updated.");
     } catch (err) {
-      setNote(explainPerpsError(err).message);
+      const message = explainPerpsError(err).message;
+      setNote(message);
+      notifyErr(message);
     } finally {
       setBusy(false);
     }
@@ -273,27 +286,33 @@ function BlotterSession({
 
   const field = "lg-input num w-[3.25rem] px-1 py-0.5 text-[10px]";
 
+  const tabs: { id: Tab; label: string }[] = [
+    { id: "positions", label: "Positions" },
+    { id: "orders", label: "Orders" },
+    { id: "fills", label: "Fills" },
+  ];
+
   return (
     <div className="flex h-full min-h-0 flex-col bg-[var(--surface)]">
-      <div className="lg-toolbar">
-        {(["positions", "orders", "fills"] as const).map((t) => (
+      <div className="flex items-center gap-1 overflow-x-auto border-b border-[var(--line)] px-2">
+        {tabs.map((item) => (
           <button
-            key={t}
+            key={item.id}
             type="button"
-            onClick={() => setTab(t)}
-            className={`border-b-2 px-2 py-1 capitalize ${
-              tab === t
-                ? "border-[var(--signal)] text-[var(--text)]"
+            onClick={() => setTab(item.id)}
+            className={`lg-focus border-b-2 px-2 py-1.5 text-[12px] ${
+              tab === item.id
+                ? "border-[var(--text)] text-[var(--text)]"
                 : "border-transparent text-[var(--muted)] hover:text-[var(--text)]"
             }`}
           >
-            {t}
+            {item.label}
           </button>
         ))}
-        <Link href="/portfolio" className="px-2 py-1 text-[var(--muted)] hover:text-[var(--text)]">
-          Account
+        <Link href="/portfolio" className="lg-focus px-2 py-1.5 text-[12px] text-[var(--muted)] hover:text-[var(--text)]">
+          Portfolio
         </Link>
-        {note ? <span className="ml-auto truncate text-[var(--dim)]">{note}</span> : null}
+        {note ? <span className="ml-auto truncate text-[12px] text-[var(--dim)]">{note}</span> : null}
       </div>
       <div className="min-h-0 flex-1 overflow-auto px-2 py-1 text-[11px]">
         {tab === "positions" ? (
@@ -317,7 +336,7 @@ function BlotterSession({
               {positions.length === 0 && !preview ? (
                 <tr>
                   <td colSpan={11} className="py-1.5 text-[var(--dim)]">
-                    No open positions.
+                    No open positions
                   </td>
                 </tr>
               ) : null}

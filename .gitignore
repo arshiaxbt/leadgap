@@ -44,3 +44,7 @@ certificates/
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# local visual QA / Playwright dumps
+.playwright-mcp/
+/*.png

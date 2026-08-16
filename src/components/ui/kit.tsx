@@ -58,7 +58,7 @@ export function Segmented<T extends string>({
             type="button"
             aria-label={opt.hint ? `${opt.label}. ${opt.hint}` : undefined}
             onClick={() => onChange(opt.id)}
-            className={`group relative border-r border-[var(--line)] last:border-r-0 ${pad} ${
+            className={`lg-focus group relative border-r border-[var(--line)] last:border-r-0 ${pad} ${
               active
                 ? "bg-[var(--hover)] text-[var(--text)]"
                 : "text-[var(--muted)] hover:bg-[var(--hover)] hover:text-[var(--text)]"
@@ -149,7 +149,11 @@ export function Btn({
     short: "border border-[color-mix(in_srgb,var(--short)_50%,var(--line))] text-[var(--short)] disabled:opacity-40",
   };
   return (
-    <button type="button" {...props} className={`font-medium tracking-wide ${sizes} ${variants[variant]} ${className}`} />
+    <button
+      type="button"
+      {...props}
+      className={`lg-focus font-medium tracking-wide ${sizes} ${variants[variant]} ${className}`}
+    />
   );
 }
 

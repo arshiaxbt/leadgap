@@ -2,30 +2,16 @@
 
 Public terminal that watches Polymarket event odds against every live Polymarket Perp and lets eligible users trade the related perp from a full trading desk.
 
-Interpretation uses **Gemini** (`GEMINI_API_KEY`).
-
 ## Run
 
 ```bash
 cd poly-event-terminal
 cp .env.example .env.local
-# paste GEMINI_API_KEY=...
 npm install
 npm run dev
 ```
 
 Open [https://localhost:3000](https://localhost:3000). First ingest can take ~30 seconds.
-
-## Gemini
-
-1. Open [https://aistudio.google.com](https://aistudio.google.com)
-2. Get API key
-3. `.env.local`:
-
-```
-GEMINI_API_KEY=...
-GEMINI_MODEL=gemini-3.5-flash-lite
-```
 
 ## Login (same stack as Polymarket)
 

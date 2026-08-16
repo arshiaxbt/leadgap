@@ -4,6 +4,8 @@ import { PrivyProvider, usePrivy, useWallets } from "@privy-io/react-auth";
 import { WagmiProvider, useSetActiveWallet } from "@privy-io/wagmi";
 import { useEffect, type ReactNode } from "react";
 import { useAccount } from "wagmi";
+import { preferredTradingWallet } from "@/lib/activeWallet";
+import { forgetStoredPerpsSession } from "@/lib/perpsSession";
 import { getPrivyConfig, isSecureOrigin, privyAppId } from "@/lib/privy";
 import { walletConfig } from "@/lib/wagmi";
 
@@ -14,11 +16,21 @@ export function PrivyTree({ children }: { children: ReactNode }) {
   return (
     <PrivyProvider appId={appId} config={getPrivyConfig()}>
       <WagmiProvider config={walletConfig}>
+        <ClearSessionOnLogout />
         <SyncActiveWallet />
         {children}
       </WagmiProvider>
     </PrivyProvider>
   );
+}
+
+function ClearSessionOnLogout() {
+  const { ready, authenticated } = usePrivy();
+  useEffect(() => {
+    if (!ready || authenticated) return;
+    forgetStoredPerpsSession();
+  }, [authenticated, ready]);
+  return null;
 }
 
 function SyncActiveWallet() {
@@ -29,12 +41,7 @@ function SyncActiveWallet() {
 
   useEffect(() => {
     if (!wallets.length) return;
-    const loginAddr = user?.wallet?.address?.toLowerCase();
-    const byLogin = loginAddr
-      ? wallets.find((w) => w.address.toLowerCase() === loginAddr)
-      : undefined;
-    const injected = wallets.find((w) => w.walletClientType !== "privy");
-    const preferred = byLogin ?? injected ?? wallets[0];
+    const preferred = preferredTradingWallet(wallets, user?.wallet?.address);
     if (!preferred) return;
     if (address && preferred.address.toLowerCase() === address.toLowerCase()) return;
     void setActiveWallet(preferred);

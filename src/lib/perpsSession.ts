@@ -128,6 +128,7 @@ export function resetPerpsSession() {
   opened = null;
 }
 
+/** Wipe delegated credentials. Omit address to clear every stored session in this tab. */
 export function forgetStoredPerpsSession(address?: string) {
   clearStored(address?.toLowerCase());
   opened = null;

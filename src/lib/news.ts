@@ -1,5 +1,6 @@
 import Parser from "rss-parser";
 import { aliasHit, ASSET_MAP } from "./mapping";
+import { NEWS_LINK_HOSTS, safeHttpsUrl } from "./safe-url";
 import type { NewsItem, ResolvedEvent } from "./types";
 
 const FEEDS = [
@@ -36,8 +37,10 @@ export async function fetchNews(events: ResolvedEvent[]): Promise<NewsItem[]> {
   const items: NewsItem[] = [];
   await Promise.all(
     FEEDS.map(async (feed) => {
+      const url = safeHttpsUrl(feed.url, NEWS_LINK_HOSTS);
+      if (!url) return;
       try {
-        const parsed = await parser.parseURL(feed.url);
+        const parsed = await parser.parseURL(url);
         for (const entry of parsed.items.slice(0, 20)) {
           const title = entry.title?.trim();
           const link = (entry.link || entry.guid)?.toString().trim();

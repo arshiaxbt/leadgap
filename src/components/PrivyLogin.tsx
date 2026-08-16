@@ -1,6 +1,7 @@
 "use client";
 
 import { usePrivy, useWallets } from "@privy-io/react-auth";
+import { preferredTradingWallet } from "@/lib/activeWallet";
 import { forgetStoredPerpsSession } from "@/lib/perpsSession";
 import { trackEvent } from "@/lib/track";
 import { PolyProfileChip } from "@/components/PolyProfile";
@@ -9,12 +10,8 @@ import { shortAddr } from "@/lib/format";
 export function PrivyLogin() {
   const { ready, authenticated, login, logout, user } = usePrivy();
   const { wallets } = useWallets();
-  const loginAddr = user?.wallet?.address?.toLowerCase();
-  const byLogin = loginAddr
-    ? wallets.find((w) => w.address.toLowerCase() === loginAddr)
-    : undefined;
-  const injected = wallets.find((w) => w.walletClientType !== "privy");
-  const address = byLogin?.address ?? injected?.address ?? wallets[0]?.address ?? user?.wallet?.address;
+  const preferred = preferredTradingWallet(wallets, user?.wallet?.address);
+  const address = preferred?.address ?? user?.wallet?.address;
   const email = user?.email?.address;
 
   if (!ready) {
@@ -28,7 +25,7 @@ export function PrivyLogin() {
         <button
           type="button"
           onClick={() => {
-            forgetStoredPerpsSession(address);
+            forgetStoredPerpsSession();
             void logout();
           }}
           className="lg-focus border border-[var(--line)] px-3 py-1.5 text-xs text-[var(--muted)] hover:bg-[var(--hover)]"

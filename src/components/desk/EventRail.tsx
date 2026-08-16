@@ -8,7 +8,7 @@ import { PolymarketEventLink } from "@/components/ui";
 import { eventTitleKey, residualPath, WINDOW_MS } from "@/lib/divergence";
 import { fmtOdds, fmtPct, fmtScore } from "@/lib/format";
 import { scoreClass } from "@/lib/score";
-import { safeHttpsUrl } from "@/lib/safe-url";
+import { NEWS_LINK_HOSTS, safeHttpsUrl } from "@/lib/safe-url";
 import { thesisLine } from "@/lib/signal";
 import type { GapRow, GapTapePoint, GapWindow, NewsItem, ResidualPoint, ResolvedEvent, Snapshot } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -165,7 +165,7 @@ export function EventRail({
         {headlines.length > 0 ? (
           <ul className="space-y-1">
             {headlines.map((item) => {
-              const href = safeHttpsUrl(item.link);
+              const href = safeHttpsUrl(item.link, NEWS_LINK_HOSTS);
               return (
                 <li key={item.id}>
                   {href ? (

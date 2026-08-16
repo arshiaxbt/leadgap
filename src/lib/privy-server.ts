@@ -3,15 +3,44 @@ import { APP_ORIGIN } from "@/lib/brand";
 
 const ALLOWED_METHODS = new Set(["GET", "POST", "PUT", "DELETE", "PATCH"]);
 
-/** Paths the Polymarket client actually HMAC-signs for CreateProxy, CLOB, relayer, and perps. */
+/**
+ * Paths `@polymarket/client` HMAC-signs via remoteBuilderSigning.
+ *
+ * Connect Perps calls createSecureClient, which GETs relayer `/deployed` with
+ * builder HMAC before CreateProxy. CLOB market helpers (`/tick-size`, `/book`,
+ * …) are signed the same way on the trading client.
+ */
 const ALLOWED_PATH_PREFIXES = [
   "/auth",
   "/order",
   "/orders",
   "/order-scoring",
   "/orders-scoring",
+  "/data/order",
   "/data/orders",
+  "/data/trades",
   "/submit",
+  "/deployed",
+  "/balance-allowance",
+  "/notifications",
+  "/builder",
+  "/rewards",
+  "/tick-size",
+  "/neg-risk",
+  "/book",
+  "/books",
+  "/midpoint",
+  "/midpoints",
+  "/price",
+  "/prices",
+  "/prices-history",
+  "/spread",
+  "/spreads",
+  "/last-trade-price",
+  "/last-trades-prices",
+  "/markets-by-token",
+  "/clob-markets",
+  "/fees",
   "/v1/account",
   "/v1/trade",
   "/v1/builder",
@@ -59,11 +88,20 @@ export function allowedBuilderMethod(method: string): boolean {
   return ALLOWED_METHODS.has(method.toUpperCase());
 }
 
-export function allowedBuilderPath(path: string): boolean {
-  if (!path.startsWith("/") || path.includes("..") || path.includes("://") || path.includes("\\")) {
-    return false;
+export function builderSignPathname(path: string): string | null {
+  if (path.includes("..") || path.includes("://") || path.includes("\\")) {
+    return null;
   }
-  const pathname = path.split("?")[0] ?? path;
+  const raw = (path.split("?")[0] ?? path).trim();
+  if (!raw) return null;
+  const pathname = raw.startsWith("/") ? raw : `/${raw}`;
+  if (pathname.startsWith("//")) return null;
+  return pathname;
+}
+
+export function allowedBuilderPath(path: string): boolean {
+  const pathname = builderSignPathname(path);
+  if (!pathname) return false;
   return ALLOWED_PATH_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
 }
 

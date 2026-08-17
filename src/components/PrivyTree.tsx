@@ -4,6 +4,7 @@ import { PrivyProvider, usePrivy, useWallets } from "@privy-io/react-auth";
 import { WagmiProvider, useSetActiveWallet } from "@privy-io/wagmi";
 import { useEffect, type ReactNode } from "react";
 import { useAccount } from "wagmi";
+import { PortfolioStripProvider } from "@/components/PortfolioStrip";
 import { preferredTradingWallet } from "@/lib/activeWallet";
 import { forgetStoredPerpsSession } from "@/lib/perpsSession";
 import { getPrivyConfig, isSecureOrigin, privyAppId } from "@/lib/privy";
@@ -18,7 +19,7 @@ export function PrivyTree({ children }: { children: ReactNode }) {
       <WagmiProvider config={walletConfig}>
         <ClearSessionOnLogout />
         <SyncActiveWallet />
-        {children}
+        <PortfolioStripProvider>{children}</PortfolioStripProvider>
       </WagmiProvider>
     </PrivyProvider>
   );

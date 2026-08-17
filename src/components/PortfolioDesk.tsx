@@ -16,6 +16,7 @@ import {
 import { FundControls } from "@/components/FundControls";
 import { PolyProfileCard } from "@/components/PolyProfile";
 import { PerpsAccessAlert } from "@/components/PerpsAccessAlert";
+import { usePerpsStrip } from "@/components/PortfolioStrip";
 import { Button } from "@/components/ui/button";
 import { BUILDER_CODE } from "@/lib/builder";
 import { assertCanTrade } from "@/lib/geo";
@@ -163,11 +164,23 @@ function PortfolioDeskSession() {
   const [names, setNames] = useState<Record<number, string>>({});
   const [gaps, setGaps] = useState<GapRow[]>([]);
   const [state, setState] = useState<DeskState>(EMPTY);
+  const strip = usePerpsStrip();
+  const stripInvite = strip?.state.access?.kind === "invite" ? strip.state.access : null;
 
   const refresh = useCallback(async () => {
     const wc = walletClientRef.current;
     if (mount !== "ready" || !isConnected || !wc?.account?.address) {
       setState({ ...EMPTY, note: "Log in to load portfolio." });
+      return;
+    }
+    if (stripInvite) {
+      setState({
+        ...EMPTY,
+        note: stripInvite.message,
+        access: stripInvite,
+        href: stripInvite.href,
+        needsSignature: true,
+      });
       return;
     }
     try {
@@ -292,7 +305,7 @@ function PortfolioDeskSession() {
         needsSignature: access.kind !== "invite",
       });
     }
-  }, [isConnected, mount, publicClient]);
+  }, [isConnected, mount, publicClient, stripInvite]);
 
   useEffect(() => {
     void refresh();

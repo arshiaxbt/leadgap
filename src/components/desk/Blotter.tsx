@@ -8,6 +8,7 @@ import { BUILDER_CODE } from "@/lib/builder";
 import { assertCanTrade } from "@/lib/geo";
 import { notifyErr, notifyOk } from "@/lib/notify";
 import { PerpsAccessAlert } from "@/components/PerpsAccessAlert";
+import { usePerpsStrip } from "@/components/PortfolioStrip";
 import {
   formatCloseQty,
   fmtFunding,
@@ -137,11 +138,21 @@ function BlotterSession({
   const [editId, setEditId] = useState<number | null>(null);
   const [tpDraft, setTpDraft] = useState("");
   const [slDraft, setSlDraft] = useState("");
+  const strip = usePerpsStrip();
+  const stripInvite = strip?.state.access?.kind === "invite" ? strip.state.access : null;
 
   const refresh = useCallback(async () => {
     if (mount !== "ready" || !isConnected || !walletClient) {
       setNote("Log in to see positions and orders.");
       setAccess(null);
+      setPositions([]);
+      setOrders([]);
+      setFills([]);
+      return;
+    }
+    if (stripInvite) {
+      setAccess(stripInvite);
+      setNote(stripInvite.message);
       setPositions([]);
       setOrders([]);
       setFills([]);
@@ -229,7 +240,7 @@ function BlotterSession({
       setAccess(next.kind === "invite" ? next : null);
       setNote(next.message);
     }
-  }, [instrumentId, isConnected, mount, walletClient]);
+  }, [instrumentId, isConnected, mount, stripInvite, walletClient]);
 
   useEffect(() => {
     void refresh();

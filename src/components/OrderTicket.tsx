@@ -7,6 +7,7 @@ import type { WalletClient } from "viem";
 import { polygon } from "viem/chains";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { PerpsAccessAlert } from "@/components/PerpsAccessAlert";
+import { usePerpsStrip } from "@/components/PortfolioStrip";
 import { BUILDER_CODE } from "@/lib/builder";
 import {
   defaultUsdSize,
@@ -154,8 +155,10 @@ function TicketForm({
   const [sl, setSl] = useState("");
   const [status, setStatus] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [perpsAccess, setPerpsAccess] = useState<PerpsAccess | null>(null);
+  const [ticketAccess, setTicketAccess] = useState<PerpsAccess | null>(null);
   const [free, setFree] = useState<number | null>(null);
+  const stripAccess = usePerpsStrip()?.state.access ?? null;
+  const perpsAccess = stripAccess?.kind === "invite" ? stripAccess : ticketAccess;
 
   useEffect(() => {
     void fetchTradeGeo().then(setGeo);
@@ -189,7 +192,7 @@ function TicketForm({
   }, [instrument.symbol]);
 
   useEffect(() => {
-    if (!walletClient || mount !== "ready") return;
+    if (!walletClient || mount !== "ready" || perpsAccess?.kind === "invite") return;
     let stop = false;
     (async () => {
       try {
@@ -207,7 +210,7 @@ function TicketForm({
     return () => {
       stop = true;
     };
-  }, [mount, walletClient]);
+  }, [mount, perpsAccess?.kind, walletClient]);
 
   const blocked = geo?.blocked ?? true;
   const inviteBlocked = perpsAccess?.kind === "invite";
@@ -241,9 +244,10 @@ function TicketForm({
     if (mount !== "ready") return "Log in to Polymarket to trade.";
     if (!geo) return "Checking location…";
     if (blocked) return geo.reason;
+    if (perpsAccess?.kind === "invite") return perpsAccess.message;
     if (!isConnected) return "Log in to Polymarket to place an order.";
     return "";
-  }, [blocked, geo, isConnected, mount]);
+  }, [blocked, geo, isConnected, mount, perpsAccess]);
 
   function applyPct(pct: number) {
     if (!px || !leverage) return;
@@ -337,7 +341,7 @@ function TicketForm({
       await session.armAutoCancel({ cancelAt: Date.now() + 15 * 60_000 }).catch(() => undefined);
     } catch (err) {
       const access = explainPerpsError(err);
-      setPerpsAccess(access);
+      setTicketAccess(access);
       setStatus(access.message);
       notifyErr(access.message);
     } finally {
@@ -358,7 +362,7 @@ function TicketForm({
       notifyOk("Canceled open orders.");
     } catch (err) {
       const access = explainPerpsError(err);
-      setPerpsAccess(access);
+      setTicketAccess(access);
       setStatus(access.message);
       notifyErr(access.message);
     } finally {

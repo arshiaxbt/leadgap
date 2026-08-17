@@ -18,6 +18,7 @@ import { PolyProfileCard } from "@/components/PolyProfile";
 import { PerpsAccessAlert } from "@/components/PerpsAccessAlert";
 import { usePerpsStrip } from "@/components/PortfolioStrip";
 import { Button } from "@/components/ui/button";
+import { PERPS_INVITE_LABEL, PERPS_INVITE_URL } from "@/lib/brand";
 import { BUILDER_CODE } from "@/lib/builder";
 import { assertCanTrade } from "@/lib/geo";
 import { notifyErr, notifyOk } from "@/lib/notify";
@@ -482,8 +483,8 @@ function PortfolioDeskSession() {
           ) : null}
           {state.note ? <p className="text-[var(--warn)]">{state.note}</p> : null}
           {state.href ? (
-            <a href={state.href} target="_blank" rel="noreferrer" className="text-[var(--text)] hover:underline">
-              Request Perps access
+            <a href={PERPS_INVITE_URL} target="_blank" rel="noreferrer" className="break-all text-[var(--text)] hover:underline">
+              {PERPS_INVITE_LABEL}
             </a>
           ) : null}
         </div>

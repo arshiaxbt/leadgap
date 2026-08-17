@@ -12,6 +12,7 @@ import {
   PERPS_INVITE_ACCESS,
   type PerpsAccess,
 } from "@/lib/perpsAccess";
+import { PERPS_INVITE_LABEL, PERPS_INVITE_URL } from "@/lib/brand";
 import { fmtUsd } from "@/lib/format";
 import { usePrivyMount } from "@/lib/usePrivyMount";
 
@@ -247,8 +248,8 @@ export function PortfolioStrip() {
         </span>
       ) : null}
       {showHref ? (
-        <a href={state.href} target="_blank" rel="noreferrer" className="text-[var(--signal)] hover:underline">
-          Access
+        <a href={PERPS_INVITE_URL} target="_blank" rel="noreferrer" className="text-[var(--signal)] hover:underline">
+          {PERPS_INVITE_LABEL}
         </a>
       ) : null}
     </div>

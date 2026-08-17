@@ -8,6 +8,7 @@ import { polygon } from "viem/chains";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { PerpsAccessAlert } from "@/components/PerpsAccessAlert";
 import { usePerpsStrip } from "@/components/PortfolioStrip";
+import { PERPS_INVITE_LABEL, PERPS_INVITE_URL } from "@/lib/brand";
 import { BUILDER_CODE } from "@/lib/builder";
 import {
   defaultUsdSize,
@@ -595,8 +596,8 @@ function TicketForm({
           Cancel open
         </button>
         {perpsAccess?.kind === "invite" ? null : perpsAccess?.href ? (
-          <a href={perpsAccess.href} target="_blank" rel="noreferrer" className="text-[12px] text-[var(--mark)] hover:underline">
-            Request access
+          <a href={PERPS_INVITE_URL} target="_blank" rel="noreferrer" className="break-all text-[12px] text-[var(--mark)] hover:underline">
+            {PERPS_INVITE_LABEL}
           </a>
         ) : null}
       </div>

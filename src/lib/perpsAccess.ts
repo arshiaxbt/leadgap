@@ -1,4 +1,4 @@
-import { PERPS_INVITE_URL } from "@/lib/brand";
+import { PERPS_INVITE_LABEL, PERPS_INVITE_URL } from "@/lib/brand";
 
 export type PerpsAccess = {
   kind: "invite" | "other";
@@ -10,7 +10,7 @@ export type PerpsAccess = {
 export const PERPS_INVITE_ACCESS: PerpsAccess = {
   kind: "invite",
   href: PERPS_INVITE_URL,
-  cta: PERPS_INVITE_URL.replace(/^https:\/\//, ""),
+  cta: PERPS_INVITE_LABEL,
   message: "This account is not enabled for Polymarket Perps yet. Activate it with this invite, then come back and Connect Perps.",
 };
 

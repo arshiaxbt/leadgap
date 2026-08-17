@@ -1,4 +1,5 @@
 import { cn } from "@/lib/utils";
+import { PERPS_INVITE_LABEL, PERPS_INVITE_URL } from "@/lib/brand";
 import type { PerpsAccess } from "@/lib/perpsAccess";
 
 export function PerpsAccessAlert({
@@ -17,14 +18,14 @@ export function PerpsAccessAlert({
       )}
     >
       <p>{access.message}</p>
-      {access.href ? (
+      {access.href || access.kind === "invite" ? (
         <a
-          href={access.href}
+          href={access.href ?? PERPS_INVITE_URL}
           target="_blank"
           rel="noreferrer"
           className="mt-1 inline-block break-all text-[var(--warn)] hover:underline"
         >
-          {access.cta ?? "Request Perps access"}
+          {access.cta ?? PERPS_INVITE_LABEL}
         </a>
       ) : null}
     </div>

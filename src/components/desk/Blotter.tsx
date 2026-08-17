@@ -8,7 +8,7 @@ import { BUILDER_CODE } from "@/lib/builder";
 import { assertCanTrade } from "@/lib/geo";
 import { notifyErr, notifyOk } from "@/lib/notify";
 import { explainPerpsError } from "@/lib/perpsAccess";
-import { fmtFunding, fmtPx, fmtUsd, fmtUsdSigned, signedClass } from "@/lib/format";
+import { formatCloseQty, fmtFunding, fmtPx, fmtUsd, fmtUsdSigned, signedClass } from "@/lib/format";
 import { usePrivyMount } from "@/lib/usePrivyMount";
 import type { TicketPreview } from "@/components/OrderTicket";
 import type { PerpsTicker } from "@/lib/types";
@@ -201,12 +201,11 @@ function BlotterSession({
       const { OrderSide, PerpsTimeInForce } = await import("@polymarket/client");
       const { openCachedPerpsSession } = await import("@/lib/perpsSession");
       const { session } = await openCachedPerpsSession(walletClient);
-      const size = Math.abs(Number(row.size));
       const long = Number(row.size) > 0;
       await session.placeOrder({
         instrumentId: row.instrumentId,
         side: long ? OrderSide.SELL : OrderSide.BUY,
-        quantity: String(size),
+        quantity: formatCloseQty(row.size),
         timeInForce: PerpsTimeInForce.IOC,
         reduceOnly: true,
         builderCode: BUILDER_CODE,

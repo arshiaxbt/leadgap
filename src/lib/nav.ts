@@ -2,7 +2,7 @@ export const APP_NAV = [
   { href: "/", label: "Signals", match: "exact" },
   { href: "/markets", label: "Markets", match: "exact" },
   { href: "/portfolio", label: "Portfolio", match: "prefix" },
-  { href: "/about", label: "Guide", match: "prefix" },
+  { href: "/about", label: "About", match: "prefix" },
 ] as const;
 
 export type AppNavItem = (typeof APP_NAV)[number];

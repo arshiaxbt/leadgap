@@ -18,7 +18,7 @@ import { APP_NAME, APP_TAGLINE, PERPS_WAITLIST_URL } from "@/lib/brand";
 import { cn } from "@/lib/utils";
 
 export const metadata: Metadata = {
-  title: "Guide",
+  title: "About",
   description: APP_TAGLINE,
 };
 

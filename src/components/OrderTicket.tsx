@@ -7,7 +7,19 @@ import type { WalletClient } from "viem";
 import { polygon } from "viem/chains";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { BUILDER_CODE } from "@/lib/builder";
-import { estLiq, fmtCountdown, fmtFunding, fmtPx, fmtUsd, mmr, signedClass } from "@/lib/format";
+import {
+  defaultUsdSize,
+  estLiq,
+  formatOrderQty,
+  formatUsdSize,
+  fmtCountdown,
+  fmtFunding,
+  fmtPx,
+  fmtUsd,
+  mmr,
+  qtyStep,
+  signedClass,
+} from "@/lib/format";
 import { assertCanTrade, fetchTradeGeo } from "@/lib/geo";
 import { notifyErr, notifyOk } from "@/lib/notify";
 import { explainPerpsError, type PerpsAccess } from "@/lib/perpsAccess";
@@ -81,6 +93,31 @@ function readTicketTif(): "IOC" | "GTC" {
   return "GTC";
 }
 
+type SizeUnit = "usd" | "base";
+
+function readTicketSizeUnit(): SizeUnit {
+  try {
+    const v = sessionStorage.getItem("lg-ticket-size-unit");
+    if (v === "usd" || v === "base") return v;
+  } catch {
+    // ignore
+  }
+  return "usd";
+}
+
+function sizeTrailingHint(unit: SizeUnit, size: number, qtyStr: string, base: string, notional: number): string {
+  switch (unit) {
+    case "usd":
+      return size > 0 ? `${qtyStr} ${base}` : "";
+    case "base":
+      return fmtUsd(notional);
+    default: {
+      const _never: never = unit;
+      return _never;
+    }
+  }
+}
+
 function TicketForm({
   instrument,
   ticker,
@@ -103,7 +140,12 @@ function TicketForm({
   const [geo, setGeo] = useState<Geo | null>(null);
   const [side, setSide] = useState<"BUY" | "SELL">(readTicketSide);
   const [tif, setTif] = useState<"IOC" | "GTC">(readTicketTif);
-  const [qty, setQty] = useState("0.01");
+  const [sizeUnit, setSizeUnit] = useState<SizeUnit>(readTicketSizeUnit);
+  const [sizeInput, setSizeInput] = useState(() =>
+    readTicketSizeUnit() === "usd"
+      ? defaultUsdSize(instrument.minNotional)
+      : formatOrderQty(qtyStep(instrument.quantityDecimals), instrument.quantityDecimals),
+  );
   const [price, setPrice] = useState(ticker ? String(ticker.markPrice) : "");
   const [leverage, setLeverage] = useState(Math.min(5, instrument.maxLeverage));
   const [reduceOnly, setReduceOnly] = useState(false);
@@ -135,10 +177,11 @@ function TicketForm({
     try {
       sessionStorage.setItem("lg-ticket-side", side);
       sessionStorage.setItem("lg-ticket-tif", tif);
+      sessionStorage.setItem("lg-ticket-size-unit", sizeUnit);
     } catch {
       // ignore
     }
-  }, [side, tif]);
+  }, [side, tif, sizeUnit]);
 
   useEffect(() => {
     trackEvent("open_ticket", { symbol: instrument.symbol });
@@ -170,8 +213,24 @@ function TicketForm({
   const canTrade = mount === "ready" && isConnected && !!walletClient && !blocked && !inviteBlocked;
   const maint = mmr(instrument.maxLeverage);
   const px = Number(price) || ticker?.markPrice || 0;
-  const size = Number(qty) || 0;
+  const qtyStr = useMemo(() => {
+    const raw = Number(sizeInput);
+    if (!Number.isFinite(raw) || raw <= 0 || !(px > 0)) return "0";
+    switch (sizeUnit) {
+      case "usd":
+        return formatOrderQty(raw / px, instrument.quantityDecimals);
+      case "base":
+        return formatOrderQty(raw, instrument.quantityDecimals);
+      default: {
+        const _never: never = sizeUnit;
+        return _never;
+      }
+    }
+  }, [instrument.quantityDecimals, px, sizeInput, sizeUnit]);
+  const size = Number(qtyStr) || 0;
   const notional = px * size;
+  const minNotional = Number(instrument.minNotional) || 0;
+  const belowMin = size > 0 && minNotional > 0 && notional + 1e-9 < minNotional;
   const marginEst = leverage > 0 ? notional / leverage : 0;
   const liq = estLiq(px, leverage, maint, side);
   const base = instrument.symbol.replace("-USD", "");
@@ -188,19 +247,69 @@ function TicketForm({
 
   function applyPct(pct: number) {
     if (!px || !leverage) return;
-    const budget = (free ?? 0) * pct;
-    const next = (budget * leverage) / px;
-    if (next > 0) setQty(next.toFixed(Math.max(2, instrument.quantityDecimals)));
+    const usd = (free ?? 0) * pct * leverage;
+    if (!(usd > 0)) return;
+    switch (sizeUnit) {
+      case "usd":
+        setSizeInput(formatUsdSize(usd));
+        return;
+      case "base":
+        setSizeInput(formatOrderQty(usd / px, instrument.quantityDecimals));
+        return;
+      default: {
+        const _never: never = sizeUnit;
+        return _never;
+      }
+    }
   }
 
   function bump(dir: -1 | 1) {
-    const step = 10 ** -Math.max(2, instrument.quantityDecimals);
-    const next = Math.max(0, size + dir * step);
-    setQty(next.toFixed(Math.max(2, instrument.quantityDecimals)));
+    const raw = Number(sizeInput) || 0;
+    switch (sizeUnit) {
+      case "usd":
+        setSizeInput(formatUsdSize(Math.max(0, raw + dir)));
+        return;
+      case "base": {
+        const next = Math.max(0, size + dir * qtyStep(instrument.quantityDecimals));
+        setSizeInput(formatOrderQty(next, instrument.quantityDecimals));
+        return;
+      }
+      default: {
+        const _never: never = sizeUnit;
+        return _never;
+      }
+    }
+  }
+
+  function changeSizeUnit(next: SizeUnit) {
+    if (next === sizeUnit) return;
+    switch (next) {
+      case "usd":
+        setSizeInput(notional > 0 ? formatUsdSize(notional) : defaultUsdSize(instrument.minNotional));
+        break;
+      case "base":
+        setSizeInput(
+          qtyStr === "0"
+            ? formatOrderQty(qtyStep(instrument.quantityDecimals), instrument.quantityDecimals)
+            : qtyStr,
+        );
+        break;
+      default: {
+        const _never: never = next;
+        return _never;
+      }
+    }
+    setSizeUnit(next);
   }
 
   async function submit() {
     if (!walletClient || !address) return;
+    if (!(size > 0) || qtyStr === "0") {
+      const message = "Size is below this market's quantity step.";
+      setStatus(message);
+      notifyErr(message);
+      return;
+    }
     setBusy(true);
     setStatus(null);
     try {
@@ -212,7 +321,7 @@ function TicketForm({
       const request: Record<string, unknown> = {
         instrumentId: instrument.instrumentId,
         side: side === "BUY" ? OrderSide.BUY : OrderSide.SELL,
-        quantity: qty,
+        quantity: qtyStr,
         timeInForce: tif === "GTC" ? PerpsTimeInForce.GTC : PerpsTimeInForce.IOC,
         reduceOnly,
         builderCode: BUILDER_CODE,
@@ -336,11 +445,28 @@ function TicketForm({
         </label>
       ) : null}
 
-      <label className="block text-[11px] text-[var(--dim)]">
-        <span className="flex justify-between">
-          Size ({base})
-          <span className="num text-[12px] text-[var(--muted)]">{fmtUsd(notional)}</span>
-        </span>
+      <div>
+        <div className="flex items-center justify-between text-[11px] text-[var(--dim)]">
+          <span className="flex items-center gap-1.5">
+            Size
+            <span className="inline-flex rounded-[4px] bg-[var(--elevated)] p-px">
+              {(["usd", "base"] as const).map((unit) => (
+                <button
+                  key={unit}
+                  type="button"
+                  onClick={() => changeSizeUnit(unit)}
+                  className={cn(
+                    "rounded-[3px] px-1.5 py-0.5 text-[10px] font-medium",
+                    sizeUnit === unit ? "bg-[var(--hover)] text-[var(--text)]" : "text-[var(--dim)] hover:text-[var(--muted)]",
+                  )}
+                >
+                  {unit === "usd" ? "USD" : base}
+                </button>
+              ))}
+            </span>
+          </span>
+          <span className="num text-[12px] text-[var(--muted)]">{sizeTrailingHint(sizeUnit, size, qtyStr, base, notional)}</span>
+        </div>
         <div className="mt-0.5 flex gap-1">
           <button
             type="button"
@@ -349,7 +475,7 @@ function TicketForm({
           >
             −
           </button>
-          <input value={qty} onChange={(e) => setQty(e.target.value)} className={field} />
+          <input value={sizeInput} onChange={(e) => setSizeInput(e.target.value)} className="lg-input num w-full px-2 py-1 text-[12px]" />
           <button
             type="button"
             onClick={() => bump(1)}
@@ -358,7 +484,10 @@ function TicketForm({
             +
           </button>
         </div>
-      </label>
+        {belowMin ? (
+          <p className="mt-1 text-[11px] text-[var(--warn)]">Min {fmtUsd(minNotional)}</p>
+        ) : null}
+      </div>
       <div className="grid grid-cols-4 gap-1">
         {[0.25, 0.5, 0.75, 1].map((pct) => (
           <button

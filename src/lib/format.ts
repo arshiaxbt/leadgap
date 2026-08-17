@@ -132,6 +132,57 @@ export function fmtUsd(n: string | number | undefined): string {
   return `$${v.toLocaleString("en-US", { maximumFractionDigits: 2 })}`;
 }
 
+function clampQtyDecimals(decimals: number): number {
+  if (!Number.isFinite(decimals)) return 0;
+  return Math.max(0, Math.min(12, Math.trunc(decimals)));
+}
+
+function trimQtyZeros(value: string): string {
+  if (!value.includes(".")) return value;
+  return value.replace(/\.?0+$/, "") || "0";
+}
+
+/** Floor a size to the venue's quantity precision. Never exceeds `decimals` places. */
+export function formatOrderQty(n: number, decimals: number): string {
+  const d = clampQtyDecimals(decimals);
+  if (!Number.isFinite(n) || n <= 0) return "0";
+  const factor = 10 ** d;
+  const snapped = Math.floor(n * factor + 1e-9) / factor;
+  if (!(snapped > 0)) return "0";
+  if (d === 0) return String(Math.trunc(snapped));
+  return trimQtyZeros(snapped.toFixed(d));
+}
+
+export function qtyStep(decimals: number): number {
+  const d = clampQtyDecimals(decimals);
+  return d === 0 ? 1 : 10 ** -d;
+}
+
+export function formatUsdSize(n: number): string {
+  if (!Number.isFinite(n) || n <= 0) return "0";
+  const snapped = Math.floor(n * 100 + 1e-9) / 100;
+  if (!(snapped > 0)) return "0";
+  return trimQtyZeros(snapped.toFixed(2));
+}
+
+export function defaultUsdSize(minNotional: string | number | undefined): string {
+  const min = Number(minNotional);
+  const floor = Number.isFinite(min) && min > 0 ? min : 10;
+  return String(Math.max(100, Math.ceil(floor)));
+}
+
+/** Snap a position size for reduce-only close. Prefer instrument decimals when known. */
+export function formatCloseQty(size: string | number, decimals?: number): string {
+  const raw = typeof size === "string" ? size.trim() : String(size);
+  const n = Math.abs(Number(raw));
+  if (typeof decimals === "number" && Number.isFinite(decimals)) {
+    return formatOrderQty(n, decimals);
+  }
+  const frac = raw.replace(/^-/, "").split(".")[1];
+  const inferred = frac ? Math.min(12, frac.length) : 0;
+  return formatOrderQty(n, inferred);
+}
+
 export function fmtUsdSigned(n: string | number | undefined): string {
   if (n == null || n === "") return "—";
   const v = typeof n === "number" ? n : Number(n);

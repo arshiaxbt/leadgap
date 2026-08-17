@@ -20,17 +20,18 @@ import { BUILDER_CODE } from "@/lib/builder";
 import { assertCanTrade } from "@/lib/geo";
 import { notifyErr, notifyOk } from "@/lib/notify";
 import { explainPerpsError } from "@/lib/perpsAccess";
-import { fmtPx, fmtUsd, fmtUsdSigned, signedClass } from "@/lib/format";
+import { formatCloseQty, fmtPx, fmtUsd, fmtUsdSigned, signedClass } from "@/lib/format";
 import { ERC20_BALANCE_ABI, formatPusd, PUSD_TOKEN } from "@/lib/pusd";
 import { usePrivyMount } from "@/lib/usePrivyMount";
 import { trackEvent } from "@/lib/track";
-import type { GapRow, PerpsTicker } from "@/lib/types";
+import type { GapRow, PerpsInstrument, PerpsTicker } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 type Pos = {
   instrumentId: number;
   symbol: string;
   size: number;
+  sizeRaw: string;
   entry: number;
   leverage: number;
   pnl: number;
@@ -148,6 +149,7 @@ function PortfolioDeskSession() {
   const [busy, setBusy] = useState(false);
   const [tab, setTab] = useState<Tab>("positions");
   const [marks, setMarks] = useState<Record<string, PerpsTicker>>({});
+  const [qtyDecimals, setQtyDecimals] = useState<Record<number, number>>({});
   const [gaps, setGaps] = useState<GapRow[]>([]);
   const [state, setState] = useState<DeskState>(EMPTY);
 
@@ -201,6 +203,7 @@ function PortfolioDeskSession() {
             instrumentId: id,
             symbol: p.symbol,
             size: num(p.size),
+            sizeRaw: String(p.size),
             entry: num(p.entryPrice),
             leverage: Number(p.leverage) || 0,
             pnl: num(p.unrealizedPnl),
@@ -280,7 +283,12 @@ function PortfolioDeskSession() {
   useEffect(() => {
     fetch("/api/markets")
       .then((r) => r.json())
-      .then((d: { tickers?: Record<string, PerpsTicker> }) => setMarks(d.tickers ?? {}))
+      .then((d: { tickers?: Record<string, PerpsTicker>; instruments?: PerpsInstrument[] }) => {
+        setMarks(d.tickers ?? {});
+        const next: Record<number, number> = {};
+        for (const inst of d.instruments ?? []) next[inst.instrumentId] = inst.quantityDecimals;
+        setQtyDecimals(next);
+      })
       .catch(() => undefined);
     fetch("/api/gaps?window=15m")
       .then((r) => r.json())
@@ -318,7 +326,7 @@ function PortfolioDeskSession() {
       await session.placeOrder({
         instrumentId: row.instrumentId,
         side: long ? OrderSide.SELL : OrderSide.BUY,
-        quantity: String(Math.abs(row.size)),
+        quantity: formatCloseQty(row.sizeRaw, qtyDecimals[row.instrumentId]),
         timeInForce: PerpsTimeInForce.IOC,
         reduceOnly: true,
         builderCode: BUILDER_CODE,

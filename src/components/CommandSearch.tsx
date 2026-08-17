@@ -23,7 +23,7 @@ const DESTINATIONS = [
   { href: "/", label: "Signals", hint: "Ranked setups" },
   { href: "/markets", label: "Markets", hint: "Perp table" },
   { href: "/portfolio", label: "Portfolio", hint: "Positions and equity" },
-  { href: "/about", label: "Guide", hint: "How Leadgap works" },
+  { href: "/about", label: "About", hint: "How Leadgap works" },
 ] as const;
 
 type MarketHit = Pick<PerpsInstrument, "symbol" | "baseAsset" | "category">;
@@ -123,7 +123,7 @@ export function CommandSearch() {
         <DialogContent className="overflow-hidden p-0 sm:max-w-lg" showCloseButton={false}>
           <DialogTitle className="sr-only">Search</DialogTitle>
           <DialogDescription className="sr-only">
-            Search events and markets, or jump to Signals, Markets, Portfolio, or Guide.
+            Search events and markets, or jump to Signals, Markets, Portfolio, or About.
           </DialogDescription>
           <Command className="rounded-none border-0">
             <CommandInput placeholder="Search events and markets" />

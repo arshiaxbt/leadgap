@@ -22,9 +22,9 @@ export function PerpsAccessAlert({
           href={access.href}
           target="_blank"
           rel="noreferrer"
-          className="mt-1 inline-block text-[var(--warn)] hover:underline"
+          className="mt-1 inline-block break-all text-[var(--warn)] hover:underline"
         >
-          Request Perps access
+          {access.cta ?? "Request Perps access"}
         </a>
       ) : null}
     </div>

@@ -1,15 +1,17 @@
-import { PERPS_WAITLIST_URL } from "@/lib/brand";
+import { PERPS_INVITE_URL } from "@/lib/brand";
 
 export type PerpsAccess = {
   kind: "invite" | "other";
   message: string;
   href?: string;
+  cta?: string;
 };
 
 export const PERPS_INVITE_ACCESS: PerpsAccess = {
   kind: "invite",
-  href: PERPS_WAITLIST_URL,
-  message: "This account is not enabled for Polymarket Perps yet. You can still watch gaps here.",
+  href: PERPS_INVITE_URL,
+  cta: PERPS_INVITE_URL.replace(/^https:\/\//, ""),
+  message: "This account is not enabled for Polymarket Perps yet. Activate it with this invite, then come back and Connect Perps.",
 };
 
 function errorText(err: unknown): string {

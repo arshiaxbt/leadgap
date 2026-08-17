@@ -14,7 +14,7 @@ import { OddsFigure } from "@/components/OddsFigure";
 import { PageShell } from "@/components/PageShell";
 import { SocialLinks } from "@/components/SocialLinks";
 import { buttonVariants } from "@/components/ui/button";
-import { APP_NAME, APP_TAGLINE, PERPS_WAITLIST_URL } from "@/lib/brand";
+import { APP_NAME, APP_TAGLINE, PERPS_INVITE_URL } from "@/lib/brand";
 import { cn } from "@/lib/utils";
 
 export const metadata: Metadata = {
@@ -109,8 +109,8 @@ export default function AboutPage() {
           <p className="mt-2">
             Log in to Polymarket through Privy — the same account model polymarket.com uses. Trading requires HTTPS and a
             supported location. Perps access is still gated on Polymarket’s side; request it at{" "}
-            <a href={PERPS_WAITLIST_URL} target="_blank" rel="noreferrer" className="text-[var(--text)] hover:underline">
-              polymarket.com/perps
+            <a href={PERPS_INVITE_URL} target="_blank" rel="noreferrer" className="text-[var(--text)] hover:underline">
+              {PERPS_INVITE_URL.replace(/^https:\/\//, "")}
             </a>
             .
           </p>

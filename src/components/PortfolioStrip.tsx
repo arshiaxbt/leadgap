@@ -128,7 +128,7 @@ function PortfolioStripSession({ children }: { children: ReactNode }) {
           });
           return;
         }
-        if (lookup.status === "missing" || (lookup.status === "found" && !(lookup.equity && lookup.equity > 0))) {
+        if (lookup.status === "missing") {
           setState(markInvite());
           return;
         }

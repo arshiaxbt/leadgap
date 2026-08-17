@@ -17,7 +17,7 @@ export function getPrivyConfig(): PrivyClientConfig {
     appearance: {
       theme: "dark",
       accentColor: APP_ACCENT,
-      landingHeader: "Log in to Leadgap",
+      landingHeader: "Log in to Polymarket",
       loginMessage: "Email, Google, or a wallet.",
       logo: APP_LOGO_RASTER,
       showWalletLoginFirst: false,

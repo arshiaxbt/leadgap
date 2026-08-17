@@ -7,11 +7,24 @@ import { polygon } from "viem/chains";
 import { BUILDER_CODE } from "@/lib/builder";
 import { assertCanTrade } from "@/lib/geo";
 import { notifyErr, notifyOk } from "@/lib/notify";
-import { explainPerpsError } from "@/lib/perpsAccess";
-import { formatCloseQty, fmtFunding, fmtPx, fmtUsd, fmtUsdSigned, signedClass } from "@/lib/format";
+import { PerpsAccessAlert } from "@/components/PerpsAccessAlert";
+import {
+  formatCloseQty,
+  fmtFunding,
+  fmtPx,
+  fmtStamp,
+  fmtUsd,
+  fmtUsdSigned,
+  marketBase,
+  orderTypeLabel,
+  sideLabel,
+  sideTone,
+  signedClass,
+} from "@/lib/format";
+import { explainPerpsError, type PerpsAccess } from "@/lib/perpsAccess";
 import { usePrivyMount } from "@/lib/usePrivyMount";
 import type { TicketPreview } from "@/components/OrderTicket";
-import type { PerpsTicker } from "@/lib/types";
+import type { PerpsInstrument, PerpsTicker } from "@/lib/types";
 
 type Tab = "positions" | "orders" | "fills";
 
@@ -31,27 +44,38 @@ type PositionRow = {
 
 type OrderRow = {
   id: number;
+  instrumentId: number;
   side: string;
   price: string;
   quantity: string;
+  filled: string;
   status: string;
+  timeInForce?: string;
+  reduceOnly?: boolean;
   tpSlKind?: string;
   triggerPrice?: string;
+  created?: number;
 };
 
 type FillRow = {
+  instrumentId: number;
   side: string;
   quantity: string;
   price: string;
+  fee?: string;
+  pnl?: string;
+  time?: number;
 };
 
 export function Blotter({
   instrumentId,
+  symbol,
   preview,
   ticker,
   priceDecimals = 2,
 }: {
   instrumentId: number;
+  symbol: string;
   preview?: TicketPreview | null;
   ticker?: PerpsTicker;
   priceDecimals?: number;
@@ -78,6 +102,7 @@ export function Blotter({
   return (
     <BlotterSession
       instrumentId={instrumentId}
+      symbol={symbol}
       preview={preview}
       ticker={ticker}
       priceDecimals={priceDecimals}
@@ -87,11 +112,13 @@ export function Blotter({
 
 function BlotterSession({
   instrumentId,
+  symbol,
   preview,
   ticker,
   priceDecimals,
 }: {
   instrumentId: number;
+  symbol: string;
   preview?: TicketPreview | null;
   ticker?: PerpsTicker;
   priceDecimals: number;
@@ -104,6 +131,8 @@ function BlotterSession({
   const [orders, setOrders] = useState<OrderRow[]>([]);
   const [fills, setFills] = useState<FillRow[]>([]);
   const [note, setNote] = useState("Log in to see positions and orders.");
+  const [access, setAccess] = useState<PerpsAccess | null>(null);
+  const [names, setNames] = useState<Record<number, string>>({});
   const [busy, setBusy] = useState(false);
   const [editId, setEditId] = useState<number | null>(null);
   const [tpDraft, setTpDraft] = useState("");
@@ -112,8 +141,10 @@ function BlotterSession({
   const refresh = useCallback(async () => {
     if (mount !== "ready" || !isConnected || !walletClient) {
       setNote("Log in to see positions and orders.");
+      setAccess(null);
       setPositions([]);
       setOrders([]);
+      setFills([]);
       return;
     }
     try {
@@ -121,6 +152,7 @@ function BlotterSession({
       const opened = await resumePerpsSession(walletClient);
       if (!opened) {
         setNote("Connect Perps to load the blotter.");
+        setAccess(null);
         return;
       }
       const { session } = opened;
@@ -160,30 +192,42 @@ function BlotterSession({
       setOrders(
         (open ?? []).map((o) => ({
           id: Number(o.id),
+          instrumentId: Number(o.instrumentId),
           side: String(o.side),
           price: String(o.price),
           quantity: String(o.quantity),
+          filled: String(o.filledQuantity ?? ""),
           status: String(o.status),
+          timeInForce: o.timeInForce != null ? String(o.timeInForce) : undefined,
+          reduceOnly: Boolean(o.reduceOnly),
           tpSlKind: o.tpSl?.kind,
           triggerPrice: o.tpSl?.triggerPrice != null ? String(o.tpSl.triggerPrice) : undefined,
+          created: Number(o.createdTimestamp) || undefined,
         })),
       );
       try {
         const page = await session.listFills().firstPage();
         const items = page.items ?? [];
         setFills(
-          items.slice(0, 12).map((f) => ({
+          items.slice(0, 24).map((f) => ({
+            instrumentId: Number(f.instrumentId),
             side: String(f.side),
             quantity: String(f.quantity),
             price: String(f.price),
+            fee: "fee" in f ? String((f as { fee?: string }).fee ?? "") : "",
+            pnl: "pnl" in f ? String((f as { pnl?: string }).pnl ?? "") : "",
+            time: Number(f.timestamp) || undefined,
           })),
         );
       } catch {
         setFills([]);
       }
       setNote("");
+      setAccess(null);
     } catch (err) {
-      setNote(explainPerpsError(err).message);
+      const next = explainPerpsError(err);
+      setAccess(next.kind === "invite" ? next : null);
+      setNote(next.message);
     }
   }, [instrumentId, isConnected, mount, walletClient]);
 
@@ -192,6 +236,17 @@ function BlotterSession({
     const id = setInterval(() => void refresh(), 15_000);
     return () => clearInterval(id);
   }, [refresh]);
+
+  useEffect(() => {
+    fetch("/api/markets")
+      .then((r) => r.json())
+      .then((d: { instruments?: PerpsInstrument[] }) => {
+        const next: Record<number, string> = { [instrumentId]: symbol };
+        for (const inst of d.instruments ?? []) next[inst.instrumentId] = inst.symbol;
+        setNames(next);
+      })
+      .catch(() => setNames({ [instrumentId]: symbol }));
+  }, [instrumentId, symbol]);
 
   async function closePosition(row: PositionRow) {
     if (!walletClient) return;
@@ -213,7 +268,9 @@ function BlotterSession({
       await refresh();
       notifyOk("Position closed.");
     } catch (err) {
-      const message = explainPerpsError(err).message;
+      const next = explainPerpsError(err);
+      setAccess(next.kind === "invite" ? next : null);
+      const message = next.message;
       setNote(message);
       notifyErr(message);
     } finally {
@@ -232,7 +289,9 @@ function BlotterSession({
       await refresh();
       notifyOk("Order canceled.");
     } catch (err) {
-      const message = explainPerpsError(err).message;
+      const next = explainPerpsError(err);
+      setAccess(next.kind === "invite" ? next : null);
+      const message = next.message;
       setNote(message);
       notifyErr(message);
     } finally {
@@ -269,7 +328,9 @@ function BlotterSession({
       setEditId(null);
       notifyOk("TP/SL updated.");
     } catch (err) {
-      const message = explainPerpsError(err).message;
+      const next = explainPerpsError(err);
+      setAccess(next.kind === "invite" ? next : null);
+      const message = next.message;
       setNote(message);
       notifyErr(message);
     } finally {
@@ -285,10 +346,14 @@ function BlotterSession({
 
   const field = "lg-input num w-[3.25rem] px-1 py-0.5 text-[10px]";
 
+  function marketFor(id: number): string {
+    return marketBase(names[id] ?? (id === instrumentId ? symbol : null));
+  }
+
   const tabs: { id: Tab; label: string }[] = [
     { id: "positions", label: "Positions" },
-    { id: "orders", label: "Orders" },
-    { id: "fills", label: "Fills" },
+    { id: "orders", label: `Orders (${orders.length})` },
+    { id: "fills", label: `Fills (${fills.length})` },
   ];
 
   return (
@@ -311,8 +376,9 @@ function BlotterSession({
         <Link href="/portfolio" className="lg-focus px-2 py-1.5 text-[12px] text-[var(--muted)] hover:text-[var(--text)]">
           Portfolio
         </Link>
-        {note ? <span className="ml-auto truncate text-[12px] text-[var(--dim)]">{note}</span> : null}
+        {note && !access ? <span className="ml-auto truncate text-[12px] text-[var(--dim)]">{note}</span> : null}
       </div>
+      {access ? <PerpsAccessAlert access={access} /> : null}
       <div className="min-h-0 flex-1 overflow-auto px-2 py-1 text-[11px]">
         {tab === "positions" ? (
           <table className="lg-table w-full min-w-[720px] text-left">
@@ -452,35 +518,114 @@ function BlotterSession({
           </table>
         ) : null}
         {tab === "orders" ? (
-          orders.length === 0 ? (
-            <p className="text-[var(--dim)]">No open orders.</p>
-          ) : (
-            <ul className="space-y-1">
-              {orders.map((o) => (
-                <li key={o.id} className="flex items-center justify-between gap-2">
-                  <span className="num">
-                    {o.side} {o.quantity} @ {o.price} · {o.status}
-                  </span>
-                  <button type="button" disabled={busy} onClick={() => void cancel(o.id)} className="text-[var(--perp)]">
-                    Cancel
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )
+          <table className="lg-table w-full min-w-[640px] text-left">
+            <thead>
+              <tr>
+                <th className="py-1">Market</th>
+                <th>Side</th>
+                <th>Type</th>
+                <th>Size</th>
+                <th>Filled</th>
+                <th>Price</th>
+                <th>Status</th>
+                <th>Time</th>
+                <th />
+              </tr>
+            </thead>
+            <tbody>
+              {orders.length === 0 ? (
+                <tr>
+                  <td colSpan={9} className="py-1.5 text-[var(--dim)]">
+                    No open orders
+                  </td>
+                </tr>
+              ) : (
+                orders.map((o) => {
+                  const px = o.triggerPrice || o.price;
+                  const sym = names[o.instrumentId] ?? (o.instrumentId === instrumentId ? symbol : "");
+                  return (
+                    <tr key={o.id} className={o.instrumentId === instrumentId ? undefined : "text-[var(--muted)]"}>
+                      <td className="py-1.5">
+                        {sym ? (
+                          <Link href={`/markets/${sym}`} className="text-[var(--text)] hover:underline">
+                            {marketBase(sym)}
+                          </Link>
+                        ) : (
+                          marketFor(o.instrumentId)
+                        )}
+                      </td>
+                      <td className={sideTone(o.side)}>{sideLabel(o.side)}</td>
+                      <td>{orderTypeLabel(o)}</td>
+                      <td className="num">{o.quantity}</td>
+                      <td className="num">{o.filled || "—"}</td>
+                      <td className="num">{fmtPx(Number(px), o.instrumentId === instrumentId ? priceDecimals : 2)}</td>
+                      <td className="capitalize">{o.status.toLowerCase()}</td>
+                      <td className="num text-[var(--dim)]">{fmtStamp(o.created)}</td>
+                      <td className="whitespace-nowrap">
+                        <button
+                          type="button"
+                          disabled={busy}
+                          onClick={() => void cancel(o.id)}
+                          className="text-[var(--perp)] hover:underline disabled:opacity-40"
+                        >
+                          Cancel
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
         ) : null}
         {tab === "fills" ? (
-          fills.length === 0 ? (
-            <p className="text-[var(--dim)]">No fills yet.</p>
-          ) : (
-            <ul className="space-y-1 text-[var(--perp)]">
-              {fills.map((f, i) => (
-                <li key={`${f.side}-${f.price}-${i}`} className="num">
-                  {f.side} {f.quantity} @ {f.price}
-                </li>
-              ))}
-            </ul>
-          )
+          <table className="lg-table w-full min-w-[560px] text-left">
+            <thead>
+              <tr>
+                <th className="py-1">Time</th>
+                <th>Market</th>
+                <th>Side</th>
+                <th>Size</th>
+                <th>Price</th>
+                <th>Fee</th>
+                <th>PnL</th>
+              </tr>
+            </thead>
+            <tbody>
+              {fills.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="py-1.5 text-[var(--dim)]">
+                    No fills yet
+                  </td>
+                </tr>
+              ) : (
+                fills.map((f, i) => {
+                  const sym = names[f.instrumentId] ?? (f.instrumentId === instrumentId ? symbol : "");
+                  return (
+                  <tr key={`${f.instrumentId}-${f.time ?? i}-${i}`}>
+                    <td className="num py-1.5 text-[var(--dim)]">{fmtStamp(f.time)}</td>
+                    <td>
+                      {sym ? (
+                        <Link href={`/markets/${sym}`} className="text-[var(--text)] hover:underline">
+                          {marketBase(sym)}
+                        </Link>
+                      ) : (
+                        marketFor(f.instrumentId)
+                      )}
+                    </td>
+                    <td className={sideTone(f.side)}>{sideLabel(f.side)}</td>
+                    <td className="num">{f.quantity}</td>
+                    <td className="num">{fmtPx(Number(f.price), f.instrumentId === instrumentId ? priceDecimals : 2)}</td>
+                    <td className="num text-[var(--dim)]">{f.fee ? fmtUsd(f.fee) : "—"}</td>
+                    <td className={`num ${f.pnl ? signedClass(Number(f.pnl)) : "text-[var(--dim)]"}`}>
+                      {f.pnl ? fmtUsdSigned(f.pnl) : "—"}
+                    </td>
+                  </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
         ) : null}
       </div>
     </div>

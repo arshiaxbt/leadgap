@@ -1,11 +1,11 @@
 "use client";
 
-import Link from "next/link";
 import { usePrivy } from "@privy-io/react-auth";
 import { useAccount, useWalletClient } from "wagmi";
-import { useEffect, useRef, useState } from "react";
+import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { polygon } from "viem/chains";
-import { explainPerpsError } from "@/lib/perpsAccess";
+import { PerpsAccessAlert } from "@/components/PerpsAccessAlert";
+import { explainPerpsError, type PerpsAccess } from "@/lib/perpsAccess";
 import { fmtUsd } from "@/lib/format";
 import { usePrivyMount } from "@/lib/usePrivyMount";
 
@@ -15,20 +15,30 @@ type Summary = {
   href?: string;
   needsSignature?: boolean;
   funded?: boolean;
+  access?: PerpsAccess | null;
 };
+
+type StripContext = {
+  busy: boolean;
+  state: Summary;
+  visible: boolean;
+  approvePerps: () => void;
+};
+
+const Ctx = createContext<StripContext | null>(null);
 
 function num(v: string | number | undefined): number {
   const n = typeof v === "number" ? v : Number(v);
   return Number.isFinite(n) ? n : 0;
 }
 
-export function PortfolioStrip() {
+export function PortfolioStripProvider({ children }: { children: ReactNode }) {
   const mount = usePrivyMount();
-  if (mount !== "ready") return null;
-  return <AccountChip />;
+  if (mount !== "ready") return children;
+  return <PortfolioStripSession>{children}</PortfolioStripSession>;
 }
 
-function AccountChip() {
+function PortfolioStripSession({ children }: { children: ReactNode }) {
   const { authenticated, ready } = usePrivy();
   const { address, isConnected } = useAccount();
   const { data: walletClient } = useWalletClient({ chainId: polygon.id });
@@ -71,6 +81,7 @@ function AccountChip() {
           setState({
             note: access.message,
             href: access.href,
+            access: access.kind === "invite" ? access : null,
             needsSignature: access.kind !== "invite",
           });
         }
@@ -102,6 +113,7 @@ function AccountChip() {
       setState({
         note: access.message,
         href: access.href,
+        access: access.kind === "invite" ? access : null,
         needsSignature: access.kind !== "invite",
       });
     } finally {
@@ -109,36 +121,61 @@ function AccountChip() {
     }
   }
 
-  if (!ready || !authenticated) return null;
+  return (
+    <Ctx.Provider
+      value={{
+        busy,
+        state,
+        visible: ready && authenticated,
+        approvePerps,
+      }}
+    >
+      {children}
+    </Ctx.Provider>
+  );
+}
+
+export function PortfolioStrip() {
+  const ctx = useContext(Ctx);
+  if (!ctx?.visible) return null;
+  const { busy, state, approvePerps } = ctx;
+  const showNote = Boolean(state.note && !state.access);
+  const showHref = Boolean(state.href && !state.access);
+  if (!state.funded && !state.needsSignature && !showNote && !showHref) return null;
 
   return (
-    <div className="flex items-center gap-3 text-[11px]">
+    <div className="flex min-w-0 items-center gap-2 text-[11px]">
       {state.funded ? (
-        <>
-          <span className="text-[var(--muted)]">
-            Eq <span className="num text-[var(--text)]">{fmtUsd(state.equity)}</span>
-          </span>
-        </>
+        <span className="text-[var(--muted)]">
+          Eq <span className="num text-[var(--text)]">{fmtUsd(state.equity)}</span>
+        </span>
       ) : null}
       {state.needsSignature ? (
         <button
           type="button"
           disabled={busy}
           onClick={() => void approvePerps()}
-          className="border border-[color-mix(in_srgb,var(--signal)_45%,var(--line))] px-2 py-0.5 text-[11px] font-medium text-[var(--signal)] disabled:opacity-40"
+          className="lg-focus whitespace-nowrap border border-[color-mix(in_srgb,var(--signal)_45%,var(--line))] px-2 py-0.5 text-[11px] font-medium text-[var(--signal)] disabled:opacity-40"
         >
           {busy ? "…" : "Connect Perps"}
         </button>
       ) : null}
-      {state.note ? <span className="max-w-[180px] truncate text-[var(--warn)]">{state.note}</span> : null}
-      {state.href ? (
+      {showNote ? (
+        <span className="hidden max-w-[160px] truncate text-[var(--warn)] sm:inline" title={state.note}>
+          {state.note}
+        </span>
+      ) : null}
+      {showHref ? (
         <a href={state.href} target="_blank" rel="noreferrer" className="text-[var(--signal)] hover:underline">
           Access
         </a>
       ) : null}
-      <Link href="/portfolio" className="text-[var(--muted)] hover:text-[var(--text)]">
-        Account
-      </Link>
     </div>
   );
+}
+
+export function PortfolioStripAlert() {
+  const ctx = useContext(Ctx);
+  if (!ctx?.state.access) return null;
+  return <PerpsAccessAlert access={ctx.state.access} />;
 }

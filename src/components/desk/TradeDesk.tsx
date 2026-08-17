@@ -317,6 +317,7 @@ export function TradeDesk({ symbol }: { symbol: string }) {
       preview={preview}
       ticker={ticker}
       priceDecimals={instrument.priceDecimals}
+      symbol={instrument.symbol}
     />
   );
 

@@ -6,6 +6,7 @@ import { useAccount, useWalletClient } from "wagmi";
 import type { WalletClient } from "viem";
 import { polygon } from "viem/chains";
 import { Button, buttonVariants } from "@/components/ui/button";
+import { PerpsAccessAlert } from "@/components/PerpsAccessAlert";
 import { BUILDER_CODE } from "@/lib/builder";
 import {
   defaultUsdSize,
@@ -237,13 +238,12 @@ function TicketForm({
 
   const hint = useMemo(() => {
     if (mount === "insecure") return "HTTPS required to log in.";
-    if (mount !== "ready") return "Log in to trade.";
+    if (mount !== "ready") return "Log in to Polymarket to trade.";
     if (!geo) return "Checking location…";
     if (blocked) return geo.reason;
-    if (!isConnected) return "Log in to place an order.";
-    if (inviteBlocked) return perpsAccess?.message ?? "";
+    if (!isConnected) return "Log in to Polymarket to place an order.";
     return "";
-  }, [blocked, geo, inviteBlocked, isConnected, mount, perpsAccess]);
+  }, [blocked, geo, isConnected, mount]);
 
   function applyPct(pct: number) {
     if (!px || !leverage) return;
@@ -374,7 +374,7 @@ function TicketForm({
   const field = "lg-input num mt-0.5 w-full px-2 py-1 text-[12px]";
   const fromEvent = bias === "long" || bias === "short";
   const primaryDisabled = busy || (loggedOut ? !onLogin : !canTrade);
-  const primaryLabel = busy ? "Submitting…" : loggedOut ? "Log in to trade" : `${long ? "Long" : "Short"} ${base}`;
+  const primaryLabel = busy ? "Submitting…" : loggedOut ? "Log in to Polymarket" : `${long ? "Long" : "Short"} ${base}`;
 
   useEffect(() => {
     onPreview?.({
@@ -392,6 +392,7 @@ function TicketForm({
   return (
     <div className="flex h-full min-h-0 flex-col overflow-auto bg-[var(--surface)] text-[12px]">
       <div className="flex min-h-0 flex-1 flex-col gap-2.5 px-3 py-3">
+      {perpsAccess?.kind === "invite" ? <PerpsAccessAlert access={perpsAccess} className="border border-[var(--line)]" /> : null}
       {thesis ? (
         <div>
           <p className="mb-0.5 text-[11px] text-[var(--dim)]">{fromEvent ? "From event" : "Thesis"}</p>
@@ -589,7 +590,7 @@ function TicketForm({
         >
           Cancel open
         </button>
-        {perpsAccess?.href ? (
+        {perpsAccess?.kind === "invite" ? null : perpsAccess?.href ? (
           <a href={perpsAccess.href} target="_blank" rel="noreferrer" className="text-[12px] text-[var(--mark)] hover:underline">
             Request access
           </a>

@@ -15,12 +15,13 @@ import {
 } from "@/components/DataTable";
 import { FundControls } from "@/components/FundControls";
 import { PolyProfileCard } from "@/components/PolyProfile";
+import { PerpsAccessAlert } from "@/components/PerpsAccessAlert";
 import { Button } from "@/components/ui/button";
 import { BUILDER_CODE } from "@/lib/builder";
 import { assertCanTrade } from "@/lib/geo";
 import { notifyErr, notifyOk } from "@/lib/notify";
-import { explainPerpsError } from "@/lib/perpsAccess";
-import { formatCloseQty, fmtPx, fmtUsd, fmtUsdSigned, signedClass } from "@/lib/format";
+import { explainPerpsError, type PerpsAccess } from "@/lib/perpsAccess";
+import { formatCloseQty, fmtPx, fmtStamp, fmtUsd, fmtUsdSigned, marketBase, orderTypeLabel, sideLabel, sideTone, signedClass } from "@/lib/format";
 import { ERC20_BALANCE_ABI, formatPusd, PUSD_TOKEN } from "@/lib/pusd";
 import { usePrivyMount } from "@/lib/usePrivyMount";
 import { trackEvent } from "@/lib/track";
@@ -44,18 +45,26 @@ type Pos = {
 
 type Order = {
   id: number;
+  instrumentId: number;
   side: string;
   price: string;
   quantity: string;
+  filled: string;
   status: string;
-  symbol?: string;
+  timeInForce?: string;
+  reduceOnly?: boolean;
+  tpSlKind?: string;
+  triggerPrice?: string;
+  created?: number;
 };
 
 type Fill = {
+  instrumentId: number;
   side: string;
   quantity: string;
   price: string;
-  symbol?: string;
+  fee?: string;
+  pnl?: string;
   time?: number;
 };
 
@@ -73,6 +82,7 @@ type DeskState = {
   funded: boolean;
   needsSignature: boolean;
   note: string;
+  access?: PerpsAccess | null;
   href?: string;
   polymarketWallet?: string;
   walletPusd?: string;
@@ -126,7 +136,7 @@ function LoggedOutPanel({
           <p className="mt-4 text-[13px] text-[var(--warn)]">Open Leadgap over HTTPS to log in and trade.</p>
         ) : onLogin ? (
           <Button type="button" className="mt-5 h-10 rounded-[6px]" onClick={() => onLogin()}>
-            Log in
+            Log in to Polymarket
           </Button>
         ) : (
           <p className="mt-4 text-[13px] text-[var(--muted)]">Log in from the header to load this page.</p>
@@ -150,6 +160,7 @@ function PortfolioDeskSession() {
   const [tab, setTab] = useState<Tab>("positions");
   const [marks, setMarks] = useState<Record<string, PerpsTicker>>({});
   const [qtyDecimals, setQtyDecimals] = useState<Record<number, number>>({});
+  const [names, setNames] = useState<Record<number, string>>({});
   const [gaps, setGaps] = useState<GapRow[]>([]);
   const [state, setState] = useState<DeskState>(EMPTY);
 
@@ -230,11 +241,13 @@ function PortfolioDeskSession() {
       try {
         const page = await session.listFills().firstPage();
         fills = (page.items ?? []).slice(0, 40).map((f) => ({
+          instrumentId: Number(f.instrumentId),
           side: String(f.side),
           quantity: String(f.quantity),
           price: String(f.price),
-          symbol: "symbol" in f ? String((f as { symbol?: string }).symbol ?? "") : "",
-          time: "timestamp" in f ? Number((f as { timestamp?: number }).timestamp) : undefined,
+          fee: "fee" in f ? String((f as { fee?: string }).fee ?? "") : "",
+          pnl: "pnl" in f ? String((f as { pnl?: string }).pnl ?? "") : "",
+          time: Number(f.timestamp) || undefined,
         }));
       } catch {
         fills = [];
@@ -252,11 +265,17 @@ function PortfolioDeskSession() {
         positions,
         orders: (openOrders ?? []).map((o) => ({
           id: Number(o.id),
+          instrumentId: Number(o.instrumentId),
           side: String(o.side),
           price: String(o.price),
           quantity: String(o.quantity),
+          filled: String(o.filledQuantity ?? ""),
           status: String(o.status),
-          symbol: "symbol" in o ? String((o as { symbol?: string }).symbol ?? "") : "",
+          timeInForce: o.timeInForce != null ? String(o.timeInForce) : undefined,
+          reduceOnly: Boolean(o.reduceOnly),
+          tpSlKind: o.tpSl?.kind,
+          triggerPrice: o.tpSl?.triggerPrice != null ? String(o.tpSl.triggerPrice) : undefined,
+          created: Number(o.createdTimestamp) || undefined,
         })),
         fills,
         liquidation: Boolean(portfolio.inLiquidation),
@@ -268,6 +287,7 @@ function PortfolioDeskSession() {
       setState({
         ...EMPTY,
         note: access.message,
+        access: access.kind === "invite" ? access : null,
         href: access.href,
         needsSignature: access.kind !== "invite",
       });
@@ -286,8 +306,13 @@ function PortfolioDeskSession() {
       .then((d: { tickers?: Record<string, PerpsTicker>; instruments?: PerpsInstrument[] }) => {
         setMarks(d.tickers ?? {});
         const next: Record<number, number> = {};
-        for (const inst of d.instruments ?? []) next[inst.instrumentId] = inst.quantityDecimals;
+        const symbols: Record<number, string> = {};
+        for (const inst of d.instruments ?? []) {
+          next[inst.instrumentId] = inst.quantityDecimals;
+          symbols[inst.instrumentId] = inst.symbol;
+        }
         setQtyDecimals(next);
+        setNames(symbols);
       })
       .catch(() => undefined);
     fetch("/api/gaps?window=15m")
@@ -306,7 +331,12 @@ function PortfolioDeskSession() {
       setRetry((n) => n + 1);
     } catch (err) {
       const access = explainPerpsError(err);
-      setState((s) => ({ ...s, note: access.message, href: access.href }));
+      setState((s) => ({
+        ...s,
+        note: access.message,
+        access: access.kind === "invite" ? access : null,
+        href: access.href,
+      }));
       notifyErr(access.message);
     } finally {
       setBusy(false);
@@ -382,8 +412,8 @@ function PortfolioDeskSession() {
 
   const tabs: { id: Tab; label: string }[] = [
     { id: "positions", label: "Positions" },
-    { id: "orders", label: "Orders" },
-    { id: "fills", label: "Fills" },
+    { id: "orders", label: `Orders (${state.orders.length})` },
+    { id: "fills", label: `Fills (${state.fills.length})` },
     { id: "exposure", label: "Event exposure" },
   ];
 
@@ -428,7 +458,9 @@ function PortfolioDeskSession() {
         </div>
       </div>
 
-      {state.needsSignature || state.note || state.href ? (
+      {state.access ? (
+        <PerpsAccessAlert access={state.access} />
+      ) : state.needsSignature || state.note || state.href ? (
         <div className="flex flex-wrap items-center gap-3 border-b border-[var(--line)] px-4 py-2 text-[13px]">
           {state.needsSignature ? (
             <Button type="button" size="sm" disabled={busy} onClick={() => void approvePerps()}>
@@ -533,32 +565,54 @@ function PortfolioDeskSession() {
                 <DataTable>
                   <DataTableHeader>
                     <tr>
+                      <DataTableHead>Market</DataTableHead>
                       <DataTableHead>Side</DataTableHead>
+                      <DataTableHead>Type</DataTableHead>
                       <DataTableHead align="right">Size</DataTableHead>
+                      <DataTableHead align="right">Filled</DataTableHead>
                       <DataTableHead align="right">Price</DataTableHead>
                       <DataTableHead>Status</DataTableHead>
+                      <DataTableHead align="right">Time</DataTableHead>
                       <DataTableHead />
                     </tr>
                   </DataTableHeader>
                   <DataTableBody>
-                    {state.orders.map((o) => (
-                      <DataTableRow key={o.id}>
-                        <DataTableCell className="capitalize">{o.side}</DataTableCell>
-                        <DataTableCell numeric>{o.quantity}</DataTableCell>
-                        <DataTableCell numeric>{o.price}</DataTableCell>
-                        <DataTableCell>{o.status}</DataTableCell>
-                        <DataTableCell align="right">
-                          <button
-                            type="button"
-                            disabled={busy}
-                            onClick={() => void cancel(o.id)}
-                            className="text-[12px] text-[var(--muted)] hover:text-[var(--text)] disabled:opacity-40"
-                          >
-                            Cancel
-                          </button>
-                        </DataTableCell>
-                      </DataTableRow>
-                    ))}
+                    {state.orders.map((o) => {
+                      const px = o.triggerPrice || o.price;
+                      const href = names[o.instrumentId] ? `/markets/${names[o.instrumentId]}` : undefined;
+                      return (
+                        <DataTableRow key={o.id}>
+                          <DataTableCell>
+                            {href ? (
+                              <Link href={href} className="text-[var(--text)] hover:underline">
+                                {marketBase(names[o.instrumentId])}
+                              </Link>
+                            ) : (
+                              marketBase(names[o.instrumentId])
+                            )}
+                          </DataTableCell>
+                          <DataTableCell className={sideTone(o.side)}>{sideLabel(o.side)}</DataTableCell>
+                          <DataTableCell>{orderTypeLabel(o)}</DataTableCell>
+                          <DataTableCell numeric>{o.quantity}</DataTableCell>
+                          <DataTableCell numeric>{o.filled || "—"}</DataTableCell>
+                          <DataTableCell numeric>{fmtPx(Number(px))}</DataTableCell>
+                          <DataTableCell className="capitalize">{o.status.toLowerCase()}</DataTableCell>
+                          <DataTableCell numeric className="text-[var(--dim)]">
+                            {fmtStamp(o.created)}
+                          </DataTableCell>
+                          <DataTableCell align="right">
+                            <button
+                              type="button"
+                              disabled={busy}
+                              onClick={() => void cancel(o.id)}
+                              className="text-[12px] text-[var(--muted)] hover:text-[var(--text)] disabled:opacity-40"
+                            >
+                              Cancel
+                            </button>
+                          </DataTableCell>
+                        </DataTableRow>
+                      );
+                    })}
                   </DataTableBody>
                 </DataTable>
               )
@@ -570,19 +624,44 @@ function PortfolioDeskSession() {
                 <DataTable>
                   <DataTableHeader>
                     <tr>
+                      <DataTableHead>Time</DataTableHead>
+                      <DataTableHead>Market</DataTableHead>
                       <DataTableHead>Side</DataTableHead>
                       <DataTableHead align="right">Size</DataTableHead>
                       <DataTableHead align="right">Price</DataTableHead>
+                      <DataTableHead align="right">Fee</DataTableHead>
+                      <DataTableHead align="right">PnL</DataTableHead>
                     </tr>
                   </DataTableHeader>
                   <DataTableBody>
-                    {state.fills.map((f, i) => (
-                      <DataTableRow key={`${f.side}-${f.price}-${i}`}>
-                        <DataTableCell className="capitalize">{f.side}</DataTableCell>
-                        <DataTableCell numeric>{f.quantity}</DataTableCell>
-                        <DataTableCell numeric>{f.price}</DataTableCell>
-                      </DataTableRow>
-                    ))}
+                    {state.fills.map((f, i) => {
+                      const href = names[f.instrumentId] ? `/markets/${names[f.instrumentId]}` : undefined;
+                      return (
+                        <DataTableRow key={`${f.instrumentId}-${f.time ?? i}-${i}`}>
+                          <DataTableCell numeric className="text-[var(--dim)]">
+                            {fmtStamp(f.time)}
+                          </DataTableCell>
+                          <DataTableCell>
+                            {href ? (
+                              <Link href={href} className="text-[var(--text)] hover:underline">
+                                {marketBase(names[f.instrumentId])}
+                              </Link>
+                            ) : (
+                              marketBase(names[f.instrumentId])
+                            )}
+                          </DataTableCell>
+                          <DataTableCell className={sideTone(f.side)}>{sideLabel(f.side)}</DataTableCell>
+                          <DataTableCell numeric>{f.quantity}</DataTableCell>
+                          <DataTableCell numeric>{fmtPx(Number(f.price))}</DataTableCell>
+                          <DataTableCell numeric className="text-[var(--dim)]">
+                            {f.fee ? fmtUsd(f.fee) : "—"}
+                          </DataTableCell>
+                          <DataTableCell numeric className={f.pnl ? signedClass(Number(f.pnl)) : "text-[var(--dim)]"}>
+                            {f.pnl ? fmtUsdSigned(f.pnl) : "—"}
+                          </DataTableCell>
+                        </DataTableRow>
+                      );
+                    })}
                   </DataTableBody>
                 </DataTable>
               )

@@ -5,6 +5,7 @@ import { preferredTradingWallet } from "@/lib/activeWallet";
 import { forgetStoredPerpsSession } from "@/lib/perpsSession";
 import { trackEvent } from "@/lib/track";
 import { PolyProfileChip } from "@/components/PolyProfile";
+import { PortfolioStrip } from "@/components/PortfolioStrip";
 import { shortAddr } from "@/lib/format";
 
 export function PrivyLogin() {
@@ -15,12 +16,13 @@ export function PrivyLogin() {
   const email = user?.email?.address;
 
   if (!ready) {
-    return <span className="inline-block h-7 w-[9.25rem] rounded border border-transparent" aria-hidden />;
+    return <span className="inline-block h-7 w-[11.5rem] rounded border border-transparent" aria-hidden />;
   }
 
   if (authenticated) {
     return (
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2">
+        <PortfolioStrip />
         <PolyProfileChip address={address} fallback={email ?? (address ? shortAddr(address) : "Signed in")} />
         <button
           type="button"
@@ -45,7 +47,7 @@ export function PrivyLogin() {
       }}
       className="lg-focus whitespace-nowrap border border-[var(--line)] px-2.5 py-1 text-[12px] text-[var(--muted)] hover:bg-[var(--hover)]"
     >
-      Log in
+      Log in to Polymarket
     </button>
   );
 }

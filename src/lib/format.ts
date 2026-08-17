@@ -183,6 +183,67 @@ export function formatCloseQty(size: string | number, decimals?: number): string
   return formatOrderQty(n, inferred);
 }
 
+export function isBuySide(side: string): boolean {
+  const s = side.toUpperCase();
+  return s === "BUY" || s === "LONG" || s === "B";
+}
+
+export function sideLabel(side: string): "Long" | "Short" {
+  return isBuySide(side) ? "Long" : "Short";
+}
+
+export function sideTone(side: string): string {
+  return isBuySide(side) ? "text-[var(--long)]" : "text-[var(--short)]";
+}
+
+export function marketBase(symbol?: string | null): string {
+  if (!symbol) return "—";
+  return symbol.replace(/-USD$/i, "");
+}
+
+export function fmtStamp(ts: number | undefined): string {
+  if (ts == null || !Number.isFinite(ts) || ts <= 0) return "—";
+  const ms = ts < 1e12 ? ts * 1000 : ts;
+  return new Date(ms).toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  });
+}
+
+export function orderTypeLabel(order: {
+  tpSlKind?: string;
+  reduceOnly?: boolean;
+  timeInForce?: string;
+}): string {
+  switch (order.tpSlKind) {
+    case "tp":
+      return "TP";
+    case "sl":
+      return "SL";
+    default:
+      break;
+  }
+  const tif = (order.timeInForce ?? "GTC").toUpperCase();
+  let base: string;
+  switch (tif) {
+    case "GTC":
+      base = "Limit";
+      break;
+    case "IOC":
+      base = "IOC";
+      break;
+    case "FOK":
+      base = "FOK";
+      break;
+    default:
+      base = tif || "Limit";
+      break;
+  }
+  return order.reduceOnly ? `Reduce ${base}` : base;
+}
+
 export function fmtUsdSigned(n: string | number | undefined): string {
   if (n == null || n === "") return "—";
   const v = typeof n === "number" ? n : Number(n);

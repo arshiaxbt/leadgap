@@ -46,7 +46,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       lang="en"
       className={cn("dark h-full", GeistSans.variable, GeistMono.variable)}
     >
-      <body className="flex h-full min-h-full flex-col overflow-hidden bg-background font-sans text-foreground antialiased">
+      <body className="lg-app-bg flex h-full min-h-full flex-col overflow-hidden font-sans text-foreground antialiased">
         <Providers>
           <Header />
           <div className="flex min-h-0 flex-1 flex-col overflow-hidden">{children}</div>

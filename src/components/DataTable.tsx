@@ -20,7 +20,10 @@ export function DataTable({
 export function DataTableHeader({ className, ...props }: ComponentProps<"thead">) {
   return (
     <thead
-      className={cn("sticky top-0 z-10 bg-[var(--bg)] text-[11px] font-medium text-[var(--dim)]", className)}
+      className={cn(
+        "sticky top-0 z-10 bg-[color-mix(in_srgb,var(--surface)_92%,var(--bg))] text-[10px] font-semibold tracking-[0.05em] text-[var(--dim)] uppercase backdrop-blur-sm",
+        className,
+      )}
       {...props}
     />
   );
@@ -34,7 +37,7 @@ export function DataTableHead({
   return (
     <th
       className={cn(
-        "border-b border-[var(--line)] px-2 py-1.5 font-medium",
+        "border-b border-[var(--line)] px-2.5 py-2 font-semibold",
         align === "right" ? "text-right" : "text-left",
         className,
       )}
@@ -86,7 +89,7 @@ export function DataTableCell({
   return (
     <td
       className={cn(
-        "px-2 py-1.5 align-middle",
+        "px-2.5 py-2 align-middle",
         resolved === "right" ? "text-right" : "text-left",
         numeric && "num tabular-nums",
         className,

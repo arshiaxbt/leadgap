@@ -33,9 +33,14 @@ export function GapMeter({
       role="img"
       aria-label={`Expected ${fmtPct(expected)}, actual ${fmtPct(actual)}, gap ${fmtPct(residual)}`}
     >
-      <div className={cn("relative overflow-hidden bg-[var(--elevated)]", dense ? "h-1.5" : "h-2.5")}>
+      <div
+        className={cn(
+          "relative overflow-hidden rounded-full bg-[var(--input)] ring-1 ring-inset ring-[var(--line)]",
+          dense ? "h-1.5" : "h-2.5",
+        )}
+      >
         <div
-          className="absolute inset-y-0 bg-[color-mix(in_srgb,var(--odds)_16%,transparent)]"
+          className="absolute inset-y-0 bg-[color-mix(in_srgb,var(--odds)_20%,transparent)]"
           style={{ left: `${bandLeft}%`, width: `${bandWidth}%` }}
         />
         <div
@@ -43,11 +48,11 @@ export function GapMeter({
           style={{ left: `${zeroPct}%` }}
         />
         <div
-          className="absolute inset-y-0 w-0.5 bg-[var(--odds)]"
+          className="absolute inset-y-0 w-0.5 rounded-full bg-[var(--odds)] shadow-[0_0_5px_color-mix(in_srgb,var(--odds)_70%,transparent)]"
           style={{ left: `calc(${expectedPct}% - 1px)` }}
         />
         <div
-          className="absolute inset-y-0 w-0.5 bg-[var(--mark)]"
+          className="absolute inset-y-0 w-0.5 rounded-full bg-[var(--mark)]"
           style={{ left: `calc(${actualPct}% - 1px)` }}
         />
       </div>

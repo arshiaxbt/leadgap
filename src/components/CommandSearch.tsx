@@ -111,11 +111,11 @@ export function CommandSearch() {
         size="sm"
         onClick={() => setOpen(true)}
         aria-label="Search"
-        className="h-7 gap-2 px-2 text-[12px] text-[var(--muted)] hover:text-[var(--text)]"
+        className="h-8 gap-2 rounded-full border border-[var(--line)] bg-[var(--surface)] px-3 text-[12px] text-[var(--muted)] hover:border-[var(--line-strong)] hover:text-[var(--text)]"
       >
         <SearchIcon className="size-3.5" />
         <span className="hidden md:inline">Search</span>
-        <Kbd className="hidden bg-[var(--elevated)] text-[10px] text-[var(--dim)] md:inline-flex">
+        <Kbd className="hidden rounded-full border-[var(--line)] bg-[var(--elevated)] text-[10px] text-[var(--dim)] md:inline-flex">
           {mod === "⌘" ? "⌘K" : "Ctrl+K"}
         </Kbd>
       </Button>

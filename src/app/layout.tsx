@@ -9,7 +9,7 @@ import { MobileTabBar } from "@/components/MobileTabBar";
 import { Providers } from "@/components/Providers";
 import { StatusStrip } from "@/components/StatusStrip";
 import { Toaster } from "@/components/ui/sonner";
-import { APP_LOGO_RASTER, APP_NAME, APP_ORIGIN, APP_TAGLINE } from "@/lib/brand";
+import { APP_LOGO, APP_LOGO_RASTER, APP_NAME, APP_ORIGIN, APP_TAGLINE } from "@/lib/brand";
 import { cn } from "@/lib/utils";
 
 export const metadata: Metadata = {
@@ -19,7 +19,13 @@ export const metadata: Metadata = {
     template: `%s · ${APP_NAME}`,
   },
   description: APP_TAGLINE,
-  icons: { icon: [{ url: APP_LOGO_RASTER, type: "image/png" }], apple: APP_LOGO_RASTER },
+  icons: {
+    icon: [
+      { url: APP_LOGO, type: "image/svg+xml" },
+      { url: APP_LOGO_RASTER, type: "image/png" },
+    ],
+    apple: APP_LOGO_RASTER,
+  },
   openGraph: {
     title: APP_NAME,
     description: APP_TAGLINE,

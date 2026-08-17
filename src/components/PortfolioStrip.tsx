@@ -103,36 +103,39 @@ function PortfolioStripSession({ children }: { children: ReactNode }) {
     if (!probed.current) setBusy(true);
     (async () => {
       try {
-        const exists = await lookupPerpsAccount(await probeAddresses(address, wc.account?.address));
+        const lookup = await lookupPerpsAccount(await probeAddresses(address, wc.account?.address));
         if (stop) return;
-        if (exists === "missing") {
-          setState(markInvite());
-          return;
-        }
-
         const { resumePerpsSession } = await import("@/lib/perpsSession");
         const opened = await resumePerpsSession(wc);
         if (stop) return;
-        if (!opened) {
-          setState({ needsSignature: true });
+        if (opened) {
+          const { session, client } = opened;
+          const wallet = client.account.wallet ? String(client.account.wallet) : "";
+          if (wallet) {
+            const sessionLookup = await lookupPerpsAccount([wallet, address]);
+            if (stop) return;
+            if (sessionLookup.status === "missing") {
+              setState(markInvite());
+              return;
+            }
+          }
+          const portfolio = await session.fetchPortfolio();
+          if (stop) return;
+          const margin = portfolio.margin ?? {};
+          setState({
+            funded: true,
+            equity: num(margin.totalAccountValue ?? portfolio.withdrawable),
+          });
           return;
         }
-        const { session, client } = opened;
-        const wallet = client.account.wallet ? String(client.account.wallet) : "";
-        if (wallet) {
-          const sessionExists = await lookupPerpsAccount([wallet, address]);
-          if (stop) return;
-          if (sessionExists === "missing") {
-            setState(markInvite());
-            return;
-          }
+        if (lookup.status === "missing" || (lookup.status === "found" && !(lookup.equity && lookup.equity > 0))) {
+          setState(markInvite());
+          return;
         }
-        const portfolio = await session.fetchPortfolio();
-        if (stop) return;
-        const margin = portfolio.margin ?? {};
         setState({
-          funded: true,
-          equity: num(margin.totalAccountValue ?? portfolio.withdrawable),
+          needsSignature: true,
+          funded: Boolean(lookup.equity && lookup.equity > 0),
+          equity: lookup.equity ?? undefined,
         });
       } catch (err) {
         if (!stop) {
@@ -170,8 +173,8 @@ function PortfolioStripSession({ children }: { children: ReactNode }) {
     if (!wc?.account?.address || !eoa) return;
     setBusy(true);
     try {
-      const exists = await lookupPerpsAccount(await probeAddresses(eoa, wc.account.address));
-      if (exists === "missing") {
+      const lookup = await lookupPerpsAccount(await probeAddresses(eoa, wc.account.address));
+      if (lookup.status === "missing") {
         setState(markInvite());
         return;
       }

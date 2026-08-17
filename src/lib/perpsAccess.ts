@@ -55,21 +55,25 @@ export function explainPerpsError(err: unknown): PerpsAccess {
   };
 }
 
-export type PerpsAccountLookup = "found" | "missing" | "unknown";
+export type PerpsAccountLookup = {
+  status: "found" | "missing" | "unknown";
+  equity: number | null;
+};
 
 export async function lookupPerpsAccount(addresses: string[]): Promise<PerpsAccountLookup> {
   const unique = [...new Set(addresses.map((a) => a.trim()).filter(Boolean))];
-  if (!unique.length) return "unknown";
+  if (!unique.length) return { status: "unknown", equity: null };
   const params = new URLSearchParams();
   for (const address of unique) params.append("address", address);
   try {
     const res = await fetch(`/api/perps/account?${params}`, { cache: "no-store" });
-    if (!res.ok) return "unknown";
-    const body = (await res.json()) as { exists?: boolean | null };
-    if (body.exists === true) return "found";
-    if (body.exists === false) return "missing";
-    return "unknown";
+    if (!res.ok) return { status: "unknown", equity: null };
+    const body = (await res.json()) as { exists?: boolean | null; equity?: number | null };
+    const equity = typeof body.equity === "number" && Number.isFinite(body.equity) ? body.equity : null;
+    if (body.exists === true) return { status: "found", equity };
+    if (body.exists === false) return { status: "missing", equity: null };
+    return { status: "unknown", equity: null };
   } catch {
-    return "unknown";
+    return { status: "unknown", equity: null };
   }
 }

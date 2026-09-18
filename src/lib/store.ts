@@ -1,11 +1,32 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { allGammaQueries, ASSET_MAP, CONFIDENCE_FLOOR, MAP_REVISION, aliasHit, linksForSearchHit, mapBySymbol, selectLinkedPerps } from "./mapping";
-import { computeGaps, eventTitleKey, GAP_WINDOWS, uniqueGapRows } from "./divergence";
+import {
+  allGammaQueries,
+  ASSET_MAP,
+  CONFIDENCE_FLOOR,
+  MAP_REVISION,
+  aliasHit,
+  linksForSearchHit,
+  mapBySymbol,
+  selectLinkedPerps,
+} from "./mapping";
+import {
+  computeGaps,
+  eventTitleKey,
+  GAP_WINDOWS,
+  uniqueGapRows,
+} from "./divergence";
 import { isActionable } from "./score";
-import { bestMarket, fetchOddsHistory, fetchYesMid, parseTokenIds, parseYesPrice, searchGammaEvents } from "./gamma";
+import {
+  bestMarket,
+  fetchOddsHistory,
+  fetchYesMid,
+  parseTokenIds,
+  parseYesPrice,
+  searchGammaEvents,
+} from "./gamma";
 import { fetchNews } from "./news";
-import { fetchHourlyKlines, fetchInstruments, fetchTickers } from "./perps";
+import { fetchKlineCloses, fetchInstruments, fetchTickers } from "./perps";
 import type {
   GapRow,
   GapTapePoint,
@@ -43,7 +64,10 @@ type Store = {
   error: string | null;
 };
 
-const g = globalThis as typeof globalThis & { __polyStore?: Store; __polyLoop?: boolean };
+const g = globalThis as typeof globalThis & {
+  __polyStore?: Store;
+  __polyLoop?: boolean;
+};
 
 function emptyStore(): Store {
   return {
@@ -69,7 +93,11 @@ function store(): Store {
   return g.__polyStore;
 }
 
-function mergeSnaps(history: Record<string, Snapshot[]>, key: string, points: Snapshot[]) {
+function mergeSnaps(
+  history: Record<string, Snapshot[]>,
+  key: string,
+  points: Snapshot[],
+) {
   const now = Date.now();
   const byT = new Map<number, number>();
   for (const snap of history[key] ?? []) byT.set(snap.t, snap.v);
@@ -148,7 +176,10 @@ function uniqueEvents(events: ResolvedEvent[]): ResolvedEvent[] {
     if (seenId.has(event.id)) continue;
     const key = eventTitleKey(event.title) || event.id;
     if (seenTitle.has(key)) continue;
-    const perps = selectLinkedPerps(`${event.title} ${event.question}`, event.perps);
+    const perps = selectLinkedPerps(
+      `${event.title} ${event.question}`,
+      event.perps,
+    );
     if (perps.length === 0) continue;
     seenId.add(event.id);
     seenTitle.add(key);
@@ -157,7 +188,11 @@ function uniqueEvents(events: ResolvedEvent[]): ResolvedEvent[] {
   return out;
 }
 
-async function mapPool<T, R>(items: T[], size: number, fn: (item: T) => Promise<R>): Promise<R[]> {
+async function mapPool<T, R>(
+  items: T[],
+  size: number,
+  fn: (item: T) => Promise<R>,
+): Promise<R[]> {
   const out: R[] = [];
   for (let i = 0; i < items.length; i += size) {
     const chunk = await Promise.all(items.slice(i, i + size).map(fn));
@@ -236,7 +271,10 @@ async function resolveEvents(): Promise<ResolvedEvent[]> {
   const out: ResolvedEvent[] = [];
   const seenTitle = new Set<string>();
   for (const event of ranked) {
-    event.perps = selectLinkedPerps(`${event.title} ${event.question}`, event.perps);
+    event.perps = selectLinkedPerps(
+      `${event.title} ${event.question}`,
+      event.perps,
+    );
     if (event.perps.length === 0) continue;
     const key = eventTitleKey(event.title) || event.id;
     if (seenTitle.has(key)) continue;
@@ -249,16 +287,31 @@ async function resolveEvents(): Promise<ResolvedEvent[]> {
 async function ingestOnce() {
   const s = store();
   const now = Date.now();
+  const refreshedOdds = new Set<string>();
+  let oddsFailures = 0;
   try {
-    const needMap = now - s.lastMap > MAP_MS || s.events.length === 0 || s.mapRevision !== MAP_REVISION;
+    const needMap =
+      now - s.lastMap > MAP_MS ||
+      s.events.length === 0 ||
+      s.mapRevision !== MAP_REVISION;
     const needKlines = now - s.lastKlines > KLINE_MS;
-    const [instruments, tickerRows] = await Promise.all([fetchInstruments(), fetchTickers()]);
+    const [instruments, tickerRows] = await Promise.all([
+      fetchInstruments(),
+      fetchTickers(),
+    ]);
     s.instruments = instruments;
 
-    let klineMap: Record<string, { change1h: number | null; closes: Snapshot[] }> = {};
+    let klineMap: Record<
+      string,
+      { change1h: number | null; closes: Snapshot[] }
+    > = {};
     if (needKlines) {
       const klineEntries = await mapPool(instruments, 8, async (inst) => {
-        const klines = await fetchHourlyKlines(inst.instrumentId);
+        const klines = await fetchKlineCloses(
+          inst.instrumentId,
+          "5m",
+          HISTORY_MS,
+        );
         return [inst.symbol, klines] as const;
       });
       klineMap = Object.fromEntries(klineEntries);
@@ -269,7 +322,8 @@ async function ingestOnce() {
     for (const t of tickerRows) {
       tickers[t.symbol] = {
         ...t,
-        change1h: klineMap[t.symbol]?.change1h ?? s.tickers[t.symbol]?.change1h ?? null,
+        change1h:
+          klineMap[t.symbol]?.change1h ?? s.tickers[t.symbol]?.change1h ?? null,
       };
       if (klineMap[t.symbol]?.closes.length) {
         mergeSnaps(s.markHistory, t.symbol, klineMap[t.symbol]!.closes);
@@ -280,24 +334,42 @@ async function ingestOnce() {
 
     if (needMap) {
       const events = await resolveEvents();
-      const missing = events.filter((event) => !s.oddsHistory[event.id]?.length && event.yesTokenId);
+      for (const event of events) {
+        const prior = s.events.find((previous) => previous.id === event.id);
+        // Gamma can choose a different binary market inside an event. Never splice
+        // one outcome token's history into another outcome token's probability.
+        if (prior && prior.yesTokenId !== event.yesTokenId)
+          delete s.oddsHistory[event.id];
+      }
+      const missing = events.filter(
+        (event) => !s.oddsHistory[event.id]?.length && event.yesTokenId,
+      );
       await mapPool(missing, 6, async (event) => {
         const history = await fetchOddsHistory(event.yesTokenId!);
         if (history.length) mergeSnaps(s.oddsHistory, event.id, history);
       });
       s.events = events;
+      for (const event of events) refreshedOdds.add(event.id);
       s.lastMap = now;
       s.mapRevision = MAP_REVISION;
     } else {
       await mapPool(s.events, 8, async (event) => {
         if (!event.yesTokenId) return;
-        const mid = await fetchYesMid(event.yesTokenId);
-        if (mid != null) event.yesPrice = mid;
+        try {
+          const mid = await fetchYesMid(event.yesTokenId);
+          if (mid != null) {
+            event.yesPrice = mid;
+            refreshedOdds.add(event.id);
+          } else oddsFailures += 1;
+        } catch {
+          oddsFailures += 1;
+        }
       });
     }
     s.events = uniqueEvents(s.events);
 
     for (const event of s.events) {
+      if (!refreshedOdds.has(event.id)) continue;
       mergeSnaps(s.oddsHistory, event.id, [{ t: now, v: event.yesPrice }]);
     }
 
@@ -323,10 +395,12 @@ async function ingestOnce() {
       leader: row.leader,
       bias: row.bias,
     }));
-    s.gapTape = [...(s.gapTape ?? []), ...tape].filter((p) => now - p.t <= HISTORY_MS).slice(-2000);
+    s.gapTape = [...(s.gapTape ?? []), ...tape]
+      .filter((p) => now - p.t <= HISTORY_MS)
+      .slice(-2000);
 
     s.lastIngest = now;
-    s.error = null;
+    s.error = oddsFailures ? "Some event odds could not refresh." : null;
     persist();
   } catch (err) {
     s.error = err instanceof Error ? err.message : "ingest failed";
@@ -401,7 +475,8 @@ export async function getGaps(window: GapWindow): Promise<{
     error: s.error,
     polling: true,
     summary: {
-      oddsFirst: gaps.filter((g) => g.leader === "odds" && !isActionable(g)).length,
+      oddsFirst: gaps.filter((g) => g.leader === "odds" && !isActionable(g))
+        .length,
       actionable: gaps.filter(isActionable).length,
       topScore: gaps[0]?.score ?? 0,
     },
@@ -410,7 +485,12 @@ export async function getGaps(window: GapWindow): Promise<{
 
 export async function getEvents() {
   const s = await ensureFresh();
-  return { events: uniqueEvents(s.events), tickers: s.tickers, asOf: s.lastIngest, error: s.error };
+  return {
+    events: uniqueEvents(s.events),
+    tickers: s.tickers,
+    asOf: s.lastIngest,
+    error: s.error,
+  };
 }
 
 export async function getEvent(id: string) {
@@ -423,8 +503,18 @@ export async function getEvent(id: string) {
       .filter(Boolean)
       .map((t) => [t.symbol, t]),
   );
-  const news = s.news.filter((n) => n.eventIds.includes(event.id) || n.symbols.some((sym) => event.perps.some((p) => p.symbol === sym)));
-  return { event, tickers: relatedTickers, news, instruments: s.instruments, asOf: s.lastIngest };
+  const news = s.news.filter(
+    (n) =>
+      n.eventIds.includes(event.id) ||
+      n.symbols.some((sym) => event.perps.some((p) => p.symbol === sym)),
+  );
+  return {
+    event,
+    tickers: relatedTickers,
+    news,
+    instruments: s.instruments,
+    asOf: s.lastIngest,
+  };
 }
 
 export async function getAsset(symbol: string) {
@@ -432,7 +522,9 @@ export async function getAsset(symbol: string) {
   const instrument = s.instruments.find((i) => i.symbol === symbol);
   if (!instrument) return null;
   const ticker = s.tickers[symbol];
-  const events = uniqueEvents(s.events.filter((e) => e.perps.some((p) => p.symbol === symbol)));
+  const events = uniqueEvents(
+    s.events.filter((e) => e.perps.some((p) => p.symbol === symbol)),
+  );
   const news = s.news.filter((n) => n.symbols.includes(symbol));
   const mapping = mapBySymbol().get(symbol) ?? null;
   const gaps = uniqueGapRows(
@@ -458,7 +550,9 @@ export async function getAsset(symbol: string) {
       ).filter((row) => row.symbol === symbol),
     ]),
   ) as Record<GapWindow, GapRow[]>;
-  const oddsHistory = Object.fromEntries(events.map((event) => [event.id, s.oddsHistory[event.id] ?? []]));
+  const oddsHistory = Object.fromEntries(
+    events.map((event) => [event.id, s.oddsHistory[event.id] ?? []]),
+  );
   const tape = (s.gapTape ?? []).filter((p) => p.symbol === symbol);
   return {
     instrument,
@@ -479,8 +573,10 @@ export async function getAsset(symbol: string) {
 export async function getNews(filter?: { symbol?: string; eventId?: string }) {
   const s = await ensureFresh();
   let items = s.news;
-  if (filter?.symbol) items = items.filter((n) => n.symbols.includes(filter.symbol!));
-  if (filter?.eventId) items = items.filter((n) => n.eventIds.includes(filter.eventId!));
+  if (filter?.symbol)
+    items = items.filter((n) => n.symbols.includes(filter.symbol!));
+  if (filter?.eventId)
+    items = items.filter((n) => n.eventIds.includes(filter.eventId!));
   return { news: items, asOf: s.lastNews };
 }
 

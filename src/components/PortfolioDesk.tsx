@@ -23,11 +23,24 @@ import { BUILDER_CODE } from "@/lib/builder";
 import { assertCanTrade } from "@/lib/geo";
 import { notifyErr, notifyOk } from "@/lib/notify";
 import { explainPerpsError, type PerpsAccess } from "@/lib/perpsAccess";
-import { formatCloseQty, fmtPx, fmtStamp, fmtUsd, fmtUsdSigned, marketBase, orderTypeLabel, sideLabel, sideTone, signedClass } from "@/lib/format";
+import {
+  formatCloseQty,
+  fmtPx,
+  fmtStamp,
+  fmtUsd,
+  fmtUsdSigned,
+  marketBase,
+  orderTypeLabel,
+  sideLabel,
+  sideTone,
+  signedClass,
+} from "@/lib/format";
 import { ERC20_BALANCE_ABI, formatPusd, PUSD_TOKEN } from "@/lib/pusd";
 import { usePrivyMount } from "@/lib/usePrivyMount";
 import { trackEvent } from "@/lib/track";
 import type { GapRow, PerpsInstrument, PerpsTicker } from "@/lib/types";
+import { Wallet, ArrowRight } from "lucide-react";
+import { WorkspaceHeading } from "@/components/WorkspaceHeading";
 import { cn } from "@/lib/utils";
 
 type Pos = {
@@ -128,21 +141,45 @@ function LoggedOutPanel({
 }) {
   const insecure = mount === "insecure";
   return (
-    <div className="flex min-h-0 flex-1 items-center justify-center px-4 py-10">
-      <div className="max-w-md">
-        <h1 className="text-[22px] font-medium text-[var(--text)]">Portfolio</h1>
+    <div className="flex min-h-0 flex-1 overflow-auto px-4 py-10 md:px-12 md:py-16">
+      <div className="m-auto w-full max-w-2xl rounded-xl border border-[var(--line)] bg-[var(--surface)] p-6 sm:p-12">
+        <Wallet size={28} className="mb-8 text-[var(--odds)]" />
+        <h1 className="text-3xl font-medium tracking-tight text-[var(--text)]">
+          Your positions, in perspective.
+        </h1>
         <p className="mt-2 text-[13px] leading-5 text-[var(--muted)]">
-          Equity, open positions, orders, and event exposure for the same Polymarket account you trade with.
+          Connect your trading account to review equity, manage open positions,
+          and see which events your portfolio is exposed to.
         </p>
         {insecure ? (
-          <p className="mt-4 text-[13px] text-[var(--warn)]">Open Leadgap over HTTPS to log in and trade.</p>
+          <p className="mt-4 text-[13px] text-[var(--warn)]">
+            Open Leadgap over HTTPS to log in and trade.
+          </p>
         ) : onLogin ? (
-          <Button type="button" className="mt-5 h-10 rounded-[6px]" onClick={() => onLogin()}>
+          <Button
+            type="button"
+            className="mt-5 h-10 rounded-[6px]"
+            onClick={() => onLogin()}
+          >
             Log in to Polymarket
           </Button>
         ) : (
-          <p className="mt-4 text-[13px] text-[var(--muted)]">Log in from the header to load this page.</p>
+          <p className="mt-4 text-[13px] text-[var(--muted)]">
+            Account connection is unavailable in this environment. You can still
+            explore signals and markets.
+          </p>
         )}
+        <div className="mt-8 grid grid-cols-3 gap-3 border-y border-[var(--line)] py-5 text-xs text-[var(--muted)]">
+          <span>Positions & equity</span>
+          <span>Open orders</span>
+          <span>Event exposure</span>
+        </div>
+        <Link
+          href="/markets"
+          className="lg-focus mt-6 inline-flex items-center gap-2 text-sm"
+        >
+          Explore markets <ArrowRight size={16} />
+        </Link>
       </div>
     </div>
   );
@@ -155,7 +192,9 @@ function PortfolioDeskSession() {
   const { data: walletClient } = useWalletClient({ chainId: polygon.id });
   const publicClient = usePublicClient({ chainId: polygon.id });
   const walletClientRef = useRef(walletClient);
-  walletClientRef.current = walletClient;
+  useEffect(() => {
+    walletClientRef.current = walletClient;
+  }, [walletClient]);
   const signerReady = Boolean(walletClient?.account?.address);
   const [retry, setRetry] = useState(0);
   const [busy, setBusy] = useState(false);
@@ -166,7 +205,8 @@ function PortfolioDeskSession() {
   const [gaps, setGaps] = useState<GapRow[]>([]);
   const [state, setState] = useState<DeskState>(EMPTY);
   const strip = usePerpsStrip();
-  const stripInvite = strip?.state.access?.kind === "invite" ? strip.state.access : null;
+  const stripInvite =
+    strip?.state.access?.kind === "invite" ? strip.state.access : null;
 
   const refresh = useCallback(async () => {
     const wc = walletClientRef.current;
@@ -188,7 +228,11 @@ function PortfolioDeskSession() {
       const { resumePerpsSession } = await import("@/lib/perpsSession");
       const opened = await resumePerpsSession(wc);
       if (!opened) {
-        setState({ ...EMPTY, needsSignature: true, note: "Connect Perps to load portfolio." });
+        setState({
+          ...EMPTY,
+          needsSignature: true,
+          note: "Connect Perps to load portfolio.",
+        });
         return;
       }
       const { client, session } = opened;
@@ -273,7 +317,9 @@ function PortfolioDeskSession() {
         equity: num(margin.totalAccountValue ?? portfolio.withdrawable),
         used: num(margin.totalInitialMargin),
         maint: num(margin.totalMaintenanceMargin),
-        available: extra.availableOrderMargin ? num(extra.availableOrderMargin) : num(portfolio.withdrawable),
+        available: extra.availableOrderMargin
+          ? num(extra.availableOrderMargin)
+          : num(portfolio.withdrawable),
         upnl: positions.reduce((s, p) => s + p.pnl, 0),
         realized,
         positions,
@@ -285,10 +331,14 @@ function PortfolioDeskSession() {
           quantity: String(o.quantity),
           filled: String(o.filledQuantity ?? ""),
           status: String(o.status),
-          timeInForce: o.timeInForce != null ? String(o.timeInForce) : undefined,
+          timeInForce:
+            o.timeInForce != null ? String(o.timeInForce) : undefined,
           reduceOnly: Boolean(o.reduceOnly),
           tpSlKind: o.tpSl?.kind,
-          triggerPrice: o.tpSl?.triggerPrice != null ? String(o.tpSl.triggerPrice) : undefined,
+          triggerPrice:
+            o.tpSl?.triggerPrice != null
+              ? String(o.tpSl.triggerPrice)
+              : undefined,
           created: Number(o.createdTimestamp) || undefined,
         })),
         fills,
@@ -309,25 +359,33 @@ function PortfolioDeskSession() {
   }, [isConnected, mount, publicClient, stripInvite]);
 
   useEffect(() => {
-    void refresh();
+    const initial = setTimeout(() => void refresh(), 0);
     const id = setInterval(() => void refresh(), 15_000);
-    return () => clearInterval(id);
+    return () => {
+      clearTimeout(initial);
+      clearInterval(id);
+    };
   }, [refresh, retry, signerReady]);
 
   useEffect(() => {
     fetch("/api/markets")
       .then((r) => r.json())
-      .then((d: { tickers?: Record<string, PerpsTicker>; instruments?: PerpsInstrument[] }) => {
-        setMarks(d.tickers ?? {});
-        const next: Record<number, number> = {};
-        const symbols: Record<number, string> = {};
-        for (const inst of d.instruments ?? []) {
-          next[inst.instrumentId] = inst.quantityDecimals;
-          symbols[inst.instrumentId] = inst.symbol;
-        }
-        setQtyDecimals(next);
-        setNames(symbols);
-      })
+      .then(
+        (d: {
+          tickers?: Record<string, PerpsTicker>;
+          instruments?: PerpsInstrument[];
+        }) => {
+          setMarks(d.tickers ?? {});
+          const next: Record<number, number> = {};
+          const symbols: Record<number, string> = {};
+          for (const inst of d.instruments ?? []) {
+            next[inst.instrumentId] = inst.quantityDecimals;
+            symbols[inst.instrumentId] = inst.symbol;
+          }
+          setQtyDecimals(next);
+          setNames(symbols);
+        },
+      )
       .catch(() => undefined);
     fetch("/api/gaps?window=15m")
       .then((r) => r.json())
@@ -358,12 +416,21 @@ function PortfolioDeskSession() {
   }
 
   async function closePosition(row: Pos) {
+    if (
+      busy ||
+      !window.confirm(
+        `Close your ${row.symbol} position at market? Execution price may differ from the displayed mark.`,
+      )
+    )
+      return;
     const wc = walletClientRef.current;
     if (!wc) return;
     setBusy(true);
     try {
       await assertCanTrade();
-      const { OrderSide, PerpsTimeInForce } = await import("@polymarket/client");
+      const { OrderSide, PerpsTimeInForce } = await import(
+        "@polymarket/client"
+      );
       const { openCachedPerpsSession } = await import("@/lib/perpsSession");
       const { session } = await openCachedPerpsSession(wc);
       const long = row.size > 0;
@@ -377,7 +444,9 @@ function PortfolioDeskSession() {
       } as never);
       trackEvent("close_position", { symbol: row.symbol });
       await refresh();
-      notifyOk("Position closed.");
+      notifyOk(
+        "Close order submitted. Check the remaining position after execution.",
+      );
     } catch (err) {
       const message = explainPerpsError(err).message;
       setState((s) => ({ ...s, note: message }));
@@ -420,7 +489,10 @@ function PortfolioDeskSession() {
       title: gap?.title ?? "No mapped catalyst",
       eventId: gap?.eventId,
       score: gap?.score ?? 0,
-      aligned: gap ? (p.size > 0 && gap.bias === "long") || (p.size < 0 && gap.bias === "short") : false,
+      aligned: gap
+        ? (p.size > 0 && gap.bias === "long") ||
+          (p.size < 0 && gap.bias === "short")
+        : false,
     };
   });
 
@@ -434,7 +506,10 @@ function PortfolioDeskSession() {
   const rail = (
     <aside className="flex w-full shrink-0 flex-col gap-4 border-[var(--line)] px-4 py-4 lg:w-[280px] lg:border-l">
       {address || state.polymarketWallet ? (
-        <PolyProfileCard eoa={address} polymarketWallet={state.polymarketWallet} />
+        <PolyProfileCard
+          eoa={address}
+          polymarketWallet={state.polymarketWallet}
+        />
       ) : null}
       <div>
         <p className="text-[11px] text-[var(--dim)]">Fund</p>
@@ -442,7 +517,9 @@ function PortfolioDeskSession() {
           <FundControls />
         </div>
         {state.walletPusd ? (
-          <p className="mt-1 num text-[12px] text-[var(--muted)]">{state.walletPusd} on Polymarket</p>
+          <p className="mt-1 num text-[12px] text-[var(--muted)]">
+            {state.walletPusd} on Polymarket
+          </p>
         ) : null}
       </div>
     </aside>
@@ -450,25 +527,46 @@ function PortfolioDeskSession() {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+      <WorkspaceHeading
+        title="Portfolio"
+        description="Balances, positions, and the events behind your exposure."
+      />
       <div className="flex flex-wrap items-baseline gap-x-6 gap-y-2 border-b border-[var(--line)] px-4 py-3">
         <Kpi label="Equity" value={fmtUsd(state.equity)} />
-        <Kpi label="uPnL" value={fmtUsdSigned(state.upnl)} className={signedClass(state.upnl)} />
+        <Kpi
+          label="uPnL"
+          value={fmtUsdSigned(state.upnl)}
+          className={signedClass(state.upnl)}
+        />
         <Kpi label="Margin" value={fmtUsd(state.used)} />
         <Kpi label="Available" value={fmtUsd(state.available)} />
         <Kpi
           label="Realized"
           value={state.realized == null ? "—" : fmtUsdSigned(state.realized)}
-          className={state.realized == null ? "text-[var(--muted)]" : signedClass(state.realized)}
+          className={
+            state.realized == null
+              ? "text-[var(--muted)]"
+              : signedClass(state.realized)
+          }
         />
         <div className="min-w-[7rem]">
           <p className="text-[11px] text-[var(--dim)]">
             Risk
-            {state.liquidation ? <span className="ml-1.5 text-[var(--short)]">Liq</span> : null}
+            {state.liquidation ? (
+              <span className="ml-1.5 text-[var(--short)]">Liq</span>
+            ) : null}
           </p>
-          <p className={cn("num text-[15px]", ratio > 0.8 ? "text-[var(--short)]" : "text-[var(--text)]")}>
+          <p
+            className={cn(
+              "num text-[15px]",
+              ratio > 0.8 ? "text-[var(--short)]" : "text-[var(--text)]",
+            )}
+          >
             {(usedPct * 100).toFixed(1)}%
           </p>
-          <p className="text-[11px] text-[var(--dim)]">Maint {fmtUsd(state.maint)}</p>
+          <p className="text-[11px] text-[var(--dim)]">
+            Maint {fmtUsd(state.maint)}
+          </p>
         </div>
       </div>
 
@@ -477,13 +575,25 @@ function PortfolioDeskSession() {
       ) : state.needsSignature || state.note || state.href ? (
         <div className="flex flex-wrap items-center gap-3 border-b border-[var(--line)] px-4 py-2 text-[13px]">
           {state.needsSignature ? (
-            <Button type="button" size="sm" disabled={busy} onClick={() => void approvePerps()}>
+            <Button
+              type="button"
+              size="sm"
+              disabled={busy}
+              onClick={() => void approvePerps()}
+            >
               {busy ? "Waiting…" : "Connect Perps"}
             </Button>
           ) : null}
-          {state.note ? <p className="text-[var(--warn)]">{state.note}</p> : null}
+          {state.note ? (
+            <p className="text-[var(--warn)]">{state.note}</p>
+          ) : null}
           {state.href ? (
-            <a href={PERPS_INVITE_URL} target="_blank" rel="noreferrer" className="break-all text-[var(--text)] hover:underline">
+            <a
+              href={PERPS_INVITE_URL}
+              target="_blank"
+              rel="noreferrer"
+              className="break-all text-[var(--text)] hover:underline"
+            >
               {PERPS_INVITE_LABEL}
             </a>
           ) : null}
@@ -497,6 +607,7 @@ function PortfolioDeskSession() {
               <button
                 key={item.id}
                 type="button"
+                aria-pressed={tab === item.id}
                 onClick={() => setTab(item.id)}
                 className={cn(
                   "shrink-0 border-b-2 px-2 py-1.5 text-[12px] focus-visible:ring-2 focus-visible:ring-[color-mix(in_srgb,var(--odds)_40%,transparent)]",
@@ -512,7 +623,11 @@ function PortfolioDeskSession() {
           <div className="min-h-0 flex-1 overflow-auto">
             {tab === "positions" ? (
               state.positions.length === 0 ? (
-                <Empty text="No open positions" href="/markets" action="Open Markets" />
+                <Empty
+                  text="No open positions"
+                  href="/markets"
+                  action="Open Markets"
+                />
               ) : (
                 <DataTable containerClassName="min-h-0">
                   <DataTableHeader>
@@ -536,25 +651,48 @@ function PortfolioDeskSession() {
                       return (
                         <DataTableRow key={`${p.instrumentId}-${p.symbol}`}>
                           <DataTableCell>
-                            <Link href={`/markets/${p.symbol}`} className="text-[var(--text)] hover:underline">
+                            <Link
+                              href={`/markets/${p.symbol}`}
+                              className="text-[var(--text)] hover:underline"
+                            >
                               {p.symbol.replace("-USD", "")}
                             </Link>
                           </DataTableCell>
-                          <DataTableCell numeric className={p.size > 0 ? "text-[var(--long)]" : "text-[var(--short)]"}>
+                          <DataTableCell
+                            numeric
+                            className={
+                              p.size > 0
+                                ? "text-[var(--long)]"
+                                : "text-[var(--short)]"
+                            }
+                          >
                             {p.size}
                           </DataTableCell>
-                          <DataTableCell numeric>{fmtPx(p.entry)}</DataTableCell>
-                          <DataTableCell numeric>{mark != null ? fmtPx(mark) : "—"}</DataTableCell>
+                          <DataTableCell numeric>
+                            {fmtPx(p.entry)}
+                          </DataTableCell>
+                          <DataTableCell numeric>
+                            {mark != null ? fmtPx(mark) : "—"}
+                          </DataTableCell>
                           <DataTableCell numeric className={signedClass(p.pnl)}>
                             {fmtUsdSigned(p.pnl)}
                           </DataTableCell>
                           <DataTableCell numeric>{fmtPx(p.liq)}</DataTableCell>
-                          <DataTableCell numeric>{fmtUsd(p.margin)}</DataTableCell>
-                          <DataTableCell numeric className={signedClass(p.funding)}>
+                          <DataTableCell numeric>
+                            {fmtUsd(p.margin)}
+                          </DataTableCell>
+                          <DataTableCell
+                            numeric
+                            className={signedClass(p.funding)}
+                          >
                             {fmtUsdSigned(p.funding)}
                           </DataTableCell>
-                          <DataTableCell numeric>{p.tp ? fmtPx(Number(p.tp)) : "—"}</DataTableCell>
-                          <DataTableCell numeric>{p.sl ? fmtPx(Number(p.sl)) : "—"}</DataTableCell>
+                          <DataTableCell numeric>
+                            {p.tp ? fmtPx(Number(p.tp)) : "—"}
+                          </DataTableCell>
+                          <DataTableCell numeric>
+                            {p.sl ? fmtPx(Number(p.sl)) : "—"}
+                          </DataTableCell>
                           <DataTableCell align="right">
                             <button
                               type="button"
@@ -593,24 +731,37 @@ function PortfolioDeskSession() {
                   <DataTableBody>
                     {state.orders.map((o) => {
                       const px = o.triggerPrice || o.price;
-                      const href = names[o.instrumentId] ? `/markets/${names[o.instrumentId]}` : undefined;
+                      const href = names[o.instrumentId]
+                        ? `/markets/${names[o.instrumentId]}`
+                        : undefined;
                       return (
                         <DataTableRow key={o.id}>
                           <DataTableCell>
                             {href ? (
-                              <Link href={href} className="text-[var(--text)] hover:underline">
+                              <Link
+                                href={href}
+                                className="text-[var(--text)] hover:underline"
+                              >
                                 {marketBase(names[o.instrumentId])}
                               </Link>
                             ) : (
                               marketBase(names[o.instrumentId])
                             )}
                           </DataTableCell>
-                          <DataTableCell className={sideTone(o.side)}>{sideLabel(o.side)}</DataTableCell>
+                          <DataTableCell className={sideTone(o.side)}>
+                            {sideLabel(o.side)}
+                          </DataTableCell>
                           <DataTableCell>{orderTypeLabel(o)}</DataTableCell>
                           <DataTableCell numeric>{o.quantity}</DataTableCell>
-                          <DataTableCell numeric>{o.filled || "—"}</DataTableCell>
-                          <DataTableCell numeric>{fmtPx(Number(px))}</DataTableCell>
-                          <DataTableCell className="capitalize">{o.status.toLowerCase()}</DataTableCell>
+                          <DataTableCell numeric>
+                            {o.filled || "—"}
+                          </DataTableCell>
+                          <DataTableCell numeric>
+                            {fmtPx(Number(px))}
+                          </DataTableCell>
+                          <DataTableCell className="capitalize">
+                            {o.status.toLowerCase()}
+                          </DataTableCell>
                           <DataTableCell numeric className="text-[var(--dim)]">
                             {fmtStamp(o.created)}
                           </DataTableCell>
@@ -649,28 +800,46 @@ function PortfolioDeskSession() {
                   </DataTableHeader>
                   <DataTableBody>
                     {state.fills.map((f, i) => {
-                      const href = names[f.instrumentId] ? `/markets/${names[f.instrumentId]}` : undefined;
+                      const href = names[f.instrumentId]
+                        ? `/markets/${names[f.instrumentId]}`
+                        : undefined;
                       return (
-                        <DataTableRow key={`${f.instrumentId}-${f.time ?? i}-${i}`}>
+                        <DataTableRow
+                          key={`${f.instrumentId}-${f.time ?? i}-${i}`}
+                        >
                           <DataTableCell numeric className="text-[var(--dim)]">
                             {fmtStamp(f.time)}
                           </DataTableCell>
                           <DataTableCell>
                             {href ? (
-                              <Link href={href} className="text-[var(--text)] hover:underline">
+                              <Link
+                                href={href}
+                                className="text-[var(--text)] hover:underline"
+                              >
                                 {marketBase(names[f.instrumentId])}
                               </Link>
                             ) : (
                               marketBase(names[f.instrumentId])
                             )}
                           </DataTableCell>
-                          <DataTableCell className={sideTone(f.side)}>{sideLabel(f.side)}</DataTableCell>
+                          <DataTableCell className={sideTone(f.side)}>
+                            {sideLabel(f.side)}
+                          </DataTableCell>
                           <DataTableCell numeric>{f.quantity}</DataTableCell>
-                          <DataTableCell numeric>{fmtPx(Number(f.price))}</DataTableCell>
+                          <DataTableCell numeric>
+                            {fmtPx(Number(f.price))}
+                          </DataTableCell>
                           <DataTableCell numeric className="text-[var(--dim)]">
                             {f.fee ? fmtUsd(f.fee) : "—"}
                           </DataTableCell>
-                          <DataTableCell numeric className={f.pnl ? signedClass(Number(f.pnl)) : "text-[var(--dim)]"}>
+                          <DataTableCell
+                            numeric
+                            className={
+                              f.pnl
+                                ? signedClass(Number(f.pnl))
+                                : "text-[var(--dim)]"
+                            }
+                          >
                             {f.pnl ? fmtUsdSigned(f.pnl) : "—"}
                           </DataTableCell>
                         </DataTableRow>
@@ -682,17 +851,32 @@ function PortfolioDeskSession() {
             ) : null}
             {tab === "exposure" ? (
               exposures.length === 0 ? (
-                <Empty text="No open positions mapped to events" href="/markets" action="Open Markets" />
+                <Empty
+                  text="No open positions mapped to events"
+                  href="/markets"
+                  action="Open Markets"
+                />
               ) : (
                 <ul className="divide-y divide-[var(--line)] px-4 py-1">
                   {exposures.map((row) => (
-                    <li key={`${row.symbol}-${row.side}`} className="flex flex-wrap items-baseline justify-between gap-2 py-2.5 text-[13px]">
+                    <li
+                      key={`${row.symbol}-${row.side}`}
+                      className="flex flex-wrap items-baseline justify-between gap-2 py-2.5 text-[13px]"
+                    >
                       <span className="min-w-0 text-[var(--text)]">
                         {row.title}
                         <span className="text-[var(--dim)]"> → </span>
                         <Link
-                          href={row.eventId ? `/markets/${row.symbol}?event=${row.eventId}` : `/markets/${row.symbol}`}
-                          className={row.side === "Long" ? "text-[var(--long)] hover:underline" : "text-[var(--short)] hover:underline"}
+                          href={
+                            row.eventId
+                              ? `/markets/${row.symbol}?event=${row.eventId}`
+                              : `/markets/${row.symbol}`
+                          }
+                          className={
+                            row.side === "Long"
+                              ? "text-[var(--long)] hover:underline"
+                              : "text-[var(--short)] hover:underline"
+                          }
                         >
                           {row.symbol.replace("-USD", "")} {row.side}
                         </Link>
@@ -716,16 +900,34 @@ function PortfolioDeskSession() {
   );
 }
 
-function Kpi({ label, value, className = "" }: { label: string; value: string; className?: string }) {
+function Kpi({
+  label,
+  value,
+  className = "",
+}: {
+  label: string;
+  value: string;
+  className?: string;
+}) {
   return (
     <div>
       <p className="text-[11px] text-[var(--dim)]">{label}</p>
-      <p className={cn("num text-[15px] text-[var(--text)]", className)}>{value}</p>
+      <p className={cn("num text-[15px] text-[var(--text)]", className)}>
+        {value}
+      </p>
     </div>
   );
 }
 
-function Empty({ text, href, action }: { text: string; href?: string; action?: string }) {
+function Empty({
+  text,
+  href,
+  action,
+}: {
+  text: string;
+  href?: string;
+  action?: string;
+}) {
   return (
     <div className="px-4 py-8 text-[13px] text-[var(--muted)]">
       <p>{text}</p>

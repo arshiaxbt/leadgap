@@ -48,3 +48,7 @@ next-env.d.ts
 # local visual QA / Playwright dumps
 .playwright-mcp/
 /*.png
+
+# Browser validation artifacts
+/test-results/
+/playwright-report/

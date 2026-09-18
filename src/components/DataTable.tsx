@@ -10,17 +10,26 @@ export function DataTable({
   return (
     <div className={cn("min-h-0 min-w-0 overflow-auto", containerClassName)}>
       <table
-        className={cn("w-full border-collapse text-[13px] text-[var(--text)]", className)}
+        className={cn(
+          "w-full border-collapse text-[13px] text-[var(--text)]",
+          className,
+        )}
         {...props}
       />
     </div>
   );
 }
 
-export function DataTableHeader({ className, ...props }: ComponentProps<"thead">) {
+export function DataTableHeader({
+  className,
+  ...props
+}: ComponentProps<"thead">) {
   return (
     <thead
-      className={cn("sticky top-0 z-10 bg-[var(--bg)] text-[11px] font-medium text-[var(--dim)]", className)}
+      className={cn(
+        "sticky top-0 z-10 bg-[var(--bg)] text-[11px] font-medium text-[var(--dim)]",
+        className,
+      )}
       {...props}
     />
   );
@@ -33,6 +42,7 @@ export function DataTableHead({
 }: ComponentProps<"th"> & { align?: "left" | "right" }) {
   return (
     <th
+      scope="col"
       className={cn(
         "border-b border-[var(--line)] px-2 py-1.5 font-medium",
         align === "right" ? "text-right" : "text-left",
@@ -43,7 +53,10 @@ export function DataTableHead({
   );
 }
 
-export function DataTableBody({ className, ...props }: ComponentProps<"tbody">) {
+export function DataTableBody({
+  className,
+  ...props
+}: ComponentProps<"tbody">) {
   return <tbody className={cn(className)} {...props} />;
 }
 
@@ -107,9 +120,16 @@ export function DataTableSkeleton({
   columnWidths?: number[];
   containerClassName?: string;
 }) {
-  const widths = Array.from({ length: columns }, (_, i) => columnWidths?.[i] ?? (i === 0 ? 72 : 40));
+  const widths = Array.from(
+    { length: columns },
+    (_, i) => columnWidths?.[i] ?? (i === 0 ? 72 : 40),
+  );
   return (
-    <DataTable aria-busy="true" aria-label="Loading" containerClassName={containerClassName}>
+    <DataTable
+      aria-busy="true"
+      aria-label="Loading"
+      containerClassName={containerClassName}
+    >
       <DataTableHeader>
         <tr>
           {widths.map((width, i) => (
@@ -124,7 +144,10 @@ export function DataTableSkeleton({
           <DataTableRow key={r}>
             {widths.map((width, c) => (
               <DataTableCell key={c} numeric={c > 0}>
-                <Skeleton className="h-3" style={{ width: `${Math.max(24, width - r)}%` }} />
+                <Skeleton
+                  className="h-3"
+                  style={{ width: `${Math.max(24, width - r)}%` }}
+                />
               </DataTableCell>
             ))}
           </DataTableRow>
@@ -136,6 +159,8 @@ export function DataTableSkeleton({
 
 export function DataTableEmpty({ children }: { children: ReactNode }) {
   return (
-    <div className="px-3 py-8 text-center text-[13px] text-[var(--muted)]">{children}</div>
+    <div className="flex flex-1 flex-col items-center justify-center px-6 py-12 text-center text-[13px] text-[var(--muted)]">
+      {children}
+    </div>
   );
 }

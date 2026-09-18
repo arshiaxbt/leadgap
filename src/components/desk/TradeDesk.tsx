@@ -1,15 +1,22 @@
 "use client";
+import Link from "next/link";
 
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import dynamic from "next/dynamic";
 import { useSearchParams } from "next/navigation";
-import { Group, Panel, Separator, useDefaultLayout } from "react-resizable-panels";
+import {
+  Group,
+  Panel,
+  Separator,
+  useDefaultLayout,
+} from "react-resizable-panels";
 import { Blotter } from "@/components/desk/Blotter";
 import { EventRail } from "@/components/desk/EventRail";
 import { OrderBookPanel } from "@/components/desk/OrderBookPanel";
 import { TickerStrip } from "@/components/desk/TickerStrip";
 import type { TicketPreview } from "@/components/OrderTicket";
 import { APP_NAME } from "@/lib/brand";
+import { readJson } from "@/lib/http";
 import { fmtPx } from "@/lib/format";
 import { chartStory, thesisLine } from "@/lib/signal";
 import { trackEvent } from "@/lib/track";
@@ -49,15 +56,25 @@ type DeskTab = "chart" | "book" | "trade" | "event" | "positions";
 const XL = "(min-width: 1280px)";
 const INTERVALS: KlineInterval[] = ["1m", "5m", "15m", "30m", "1h", "4h", "1d"];
 
-const PriceChart = dynamic(() => import("@/components/desk/PriceChart").then((m) => m.PriceChart), {
-  ssr: false,
-  loading: () => <div className="h-full min-h-[240px] animate-pulse bg-[var(--hover)]" />,
-});
+const PriceChart = dynamic(
+  () => import("@/components/desk/PriceChart").then((m) => m.PriceChart),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="h-full min-h-[240px] animate-pulse bg-[var(--hover)]" />
+    ),
+  },
+);
 
-const OrderTicket = dynamic(() => import("@/components/OrderTicket").then((m) => m.OrderTicket), {
-  ssr: false,
-  loading: () => <div className="h-full min-h-[200px] animate-pulse bg-[var(--hover)]" />,
-});
+const OrderTicket = dynamic(
+  () => import("@/components/OrderTicket").then((m) => m.OrderTicket),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="h-full min-h-[200px] animate-pulse bg-[var(--hover)]" />
+    ),
+  },
+);
 
 function subscribeXl(onStoreChange: () => void) {
   const mq = window.matchMedia(XL);
@@ -85,11 +102,15 @@ export function TradeDesk({ symbol }: { symbol: string }) {
   const [data, setData] = useState<Payload | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [eventId, setEventId] = useState<string | null>(eventParam);
-  const [klineInterval, setKlineInterval] = useState<KlineInterval>(() => readInterval(symbol));
+  const [klineInterval, setKlineInterval] = useState<KlineInterval>(() =>
+    readInterval(symbol),
+  );
   const [candles, setCandles] = useState<Candle[]>([]);
   const [book, setBook] = useState<PerpsBook | null>(null);
   const [clickPrice, setClickPrice] = useState<string | undefined>();
-  const [chartOdds, setChartOdds] = useState<Snapshot[] | undefined>();
+  const [chartOdds, setChartOdds] = useState<
+    { token: string; points: Snapshot[] } | undefined
+  >();
   const [preview, setPreview] = useState<TicketPreview | null>(null);
   const [tab, setTab] = useState<DeskTab>("chart");
   const [railCollapsed, setRailCollapsed] = useState(false);
@@ -111,10 +132,6 @@ export function TradeDesk({ symbol }: { symbol: string }) {
   });
 
   useEffect(() => {
-    setKlineInterval(readInterval(symbol));
-  }, [symbol]);
-
-  useEffect(() => {
     try {
       sessionStorage.setItem(`lg-interval:${symbol}`, klineInterval);
     } catch {
@@ -126,18 +143,21 @@ export function TradeDesk({ symbol }: { symbol: string }) {
     let stop = false;
     async function load() {
       try {
-        const res = await fetch(`/api/assets/${encodeURIComponent(symbol)}`);
-        if (!res.ok) {
-          if (!stop) setError(res.status === 404 ? "Market not found." : "Couldn't load this market.");
-          return;
-        }
-        const json = (await res.json()) as Payload;
+        const json = await readJson<Payload>(
+          `/api/assets/${encodeURIComponent(symbol)}`,
+        );
         if (stop) return;
         setData(json);
-        const best = [...(json.gaps ?? [])].sort((a, b) => b.score - a.score)[0];
-        setEventId((cur) => cur ?? eventParam ?? best?.eventId ?? json.events[0]?.id ?? null);
+        setError(null);
+        const best = [...(json.gaps ?? [])].sort(
+          (a, b) => b.score - a.score,
+        )[0];
+        setEventId(
+          (cur) =>
+            cur ?? eventParam ?? best?.eventId ?? json.events[0]?.id ?? null,
+        );
       } catch {
-        if (!stop) setError("Market not found.");
+        if (!stop) setError("Couldn’t refresh this market. Please retry.");
       }
     }
     load();
@@ -159,7 +179,10 @@ export function TradeDesk({ symbol }: { symbol: string }) {
     let stop = false;
     async function loadCandles() {
       try {
-        const res = await fetch(`/api/klines?instrumentId=${instrumentId}&interval=${klineInterval}`);
+        const res = await fetch(
+          `/api/klines?instrumentId=${instrumentId}&interval=${klineInterval}`,
+        );
+        if (!res.ok) return;
         const json = (await res.json()) as { candles?: Candle[] };
         if (!stop) setCandles(json.candles ?? []);
       } catch {
@@ -179,7 +202,9 @@ export function TradeDesk({ symbol }: { symbol: string }) {
     let stop = false;
     async function loadBook() {
       try {
-        const res = await fetch(`/api/book?instrumentId=${instrumentId}&depth=100`);
+        const res = await fetch(
+          `/api/book?instrumentId=${instrumentId}&depth=100`,
+        );
         if (!res.ok) return;
         const json = (await res.json()) as PerpsBook;
         if (!stop) setBook(json);
@@ -188,7 +213,7 @@ export function TradeDesk({ symbol }: { symbol: string }) {
       }
     }
     loadBook();
-    const id = setInterval(loadBook, 1200);
+    const id = setInterval(loadBook, 2500);
     return () => {
       stop = true;
       clearInterval(id);
@@ -197,22 +222,27 @@ export function TradeDesk({ symbol }: { symbol: string }) {
 
   const selectedOdds = useMemo(() => {
     const live = eventId && data ? data.oddsHistory[eventId] : undefined;
-    if (chartOdds && chartOdds.length >= (live?.length ?? 0)) return chartOdds;
+    const token = data?.events.find((e) => e.id === eventId)?.yesTokenId;
+    if (
+      chartOdds?.token === token &&
+      chartOdds &&
+      chartOdds.points.length >= (live?.length ?? 0)
+    )
+      return chartOdds.points;
     return live;
   }, [chartOdds, data, eventId]);
 
-  const yesTokenId = data?.events.find((e) => e.id === eventId)?.yesTokenId ?? null;
+  const yesTokenId =
+    data?.events.find((e) => e.id === eventId)?.yesTokenId ?? null;
 
   useEffect(() => {
-    if (!yesTokenId) {
-      setChartOdds(undefined);
-      return;
-    }
+    if (!yesTokenId) return;
     let stop = false;
     fetch(`/api/odds?tokenId=${encodeURIComponent(yesTokenId)}`)
       .then((r) => r.json())
       .then((json: { odds?: Snapshot[] }) => {
-        if (!stop) setChartOdds(json.odds ?? []);
+        if (!stop)
+          setChartOdds({ token: yesTokenId!, points: json.odds ?? [] });
       })
       .catch(() => {
         if (!stop) setChartOdds(undefined);
@@ -243,18 +273,51 @@ export function TradeDesk({ symbol }: { symbol: string }) {
       };
     }
     const observer = new MutationObserver(apply);
-    observer.observe(titleEl, { childList: true, characterData: true, subtree: true });
+    observer.observe(titleEl, {
+      childList: true,
+      characterData: true,
+      subtree: true,
+    });
     return () => {
       observer.disconnect();
       document.title = fallback;
     };
   }, [data?.instrument.priceDecimals, data?.ticker?.markPrice, symbol]);
 
-  if (error) return <p className="p-6 text-sm text-[var(--short)]">{error}</p>;
-  if (!data) return <div className="m-4 h-full animate-pulse bg-[var(--hover)]" />;
+  if (error && !data)
+    return (
+      <div className="m-auto max-w-md p-8">
+        <h1 className="text-2xl">Market unavailable</h1>
+        <p className="mt-3 text-[var(--muted)]">{error}</p>
+        <button
+          onClick={() => window.location.reload()}
+          className="lg-focus mt-6 rounded-md border border-[var(--line-strong)] px-4 py-2"
+        >
+          Retry
+        </button>
+        <Link href="/markets" className="ml-4 text-sm underline">
+          Browse markets
+        </Link>
+      </div>
+    );
+  if (!data)
+    return <div className="m-4 h-full animate-pulse bg-[var(--hover)]" />;
 
-  const { instrument, ticker, events, news, gaps, oddsHistory, instruments, markHistory, windows, tape } = data;
-  const selectedGap = eventId ? gaps.find((g) => g.eventId === eventId) : gaps[0];
+  const {
+    instrument,
+    ticker,
+    events,
+    news,
+    gaps,
+    oddsHistory,
+    instruments,
+    markHistory,
+    windows,
+    tape,
+  } = data;
+  const selectedGap = eventId
+    ? gaps.find((g) => g.eventId === eventId)
+    : gaps[0];
   const story = selectedGap ? chartStory(selectedGap.leader) : undefined;
 
   function toggleRail() {
@@ -293,16 +356,27 @@ export function TradeDesk({ symbol }: { symbol: string }) {
       interval={klineInterval}
       onInterval={setKlineInterval}
       oddsLabel={events.find((e) => e.id === eventId)?.title ?? "Yes %"}
-      gapMarks={(tape ?? []).filter((p) => p.symbol === instrument.symbol && (!eventId || p.eventId === eventId))}
+      gapMarks={(tape ?? []).filter(
+        (p) =>
+          p.symbol === instrument.symbol && (!eventId || p.eventId === eventId),
+      )}
       story={story}
       decimals={instrument.priceDecimals}
     />
   );
   const bookPanel = (
-    <OrderBookPanel book={book} decimals={instrument.priceDecimals} onPrice={(p) => setClickPrice(String(p))} />
+    <OrderBookPanel
+      book={book}
+      decimals={instrument.priceDecimals}
+      onPrice={(p) => {
+        setClickPrice(p.toFixed(instrument.priceDecimals));
+        setTab("trade");
+      }}
+    />
   );
   const ticketPanel = (
     <OrderTicket
+      key={`${instrument.symbol}:${eventId ?? ""}:${clickPrice ?? ""}`}
       instrument={instrument}
       ticker={ticker}
       price={clickPrice}
@@ -324,6 +398,11 @@ export function TradeDesk({ symbol }: { symbol: string }) {
   if (wide) {
     return (
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+        {error ? (
+          <p className="workspace-error" role="alert">
+            {error}
+          </p>
+        ) : null}
         {tickerStrip}
         <Group
           id="leadgap-desk-h3"
@@ -340,7 +419,11 @@ export function TradeDesk({ symbol }: { symbol: string }) {
               defaultLayout={rows.defaultLayout}
               onLayoutChanged={rows.onLayoutChanged}
             >
-              <Panel id="chartbook" minSize={200} className="min-h-0 overflow-hidden">
+              <Panel
+                id="chartbook"
+                minSize={200}
+                className="min-h-0 overflow-hidden"
+              >
                 <Group
                   id="leadgap-desk-cb"
                   orientation="horizontal"
@@ -348,7 +431,11 @@ export function TradeDesk({ symbol }: { symbol: string }) {
                   defaultLayout={chartBook.defaultLayout}
                   onLayoutChanged={chartBook.onLayoutChanged}
                 >
-                  <Panel id="chart" minSize={220} className="min-h-0 overflow-hidden">
+                  <Panel
+                    id="chart"
+                    minSize={220}
+                    className="min-h-0 overflow-hidden"
+                  >
                     {chartPanel}
                   </Panel>
                   <Separator className="desk-handle" />
@@ -380,8 +467,8 @@ export function TradeDesk({ symbol }: { symbol: string }) {
           <Separator className="desk-handle" />
           <Panel
             id="side"
-            defaultSize={552}
-            minSize={260}
+            defaultSize={600}
+            minSize={560}
             maxSize={760}
             groupResizeBehavior="preserve-pixel-size"
             className="min-h-0 overflow-hidden"
@@ -390,12 +477,14 @@ export function TradeDesk({ symbol }: { symbol: string }) {
               <div
                 className={cn(
                   "min-h-0 shrink-0 overflow-hidden border-r border-[var(--line)]",
-                  railCollapsed ? "w-10" : "w-[272px]",
+                  railCollapsed ? "w-10" : "w-[264px]",
                 )}
               >
                 {intelPanel}
               </div>
-              <div className="min-h-0 min-w-0 flex-1 overflow-hidden">{ticketPanel}</div>
+              <div className="min-h-0 min-w-0 flex-1 overflow-hidden">
+                {ticketPanel}
+              </div>
             </div>
           </Panel>
         </Group>
@@ -413,15 +502,21 @@ export function TradeDesk({ symbol }: { symbol: string }) {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+      {error ? (
+        <p className="workspace-error" role="alert">
+          {error}
+        </p>
+      ) : null}
       {tickerStrip}
       <div className="flex shrink-0 gap-1 overflow-x-auto border-b border-[var(--line)] px-2">
         {tabs.map((item) => (
           <button
             key={item.id}
             type="button"
+            aria-pressed={tab === item.id}
             onClick={() => setTab(item.id)}
             className={cn(
-              "lg-focus shrink-0 border-b-2 px-2 py-1.5 text-[12px]",
+              "lg-focus shrink-0 border-b-2 px-3 py-3 text-[13px]",
               tab === item.id
                 ? "border-[var(--text)] text-[var(--text)]"
                 : "border-transparent text-[var(--muted)] hover:text-[var(--text)]",

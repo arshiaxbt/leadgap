@@ -86,15 +86,22 @@ export function Blotter({
     return (
       <div className="flex h-full min-h-0 flex-col bg-[var(--surface)]">
         <div className="flex items-center gap-1 border-b border-[var(--line)] px-2">
-          <span className="px-2 py-1.5 text-[12px] text-[var(--muted)]">Positions</span>
-          <Link href="/portfolio" className="ml-auto px-2 py-1.5 text-[12px] text-[var(--muted)] hover:text-[var(--text)]">
+          <span className="px-2 py-1.5 text-[12px] text-[var(--muted)]">
+            Positions
+          </span>
+          <Link
+            href="/portfolio"
+            className="ml-auto px-2 py-1.5 text-[12px] text-[var(--muted)] hover:text-[var(--text)]"
+          >
             Portfolio
           </Link>
         </div>
         <div className="flex flex-1 flex-col justify-center px-4 py-6 text-[12px]">
           <p className="text-[var(--text)]">No open positions</p>
           <p className="mt-1 text-[var(--muted)]">
-            {mount === "insecure" ? "HTTPS required to log in." : "Log in to see positions and orders."}
+            {mount === "insecure"
+              ? "HTTPS required to log in."
+              : "Log in to see positions and orders."}
           </p>
         </div>
       </div>
@@ -139,7 +146,8 @@ function BlotterSession({
   const [tpDraft, setTpDraft] = useState("");
   const [slDraft, setSlDraft] = useState("");
   const strip = usePerpsStrip();
-  const stripInvite = strip?.state.access?.kind === "invite" ? strip.state.access : null;
+  const stripInvite =
+    strip?.state.access?.kind === "invite" ? strip.state.access : null;
 
   const refresh = useCallback(async () => {
     if (mount !== "ready" || !isConnected || !walletClient) {
@@ -209,10 +217,14 @@ function BlotterSession({
           quantity: String(o.quantity),
           filled: String(o.filledQuantity ?? ""),
           status: String(o.status),
-          timeInForce: o.timeInForce != null ? String(o.timeInForce) : undefined,
+          timeInForce:
+            o.timeInForce != null ? String(o.timeInForce) : undefined,
           reduceOnly: Boolean(o.reduceOnly),
           tpSlKind: o.tpSl?.kind,
-          triggerPrice: o.tpSl?.triggerPrice != null ? String(o.tpSl.triggerPrice) : undefined,
+          triggerPrice:
+            o.tpSl?.triggerPrice != null
+              ? String(o.tpSl.triggerPrice)
+              : undefined,
           created: Number(o.createdTimestamp) || undefined,
         })),
       );
@@ -243,9 +255,12 @@ function BlotterSession({
   }, [instrumentId, isConnected, mount, stripInvite, walletClient]);
 
   useEffect(() => {
-    void refresh();
+    const initial = setTimeout(() => void refresh(), 0);
     const id = setInterval(() => void refresh(), 15_000);
-    return () => clearInterval(id);
+    return () => {
+      clearTimeout(initial);
+      clearInterval(id);
+    };
   }, [refresh]);
 
   useEffect(() => {
@@ -253,18 +268,27 @@ function BlotterSession({
       .then((r) => r.json())
       .then((d: { instruments?: PerpsInstrument[] }) => {
         const next: Record<number, string> = { [instrumentId]: symbol };
-        for (const inst of d.instruments ?? []) next[inst.instrumentId] = inst.symbol;
+        for (const inst of d.instruments ?? [])
+          next[inst.instrumentId] = inst.symbol;
         setNames(next);
       })
       .catch(() => setNames({ [instrumentId]: symbol }));
   }, [instrumentId, symbol]);
 
   async function closePosition(row: PositionRow) {
+    if (
+      !window.confirm(
+        "Close this position at market? Execution price may differ from the displayed mark.",
+      )
+    )
+      return;
     if (!walletClient) return;
     setBusy(true);
     try {
       await assertCanTrade();
-      const { OrderSide, PerpsTimeInForce } = await import("@polymarket/client");
+      const { OrderSide, PerpsTimeInForce } = await import(
+        "@polymarket/client"
+      );
       const { openCachedPerpsSession } = await import("@/lib/perpsSession");
       const { session } = await openCachedPerpsSession(walletClient);
       const long = Number(row.size) > 0;
@@ -277,7 +301,9 @@ function BlotterSession({
         builderCode: BUILDER_CODE,
       } as never);
       await refresh();
-      notifyOk("Position closed.");
+      notifyOk(
+        "Close order submitted. Check the remaining position after execution.",
+      );
     } catch (err) {
       const next = explainPerpsError(err);
       setAccess(next.kind === "invite" ? next : null);
@@ -384,10 +410,17 @@ function BlotterSession({
             {item.label}
           </button>
         ))}
-        <Link href="/portfolio" className="lg-focus px-2 py-1.5 text-[12px] text-[var(--muted)] hover:text-[var(--text)]">
+        <Link
+          href="/portfolio"
+          className="lg-focus px-2 py-1.5 text-[12px] text-[var(--muted)] hover:text-[var(--text)]"
+        >
           Portfolio
         </Link>
-        {note && !access ? <span className="ml-auto truncate text-[12px] text-[var(--dim)]">{note}</span> : null}
+        {note && !access ? (
+          <span className="ml-auto truncate text-[12px] text-[var(--dim)]">
+            {note}
+          </span>
+        ) : null}
       </div>
       {access ? <PerpsAccessAlert access={access} /> : null}
       <div className="min-h-0 flex-1 overflow-auto px-2 py-1 text-[11px]">
@@ -420,16 +453,36 @@ function BlotterSession({
                 <tr>
                   <td className="py-1.5 text-[var(--muted)]">Ticket</td>
                   <td className="num">{preview.qty || "—"}</td>
-                  <td className="num">{preview.price ? fmtPx(preview.price, priceDecimals) : "—"}</td>
-                  <td className="num">{ticker ? fmtPx(ticker.markPrice, priceDecimals) : "—"}</td>
+                  <td className="num">
+                    {preview.price ? fmtPx(preview.price, priceDecimals) : "—"}
+                  </td>
+                  <td className="num">
+                    {ticker ? fmtPx(ticker.markPrice, priceDecimals) : "—"}
+                  </td>
                   <td className="num text-[var(--dim)]">—</td>
-                  <td className="num">{preview.liq != null ? fmtPx(preview.liq, priceDecimals) : "—"}</td>
-                  <td className="num">{preview.margin ? fmtUsd(preview.margin) : "—"}</td>
-                  <td className={`num ${ticker ? signedClass(ticker.fundingRate) : ""}`}>
+                  <td className="num">
+                    {preview.liq != null
+                      ? fmtPx(preview.liq, priceDecimals)
+                      : "—"}
+                  </td>
+                  <td className="num">
+                    {preview.margin ? fmtUsd(preview.margin) : "—"}
+                  </td>
+                  <td
+                    className={`num ${ticker ? signedClass(ticker.fundingRate) : ""}`}
+                  >
                     {ticker ? fmtFunding(ticker.fundingRate) : "—"}
                   </td>
-                  <td className="num">{preview.tp ? fmtPx(Number(preview.tp), priceDecimals) : "—"}</td>
-                  <td className="num">{preview.sl ? fmtPx(Number(preview.sl), priceDecimals) : "—"}</td>
+                  <td className="num">
+                    {preview.tp
+                      ? fmtPx(Number(preview.tp), priceDecimals)
+                      : "—"}
+                  </td>
+                  <td className="num">
+                    {preview.sl
+                      ? fmtPx(Number(preview.sl), priceDecimals)
+                      : "—"}
+                  </td>
                   <td className="text-[var(--dim)]">Before fill</td>
                 </tr>
               ) : null}
@@ -440,17 +493,32 @@ function BlotterSession({
                 return (
                   <tr key={`${p.instrumentId}-${p.symbol}`}>
                     <td className="py-1.5">
-                      <Link href={`/markets/${p.symbol}`} className="text-[var(--text)] hover:underline">
+                      <Link
+                        href={`/markets/${p.symbol}`}
+                        className="text-[var(--text)] hover:underline"
+                      >
                         {p.symbol.replace("-USD", "")}
                       </Link>
                     </td>
                     <td className="num">{p.size}</td>
-                    <td className="num">{fmtPx(Number(p.entryPrice), digits)}</td>
-                    <td className="num">{on && ticker ? fmtPx(ticker.markPrice, digits) : "—"}</td>
-                    <td className={`num ${signedClass(Number(p.unrealizedPnl))}`}>{fmtUsdSigned(p.unrealizedPnl)}</td>
-                    <td className="num">{fmtPx(Number(p.liquidationPrice), digits)}</td>
+                    <td className="num">
+                      {fmtPx(Number(p.entryPrice), digits)}
+                    </td>
+                    <td className="num">
+                      {on && ticker ? fmtPx(ticker.markPrice, digits) : "—"}
+                    </td>
+                    <td
+                      className={`num ${signedClass(Number(p.unrealizedPnl))}`}
+                    >
+                      {fmtUsdSigned(p.unrealizedPnl)}
+                    </td>
+                    <td className="num">
+                      {fmtPx(Number(p.liquidationPrice), digits)}
+                    </td>
                     <td className="num">{fmtUsd(p.margin)}</td>
-                    <td className={`num ${signedClass(Number(p.funding))}`}>{fmtUsdSigned(p.funding)}</td>
+                    <td className={`num ${signedClass(Number(p.funding))}`}>
+                      {fmtUsdSigned(p.funding)}
+                    </td>
                     <td className="num">
                       {editing ? (
                         <input
@@ -553,12 +621,24 @@ function BlotterSession({
               ) : (
                 orders.map((o) => {
                   const px = o.triggerPrice || o.price;
-                  const sym = names[o.instrumentId] ?? (o.instrumentId === instrumentId ? symbol : "");
+                  const sym =
+                    names[o.instrumentId] ??
+                    (o.instrumentId === instrumentId ? symbol : "");
                   return (
-                    <tr key={o.id} className={o.instrumentId === instrumentId ? undefined : "text-[var(--muted)]"}>
+                    <tr
+                      key={o.id}
+                      className={
+                        o.instrumentId === instrumentId
+                          ? undefined
+                          : "text-[var(--muted)]"
+                      }
+                    >
                       <td className="py-1.5">
                         {sym ? (
-                          <Link href={`/markets/${sym}`} className="text-[var(--text)] hover:underline">
+                          <Link
+                            href={`/markets/${sym}`}
+                            className="text-[var(--text)] hover:underline"
+                          >
                             {marketBase(sym)}
                           </Link>
                         ) : (
@@ -569,9 +649,16 @@ function BlotterSession({
                       <td>{orderTypeLabel(o)}</td>
                       <td className="num">{o.quantity}</td>
                       <td className="num">{o.filled || "—"}</td>
-                      <td className="num">{fmtPx(Number(px), o.instrumentId === instrumentId ? priceDecimals : 2)}</td>
+                      <td className="num">
+                        {fmtPx(
+                          Number(px),
+                          o.instrumentId === instrumentId ? priceDecimals : 2,
+                        )}
+                      </td>
                       <td className="capitalize">{o.status.toLowerCase()}</td>
-                      <td className="num text-[var(--dim)]">{fmtStamp(o.created)}</td>
+                      <td className="num text-[var(--dim)]">
+                        {fmtStamp(o.created)}
+                      </td>
                       <td className="whitespace-nowrap">
                         <button
                           type="button"
@@ -611,27 +698,43 @@ function BlotterSession({
                 </tr>
               ) : (
                 fills.map((f, i) => {
-                  const sym = names[f.instrumentId] ?? (f.instrumentId === instrumentId ? symbol : "");
+                  const sym =
+                    names[f.instrumentId] ??
+                    (f.instrumentId === instrumentId ? symbol : "");
                   return (
-                  <tr key={`${f.instrumentId}-${f.time ?? i}-${i}`}>
-                    <td className="num py-1.5 text-[var(--dim)]">{fmtStamp(f.time)}</td>
-                    <td>
-                      {sym ? (
-                        <Link href={`/markets/${sym}`} className="text-[var(--text)] hover:underline">
-                          {marketBase(sym)}
-                        </Link>
-                      ) : (
-                        marketFor(f.instrumentId)
-                      )}
-                    </td>
-                    <td className={sideTone(f.side)}>{sideLabel(f.side)}</td>
-                    <td className="num">{f.quantity}</td>
-                    <td className="num">{fmtPx(Number(f.price), f.instrumentId === instrumentId ? priceDecimals : 2)}</td>
-                    <td className="num text-[var(--dim)]">{f.fee ? fmtUsd(f.fee) : "—"}</td>
-                    <td className={`num ${f.pnl ? signedClass(Number(f.pnl)) : "text-[var(--dim)]"}`}>
-                      {f.pnl ? fmtUsdSigned(f.pnl) : "—"}
-                    </td>
-                  </tr>
+                    <tr key={`${f.instrumentId}-${f.time ?? i}-${i}`}>
+                      <td className="num py-1.5 text-[var(--dim)]">
+                        {fmtStamp(f.time)}
+                      </td>
+                      <td>
+                        {sym ? (
+                          <Link
+                            href={`/markets/${sym}`}
+                            className="text-[var(--text)] hover:underline"
+                          >
+                            {marketBase(sym)}
+                          </Link>
+                        ) : (
+                          marketFor(f.instrumentId)
+                        )}
+                      </td>
+                      <td className={sideTone(f.side)}>{sideLabel(f.side)}</td>
+                      <td className="num">{f.quantity}</td>
+                      <td className="num">
+                        {fmtPx(
+                          Number(f.price),
+                          f.instrumentId === instrumentId ? priceDecimals : 2,
+                        )}
+                      </td>
+                      <td className="num text-[var(--dim)]">
+                        {f.fee ? fmtUsd(f.fee) : "—"}
+                      </td>
+                      <td
+                        className={`num ${f.pnl ? signedClass(Number(f.pnl)) : "text-[var(--dim)]"}`}
+                      >
+                        {f.pnl ? fmtUsdSigned(f.pnl) : "—"}
+                      </td>
+                    </tr>
                   );
                 })
               )}

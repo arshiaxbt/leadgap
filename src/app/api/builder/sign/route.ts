@@ -33,15 +33,35 @@ export async function POST(req: Request) {
 
   let body: { method?: string; path?: string; body?: string };
   try {
-    body = (await req.json()) as { method?: string; path?: string; body?: string };
+    body = (await req.json()) as {
+      method?: string;
+      path?: string;
+      body?: string;
+    };
   } catch {
     return NextResponse.json({ error: "Invalid request" }, { status: 400 });
   }
 
+  if (
+    !body ||
+    typeof body !== "object" ||
+    Array.isArray(body) ||
+    (body.method !== undefined && typeof body.method !== "string") ||
+    typeof body.path !== "string" ||
+    (body.body !== undefined && typeof body.body !== "string") ||
+    body.path.length > 2048 ||
+    (body.body?.length ?? 0) > 65536
+  ) {
+    return NextResponse.json({ error: "Invalid request" }, { status: 400 });
+  }
   const method = (body.method ?? "GET").toUpperCase();
   const path = body.path ?? "";
   if (!allowedBuilderMethod(method) || !allowedBuilderPath(path)) {
-    console.warn("[builder/sign] rejected", method, builderSignPathname(path) ?? "(invalid)");
+    console.warn(
+      "[builder/sign] rejected",
+      method,
+      builderSignPathname(path) ?? "(invalid)",
+    );
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

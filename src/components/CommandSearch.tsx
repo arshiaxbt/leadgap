@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import { SearchIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -13,7 +13,12 @@ import {
   CommandList,
   CommandSeparator,
 } from "@/components/ui/command";
-import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Kbd } from "@/components/ui/kbd";
 import { fmtOdds } from "@/lib/format";
 import type { PerpsInstrument, ResolvedEvent } from "@/lib/types";
@@ -23,7 +28,7 @@ const DESTINATIONS = [
   { href: "/", label: "Signals", hint: "Ranked setups" },
   { href: "/markets", label: "Markets", hint: "Perp table" },
   { href: "/portfolio", label: "Portfolio", hint: "Positions and equity" },
-  { href: "/about", label: "About", hint: "How Leadgap works" },
+  { href: "/about", label: "Guide", hint: "How Leadgap works" },
 ] as const;
 
 type MarketHit = Pick<PerpsInstrument, "symbol" | "baseAsset" | "category">;
@@ -35,17 +40,18 @@ type EventHit = {
   yesPrice: number;
 };
 
+const subscribePlatform = () => () => {};
+
 export function CommandSearch() {
   const router = useRouter();
   const [open, setOpen] = useState(false);
-  const [mod, setMod] = useState("⌘");
+  const mod = useSyncExternalStore(
+    subscribePlatform,
+    () => (/Mac|iPhone|iPad/.test(navigator.platform) ? "⌘" : "Ctrl"),
+    () => "⌘",
+  );
   const [markets, setMarkets] = useState<MarketHit[]>([]);
   const [events, setEvents] = useState<EventHit[]>([]);
-
-  useEffect(() => {
-    const mac = /Mac|iPhone|iPad/.test(navigator.platform) || navigator.userAgent.includes("Mac");
-    setMod(mac ? "⌘" : "Ctrl");
-  }, []);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -62,8 +68,12 @@ export function CommandSearch() {
     if (!open) return;
     let stop = false;
     Promise.all([
-      fetch("/api/markets").then((res) => res.json() as Promise<{ instruments?: PerpsInstrument[] }>),
-      fetch("/api/events").then((res) => res.json() as Promise<{ events?: ResolvedEvent[] }>),
+      fetch("/api/markets").then(
+        (res) => res.json() as Promise<{ instruments?: PerpsInstrument[] }>,
+      ),
+      fetch("/api/events").then(
+        (res) => res.json() as Promise<{ events?: ResolvedEvent[] }>,
+      ),
     ])
       .then(([marketPayload, eventPayload]) => {
         if (stop) return;
@@ -120,10 +130,14 @@ export function CommandSearch() {
         </Kbd>
       </Button>
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="overflow-hidden p-0 sm:max-w-lg" showCloseButton={false}>
+        <DialogContent
+          className="overflow-hidden p-0 sm:max-w-lg"
+          showCloseButton={false}
+        >
           <DialogTitle className="sr-only">Search</DialogTitle>
           <DialogDescription className="sr-only">
-            Search events and markets, or jump to Signals, Markets, Portfolio, or About.
+            Search events and markets, or jump to Signals, Markets, Portfolio,
+            or Guide.
           </DialogDescription>
           <Command className="rounded-none border-0">
             <CommandInput placeholder="Search events and markets" />
@@ -137,7 +151,11 @@ export function CommandSearch() {
                     onSelect={() => go(item.href)}
                   >
                     <span>{item.label}</span>
-                    <span className={cn("ml-auto text-[11px] text-[var(--dim)]")}>{item.hint}</span>
+                    <span
+                      className={cn("ml-auto text-[11px] text-[var(--dim)]")}
+                    >
+                      {item.hint}
+                    </span>
                   </CommandItem>
                 ))}
               </CommandGroup>
@@ -152,7 +170,9 @@ export function CommandSearch() {
                         onSelect={() => go(`/markets/${item.symbol}`)}
                       >
                         <span>{item.symbol}</span>
-                        <span className="ml-auto text-[11px] text-[var(--dim)]">{item.category}</span>
+                        <span className="ml-auto text-[11px] text-[var(--dim)]">
+                          {item.category}
+                        </span>
                       </CommandItem>
                     ))}
                   </CommandGroup>
@@ -166,11 +186,14 @@ export function CommandSearch() {
                       <CommandItem
                         key={`${item.id}:${item.symbol}`}
                         value={`${item.title} ${item.question} ${item.symbol} ${item.id} event`}
-                        onSelect={() => go(`/markets/${item.symbol}?event=${item.id}`)}
+                        onSelect={() =>
+                          go(`/markets/${item.symbol}?event=${item.id}`)
+                        }
                       >
                         <span className="min-w-0 truncate">{item.title}</span>
                         <span className="ml-auto shrink-0 text-[11px] text-[var(--dim)]">
-                          {item.symbol.replace("-USD", "")} {fmtOdds(item.yesPrice)}
+                          {item.symbol.replace("-USD", "")}{" "}
+                          {fmtOdds(item.yesPrice)}
                         </span>
                       </CommandItem>
                     ))}

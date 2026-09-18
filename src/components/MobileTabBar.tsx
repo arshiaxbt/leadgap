@@ -12,8 +12,16 @@ export function MobileTabBar() {
   const tabs = [
     { href: "/", label: "Signals", on: navItemActive(path, APP_NAV[0]) },
     { href: "/markets", label: "Markets", on: navItemActive(path, APP_NAV[1]) },
-    { href: onDesk ? path : "/markets", label: "Trade", on: onDesk },
-    { href: "/portfolio", label: "Portfolio", on: navItemActive(path, APP_NAV[2]) },
+    {
+      href: onDesk ? path : "/about",
+      label: onDesk ? "Trade" : "Guide",
+      on: onDesk || path === "/about",
+    },
+    {
+      href: "/portfolio",
+      label: "Portfolio",
+      on: navItemActive(path, APP_NAV[2]),
+    },
   ];
 
   return (
@@ -26,6 +34,7 @@ export function MobileTabBar() {
           <li key={tab.label}>
             <Link
               href={tab.href}
+              aria-current={tab.on ? "page" : undefined}
               className={cn(
                 "lg-focus flex h-full items-center justify-center text-[11px] font-medium",
                 tab.on ? "text-[var(--text)]" : "text-[var(--muted)]",

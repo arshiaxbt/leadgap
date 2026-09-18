@@ -55,7 +55,10 @@ const ALLOWED_PATH_PREFIXES = [
 let client: PrivyClient | null = null;
 
 function privyAppId(): string | undefined {
-  return process.env.PRIVY_APP_ID?.trim() || process.env.NEXT_PUBLIC_PRIVY_APP_ID?.trim();
+  return (
+    process.env.PRIVY_APP_ID?.trim() ||
+    process.env.NEXT_PUBLIC_PRIVY_APP_ID?.trim()
+  );
 }
 
 function privyClient(): PrivyClient | null {
@@ -73,9 +76,14 @@ export function allowedBuilderOrigin(req: Request): boolean {
   try {
     const host = new URL(origin).hostname;
     if (process.env.VERCEL_ENV === "preview") {
-      return host.endsWith(".vercel.app") && host.startsWith("leadgap");
+      return [process.env.VERCEL_URL, process.env.VERCEL_BRANCH_URL]
+        .filter(Boolean)
+        .some((allowed) => origin === `https://${allowed}`);
     }
-    if (process.env.VERCEL_ENV === "production" || (process.env.NODE_ENV === "production" && process.env.VERCEL)) {
+    if (
+      process.env.VERCEL_ENV === "production" ||
+      (process.env.NODE_ENV === "production" && process.env.VERCEL)
+    ) {
       return false;
     }
     return host === "localhost" || host === "127.0.0.1";
@@ -102,12 +110,16 @@ export function builderSignPathname(path: string): string | null {
 export function allowedBuilderPath(path: string): boolean {
   const pathname = builderSignPathname(path);
   if (!pathname) return false;
-  return ALLOWED_PATH_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
+  return ALLOWED_PATH_PREFIXES.some(
+    (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
+  );
 }
 
 export type PrivyIdentity = { userId: string };
 
-export async function verifyPrivyBearer(req: Request): Promise<PrivyIdentity | null> {
+export async function verifyPrivyBearer(
+  req: Request,
+): Promise<PrivyIdentity | null> {
   const privy = privyClient();
   if (!privy) return null;
   const header = req.headers.get("authorization") ?? "";

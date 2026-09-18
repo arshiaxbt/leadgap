@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { readJson } from "@/lib/http";
 import type { PerpsInstrument, PerpsTicker } from "@/lib/types";
 
 export type MarketsPayload = {
@@ -10,48 +11,30 @@ export type MarketsPayload = {
   error: string | null;
   asOf: number;
 };
+const EMPTY: MarketsPayload = {
+  instruments: [],
+  tickers: {},
+  eventCounts: {},
+  error: null,
+  asOf: 0,
+};
 
-const EMPTY_COUNTS: Record<string, number> = {};
-
-export function useMarkets(): MarketsPayload & { loading: boolean } {
-  const [data, setData] = useState<MarketsPayload | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    let stop = false;
-    async function load() {
-      const res = await fetch("/api/markets");
-      const json = (await res.json()) as {
-        instruments?: PerpsInstrument[];
-        tickers?: Record<string, PerpsTicker>;
-        eventCounts?: Record<string, number>;
-        error: string | null;
-        asOf: number;
-      };
-      if (stop) return;
-      setData({
-        instruments: json.instruments ?? [],
-        tickers: json.tickers ?? {},
-        eventCounts: json.eventCounts ?? EMPTY_COUNTS,
-        error: json.error,
-        asOf: json.asOf,
-      });
-      setLoading(false);
-    }
-    load();
-    const id = setInterval(load, 20_000);
-    return () => {
-      stop = true;
-      clearInterval(id);
-    };
-  }, []);
-
+export function useMarkets() {
+  const query = useQuery({
+    queryKey: ["markets"],
+    queryFn: ({ signal }) => readJson<MarketsPayload>("/api/markets", signal),
+    refetchInterval: 20_000,
+    staleTime: 10_000,
+    retry: 1,
+  });
   return {
-    instruments: data?.instruments ?? [],
-    tickers: data?.tickers ?? {},
-    eventCounts: data?.eventCounts ?? EMPTY_COUNTS,
-    error: data?.error ?? null,
-    asOf: data?.asOf ?? 0,
-    loading,
+    ...(query.data ?? EMPTY),
+    error:
+      query.error?.message ??
+      (query.data?.error
+        ? "Some market data could not refresh. Last available values are shown."
+        : null),
+    loading: query.isPending,
+    retry: () => void query.refetch(),
   };
 }

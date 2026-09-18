@@ -5,7 +5,15 @@ export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
-  const raw = url.searchParams.getAll("address").map((a) => a.trim()).filter(Boolean);
+  const raw = url.searchParams
+    .getAll("address")
+    .map((a) => a.trim())
+    .filter(Boolean);
+  if (raw.length > 4)
+    return NextResponse.json(
+      { error: "At most four addresses are supported." },
+      { status: 400 },
+    );
   const seen = new Set<string>();
   for (const address of raw) {
     const key = address.toLowerCase();

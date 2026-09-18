@@ -49,7 +49,11 @@ function signerAddress(walletClient: WalletClient): string | undefined {
 
 function dropLegacyStore() {
   if (typeof window === "undefined") return;
-  window.localStorage.removeItem(LEGACY_STORAGE_KEY);
+  try {
+    window.localStorage.removeItem(LEGACY_STORAGE_KEY);
+  } catch {
+    /* Storage may be unavailable. */
+  }
 }
 
 function readStore(): Record<string, StoredSession> {
@@ -67,7 +71,11 @@ function readStore(): Record<string, StoredSession> {
 
 function writeStore(store: Record<string, StoredSession>) {
   if (typeof window === "undefined") return;
-  window.sessionStorage.setItem(STORAGE_KEY, JSON.stringify(store));
+  try {
+    window.sessionStorage.setItem(STORAGE_KEY, JSON.stringify(store));
+  } catch {
+    /* Keep the active in-memory session. */
+  }
 }
 
 function saveStored(row: StoredSession) {
@@ -79,7 +87,11 @@ function saveStored(row: StoredSession) {
 function clearStored(address?: string) {
   if (!address) {
     if (typeof window !== "undefined") {
-      window.sessionStorage.removeItem(STORAGE_KEY);
+      try {
+        window.sessionStorage.removeItem(STORAGE_KEY);
+      } catch {
+        /* Already unavailable. */
+      }
       dropLegacyStore();
     }
     return;
@@ -110,7 +122,11 @@ function persistFromOpened(openedSession: OpenedPerpsSession) {
       : undefined,
     apiKeys:
       creds?.key && creds.secret && creds.passphrase
-        ? { key: String(creds.key), secret: creds.secret, passphrase: creds.passphrase }
+        ? {
+            key: String(creds.key),
+            secret: creds.secret,
+            passphrase: creds.passphrase,
+          }
         : undefined,
     perps: perps
       ? {
@@ -136,7 +152,8 @@ export function forgetStoredPerpsSession(address?: string) {
 
 async function ensurePolygon(walletClient: WalletClient) {
   const chainId =
-    walletClient.chain?.id ?? (await walletClient.getChainId().catch(() => undefined));
+    walletClient.chain?.id ??
+    (await walletClient.getChainId().catch(() => undefined));
   if (chainId === polygon.id) return;
   try {
     await walletClient.switchChain({ id: polygon.id });
@@ -200,7 +217,12 @@ export function resumePerpsSession(
   return enqueue(async () => {
     const address = signerAddress(walletClient);
     if (!address) return null;
-    if (opened?.address === address) return opened;
+    if (
+      opened?.address === address &&
+      opened.session.credentials.expiresAt > Date.now() + EXPIRY_BUFFER_MS
+    )
+      return opened;
+    if (opened?.address === address) opened = null;
     if (opened && opened.address !== address) opened = null;
     return tryResume(walletClient, address);
   });
@@ -215,9 +237,16 @@ export function openCachedPerpsSession(
   return enqueue(async () => {
     const address = signerAddress(walletClient);
     if (!address) {
-      throw new Error("Wallet is connected but the signer address is not ready yet.");
+      throw new Error(
+        "Wallet is connected but the signer address is not ready yet.",
+      );
     }
-    if (opened?.address === address) return opened;
+    if (
+      opened?.address === address &&
+      opened.session.credentials.expiresAt > Date.now() + EXPIRY_BUFFER_MS
+    )
+      return opened;
+    if (opened?.address === address) opened = null;
     if (opened && opened.address !== address) opened = null;
     const resumed = await tryResume(walletClient, address);
     if (resumed) return resumed;

@@ -9,7 +9,7 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { PerpsAccessAlert } from "@/components/PerpsAccessAlert";
 import { usePerpsStrip } from "@/components/PortfolioStrip";
 import { PERPS_INVITE_LABEL, PERPS_INVITE_URL } from "@/lib/brand";
-import { BUILDER_CODE } from "@/lib/builder";
+import { submitPerpOrder } from "@/lib/submit-order";
 import {
   defaultUsdSize,
   estLiq,
@@ -30,6 +30,7 @@ import { usePrivyMount } from "@/lib/usePrivyMount";
 import { trackEvent } from "@/lib/track";
 import type { Bias } from "@/lib/score";
 import type { PerpsInstrument, PerpsTicker } from "@/lib/types";
+import { validateOrder } from "@/lib/order-validation";
 import { cn } from "@/lib/utils";
 
 type Geo = { blocked: boolean; country: string; reason: string };
@@ -108,7 +109,13 @@ function readTicketSizeUnit(): SizeUnit {
   return "usd";
 }
 
-function sizeTrailingHint(unit: SizeUnit, size: number, qtyStr: string, base: string, notional: number): string {
+function sizeTrailingHint(
+  unit: SizeUnit,
+  size: number,
+  qtyStr: string,
+  base: string,
+  notional: number,
+): string {
   switch (unit) {
     case "usd":
       return size > 0 ? `${qtyStr} ${base}` : "";
@@ -141,15 +148,24 @@ function TicketForm({
   onLogin?: () => void;
 }) {
   const [geo, setGeo] = useState<Geo | null>(null);
-  const [side, setSide] = useState<"BUY" | "SELL">(readTicketSide);
-  const [tif, setTif] = useState<"IOC" | "GTC">(readTicketTif);
+  const [side, setSide] = useState<"BUY" | "SELL">(() =>
+    bias === "long" ? "BUY" : bias === "short" ? "SELL" : readTicketSide(),
+  );
+  const [tif, setTif] = useState<"IOC" | "GTC">(() =>
+    priceOverride ? "GTC" : readTicketTif(),
+  );
   const [sizeUnit, setSizeUnit] = useState<SizeUnit>(readTicketSizeUnit);
   const [sizeInput, setSizeInput] = useState(() =>
     readTicketSizeUnit() === "usd"
       ? defaultUsdSize(instrument.minNotional)
-      : formatOrderQty(qtyStep(instrument.quantityDecimals), instrument.quantityDecimals),
+      : formatOrderQty(
+          qtyStep(instrument.quantityDecimals),
+          instrument.quantityDecimals,
+        ),
   );
-  const [price, setPrice] = useState(ticker ? String(ticker.markPrice) : "");
+  const [price, setPrice] = useState(
+    priceOverride ?? (ticker ? String(ticker.markPrice) : ""),
+  );
   const [leverage, setLeverage] = useState(Math.min(5, instrument.maxLeverage));
   const [reduceOnly, setReduceOnly] = useState(false);
   const [tp, setTp] = useState("");
@@ -159,24 +175,12 @@ function TicketForm({
   const [ticketAccess, setTicketAccess] = useState<PerpsAccess | null>(null);
   const [free, setFree] = useState<number | null>(null);
   const stripAccess = usePerpsStrip()?.state.access ?? null;
-  const perpsAccess = stripAccess?.kind === "invite" ? stripAccess : ticketAccess;
+  const perpsAccess =
+    stripAccess?.kind === "invite" ? stripAccess : ticketAccess;
 
   useEffect(() => {
     void fetchTradeGeo().then(setGeo);
   }, []);
-
-  useEffect(() => {
-    if (priceOverride) setPrice(priceOverride);
-  }, [priceOverride]);
-
-  useEffect(() => {
-    if (ticker && !price) setPrice(String(ticker.markPrice));
-  }, [ticker, price]);
-
-  useEffect(() => {
-    if (bias === "long") setSide("BUY");
-    else if (bias === "short") setSide("SELL");
-  }, [bias]);
 
   useEffect(() => {
     try {
@@ -193,7 +197,8 @@ function TicketForm({
   }, [instrument.symbol]);
 
   useEffect(() => {
-    if (!walletClient || mount !== "ready" || perpsAccess?.kind === "invite") return;
+    if (!walletClient || mount !== "ready" || perpsAccess?.kind === "invite")
+      return;
     let stop = false;
     (async () => {
       try {
@@ -202,7 +207,9 @@ function TicketForm({
         if (!opened || stop) return;
         const portfolio = await opened.session.fetchPortfolio();
         const margin = portfolio.margin as { availableOrderMargin?: string };
-        const raw = Number(margin.availableOrderMargin ?? portfolio.withdrawable);
+        const raw = Number(
+          margin.availableOrderMargin ?? portfolio.withdrawable,
+        );
         if (!stop && Number.isFinite(raw)) setFree(raw);
       } catch {
         // stay at null
@@ -215,9 +222,14 @@ function TicketForm({
 
   const blocked = geo?.blocked ?? true;
   const inviteBlocked = perpsAccess?.kind === "invite";
-  const canTrade = mount === "ready" && isConnected && !!walletClient && !blocked && !inviteBlocked;
+  const canTrade =
+    mount === "ready" &&
+    isConnected &&
+    !!walletClient &&
+    !blocked &&
+    !inviteBlocked;
   const maint = mmr(instrument.maxLeverage);
-  const px = Number(price) || ticker?.markPrice || 0;
+  const px = tif === "GTC" ? Number(price) : (ticker?.markPrice ?? 0);
   const qtyStr = useMemo(() => {
     const raw = Number(sizeInput);
     if (!Number.isFinite(raw) || raw <= 0 || !(px > 0)) return "0";
@@ -233,7 +245,7 @@ function TicketForm({
     }
   }, [instrument.quantityDecimals, px, sizeInput, sizeUnit]);
   const size = Number(qtyStr) || 0;
-  const notional = px * size;
+  const notional = px > 0 ? px * size : 0;
   const minNotional = Number(instrument.minNotional) || 0;
   const belowMin = size > 0 && minNotional > 0 && notional + 1e-9 < minNotional;
   const marginEst = leverage > 0 ? notional / leverage : 0;
@@ -242,7 +254,9 @@ function TicketForm({
 
   const hint = useMemo(() => {
     if (mount === "insecure") return "HTTPS required to log in.";
-    if (mount !== "ready") return "Log in to Polymarket to trade.";
+    if (mount === "off")
+      return "Trading connection is unavailable in this environment.";
+    if (mount !== "ready") return "Connecting to login…";
     if (!geo) return "Checking location…";
     if (blocked) return geo.reason;
     if (perpsAccess?.kind === "invite") return perpsAccess.message;
@@ -275,7 +289,10 @@ function TicketForm({
         setSizeInput(formatUsdSize(Math.max(0, raw + dir)));
         return;
       case "base": {
-        const next = Math.max(0, size + dir * qtyStep(instrument.quantityDecimals));
+        const next = Math.max(
+          0,
+          size + dir * qtyStep(instrument.quantityDecimals),
+        );
         setSizeInput(formatOrderQty(next, instrument.quantityDecimals));
         return;
       }
@@ -290,12 +307,19 @@ function TicketForm({
     if (next === sizeUnit) return;
     switch (next) {
       case "usd":
-        setSizeInput(notional > 0 ? formatUsdSize(notional) : defaultUsdSize(instrument.minNotional));
+        setSizeInput(
+          notional > 0
+            ? formatUsdSize(notional)
+            : defaultUsdSize(instrument.minNotional),
+        );
         break;
       case "base":
         setSizeInput(
           qtyStr === "0"
-            ? formatOrderQty(qtyStep(instrument.quantityDecimals), instrument.quantityDecimals)
+            ? formatOrderQty(
+                qtyStep(instrument.quantityDecimals),
+                instrument.quantityDecimals,
+              )
             : qtyStr,
         );
         break;
@@ -307,8 +331,27 @@ function TicketForm({
     setSizeUnit(next);
   }
 
+  const validation = validateOrder({
+    quoteTimestamp: ticker?.timestamp ?? 0,
+    side,
+    tif,
+    quantity: size,
+    price: px,
+    limitPrice: price,
+    minNotional,
+    priceDecimals: instrument.priceDecimals,
+    leverage,
+    maxLeverage: instrument.maxLeverage,
+    takeProfit: tp,
+    stopLoss: sl,
+  });
+
   async function submit() {
-    if (!walletClient || !address) return;
+    if (!walletClient || !address || busy) return;
+    if (validation) {
+      setStatus(validation);
+      return;
+    }
     if (!(size > 0) || qtyStr === "0") {
       const message = "Size is below this market's quantity step.";
       setStatus(message);
@@ -320,26 +363,30 @@ function TicketForm({
     try {
       const geoCheck = await assertCanTrade();
       setGeo(geoCheck);
-      const { OrderSide, PerpsTimeInForce } = await import("@polymarket/client");
       const { openCachedPerpsSession } = await import("@/lib/perpsSession");
       const { session } = await openCachedPerpsSession(walletClient);
-      const request: Record<string, unknown> = {
+      const placed = await submitPerpOrder(session, {
+        quoteTimestamp: ticker?.timestamp ?? 0,
         instrumentId: instrument.instrumentId,
-        side: side === "BUY" ? OrderSide.BUY : OrderSide.SELL,
-        quantity: qtyStr,
-        timeInForce: tif === "GTC" ? PerpsTimeInForce.GTC : PerpsTimeInForce.IOC,
+        isolatedOnly: instrument.isolatedOnly,
+        side,
+        tif,
+        quantity: size,
+        quantityText: qtyStr,
+        price: px,
+        limitPrice: price,
+        minNotional,
+        priceDecimals: instrument.priceDecimals,
+        leverage,
+        maxLeverage: instrument.maxLeverage,
+        takeProfit: tp,
+        stopLoss: sl,
         reduceOnly,
-        builderCode: BUILDER_CODE,
-      };
-      if (tif === "GTC" && price) request.price = price;
-      if (tp) request.takeProfit = { triggerPrice: tp };
-      if (sl) request.stopLoss = { triggerPrice: sl };
-      const placed = await session.placeOrder(request as never);
+      });
       trackEvent("submit_order", { symbol: instrument.symbol, side });
       const line = `Order ${placed.order.id} ${placed.order.status}`;
       setStatus(line);
       notifyOk(line);
-      await session.armAutoCancel({ cancelAt: Date.now() + 15 * 60_000 }).catch(() => undefined);
     } catch (err) {
       const access = explainPerpsError(err);
       setTicketAccess(access);
@@ -351,7 +398,11 @@ function TicketForm({
   }
 
   async function cancelAll() {
-    if (!walletClient || !address) return;
+    if (!walletClient || !address || busy) return;
+    if (
+      !window.confirm(`Cancel all open ${base} orders? This cannot be undone.`)
+    )
+      return;
     setBusy(true);
     try {
       const geoCheck = await assertCanTrade();
@@ -373,13 +424,22 @@ function TicketForm({
 
   const long = side === "BUY";
   const loggedOut = mount === "ready" && !isConnected;
-  const levPresets = [...new Set([1, 2, 5, 10, 25, 50, instrument.maxLeverage].filter((n) => n <= instrument.maxLeverage))].sort(
-    (a, b) => a - b,
-  );
+  const levPresets = [
+    ...new Set(
+      [1, 2, 5, 10, 25, 50, instrument.maxLeverage].filter(
+        (n) => n <= instrument.maxLeverage,
+      ),
+    ),
+  ].sort((a, b) => a - b);
   const field = "lg-input num mt-0.5 w-full px-2 py-1 text-[12px]";
   const fromEvent = bias === "long" || bias === "short";
-  const primaryDisabled = busy || (loggedOut ? !onLogin : !canTrade);
-  const primaryLabel = busy ? "Submitting…" : loggedOut ? "Log in to Polymarket" : `${long ? "Long" : "Short"} ${base}`;
+  const primaryDisabled =
+    busy || (loggedOut ? !onLogin : !canTrade || !!validation);
+  const primaryLabel = busy
+    ? "Submitting…"
+    : loggedOut
+      ? "Log in to Polymarket"
+      : `${long ? "Long" : "Short"} ${base}`;
 
   useEffect(() => {
     onPreview?.({
@@ -395,214 +455,307 @@ function TicketForm({
   }, [leverage, liq, marginEst, onPreview, px, side, size, sl, tp]);
 
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-auto bg-[var(--surface)] text-[12px]">
-      <div className="flex min-h-0 flex-1 flex-col gap-2.5 px-3 py-3">
-      {perpsAccess?.kind === "invite" ? <PerpsAccessAlert access={perpsAccess} className="border border-[var(--line)]" /> : null}
-      {thesis ? (
-        <div>
-          <p className="mb-0.5 text-[11px] text-[var(--dim)]">{fromEvent ? "From event" : "Thesis"}</p>
-          <p className="leading-5 text-[var(--text)]">{thesis}</p>
+    <div className="flex h-full min-h-0 flex-col overflow-auto bg-[var(--surface)] text-[13px]">
+      <div className="flex min-h-0 flex-1 flex-col gap-4 px-5 py-5">
+        <div className="flex items-center justify-between">
+          <h2 className="text-base font-medium">Order ticket</h2>
+          <span className="text-xs text-[var(--muted)]">{base}</span>
         </div>
-      ) : null}
-
-      <div className="grid grid-cols-2 gap-1">
-        <button
-          type="button"
-          onClick={() => setSide("BUY")}
-          className={cn(buttonVariants({ variant: long ? "long" : "ghost", size: "sm" }), "h-9 rounded-[6px]")}
-        >
-          Long
-        </button>
-        <button
-          type="button"
-          onClick={() => setSide("SELL")}
-          className={cn(buttonVariants({ variant: !long ? "short" : "ghost", size: "sm" }), "h-9 rounded-[6px]")}
-        >
-          Short
-        </button>
-      </div>
-
-      <div className="flex items-center gap-1">
-        {(["IOC", "GTC"] as const).map((id) => (
-          <button
-            key={id}
-            type="button"
-            onClick={() => setTif(id)}
-            className={cn(
-              "flex-1 rounded-[6px] py-1.5 text-[12px] font-medium focus-visible:ring-2 focus-visible:ring-[color-mix(in_srgb,var(--odds)_40%,transparent)]",
-              tif === id
-                ? "bg-[var(--elevated)] text-[var(--text)]"
-                : "text-[var(--dim)] hover:text-[var(--muted)]",
-            )}
-          >
-            {id === "IOC" ? "Market" : "Limit"}
-          </button>
-        ))}
-        <label className="flex items-center gap-1 px-1 text-[12px] text-[var(--dim)]">
-          <input type="checkbox" checked={reduceOnly} onChange={(e) => setReduceOnly(e.target.checked)} />
-          Reduce
-        </label>
-      </div>
-
-      {tif === "GTC" ? (
-        <label className="block text-[11px] text-[var(--dim)]">
-          Price
-          <input value={price} onChange={(e) => setPrice(e.target.value)} className={field} />
-        </label>
-      ) : null}
-
-      <div>
-        <div className="flex items-center justify-between text-[11px] text-[var(--dim)]">
-          <span className="flex items-center gap-1.5">
-            Size
-            <span className="inline-flex rounded-[4px] bg-[var(--elevated)] p-px">
-              {(["usd", "base"] as const).map((unit) => (
-                <button
-                  key={unit}
-                  type="button"
-                  onClick={() => changeSizeUnit(unit)}
-                  className={cn(
-                    "rounded-[3px] px-1.5 py-0.5 text-[10px] font-medium",
-                    sizeUnit === unit ? "bg-[var(--hover)] text-[var(--text)]" : "text-[var(--dim)] hover:text-[var(--muted)]",
-                  )}
-                >
-                  {unit === "usd" ? "USD" : base}
-                </button>
-              ))}
-            </span>
-          </span>
-          <span className="num text-[12px] text-[var(--muted)]">{sizeTrailingHint(sizeUnit, size, qtyStr, base, notional)}</span>
-        </div>
-        <div className="mt-0.5 flex gap-1">
-          <button
-            type="button"
-            onClick={() => bump(-1)}
-            className="w-7 rounded-[6px] bg-[var(--elevated)] text-[var(--muted)] hover:bg-[var(--hover)]"
-          >
-            −
-          </button>
-          <input value={sizeInput} onChange={(e) => setSizeInput(e.target.value)} className="lg-input num w-full px-2 py-1 text-[12px]" />
-          <button
-            type="button"
-            onClick={() => bump(1)}
-            className="w-7 rounded-[6px] bg-[var(--elevated)] text-[var(--muted)] hover:bg-[var(--hover)]"
-          >
-            +
-          </button>
-        </div>
-        {belowMin ? (
-          <p className="mt-1 text-[11px] text-[var(--warn)]">Min {fmtUsd(minNotional)}</p>
+        {perpsAccess?.kind === "invite" ? (
+          <PerpsAccessAlert
+            access={perpsAccess}
+            className="border border-[var(--line)]"
+          />
         ) : null}
-      </div>
-      <div className="grid grid-cols-4 gap-1">
-        {[0.25, 0.5, 0.75, 1].map((pct) => (
-          <button
-            key={pct}
-            type="button"
-            onClick={() => applyPct(pct)}
-            className="rounded-[4px] bg-[var(--elevated)] py-1 text-[11px] text-[var(--dim)] hover:bg-[var(--hover)] hover:text-[var(--text)]"
-          >
-            {pct * 100}%
-          </button>
-        ))}
-      </div>
-
-      <div className="flex items-center justify-between text-[11px] text-[var(--dim)]">
-        <span>Leverage</span>
-        <span className="num text-[12px] text-[var(--text)]">{leverage}x</span>
-      </div>
-      <div className="flex flex-wrap gap-1">
-        {levPresets.map((n) => (
-          <button
-            key={n}
-            type="button"
-            onClick={() => setLeverage(n)}
-            className={cn(
-              "rounded-[4px] px-1.5 py-0.5 text-[11px]",
-              leverage === n
-                ? "bg-[var(--elevated)] text-[var(--text)]"
-                : "text-[var(--dim)] hover:text-[var(--muted)]",
-            )}
-          >
-            {n}x
-          </button>
-        ))}
-      </div>
-      <input
-        type="range"
-        min={1}
-        max={instrument.maxLeverage}
-        value={leverage}
-        onChange={(e) => setLeverage(Number(e.target.value))}
-        className="w-full accent-[var(--mark)]"
-      />
-
-      <details className="rounded-[6px] bg-[var(--elevated)] px-2 py-1.5">
-        <summary className="cursor-pointer text-[12px] text-[var(--muted)]">Advanced</summary>
-        <div className="mt-2 grid grid-cols-2 gap-1.5">
-          <label className="text-[11px] text-[var(--dim)]">
-            TP
-            <input value={tp} onChange={(e) => setTp(e.target.value)} placeholder="—" className={field} />
-          </label>
-          <label className="text-[11px] text-[var(--dim)]">
-            SL
-            <input value={sl} onChange={(e) => setSl(e.target.value)} placeholder="—" className={field} />
-          </label>
-        </div>
-      </details>
-
-      <div className="grid grid-cols-3 gap-1 pt-1 text-[11px] text-[var(--dim)]">
-        <div>
-          Margin
-          <div className="num text-[12px] text-[var(--text)]">{fmtPx(marginEst, 2)}</div>
-        </div>
-        <div>
-          Est. liq
-          <div className="num text-[12px] text-[var(--text)]">{liq != null ? fmtPx(liq, instrument.priceDecimals) : "—"}</div>
-        </div>
-        <div className="text-right">
-          Funding
-          <div className={`num text-[12px] ${ticker ? signedClass(ticker.fundingRate) : "text-[var(--text)]"}`}>
-            {ticker ? fmtFunding(ticker.fundingRate) : "—"}
+        {thesis ? (
+          <div>
+            <p className="mb-0.5 text-[11px] text-[var(--dim)]">
+              {fromEvent ? "From event" : "Thesis"}
+            </p>
+            <p className="leading-5 text-[var(--text)]">{thesis}</p>
           </div>
-          <div className="num text-[var(--muted)]">{ticker ? fmtCountdown(ticker.nextFunding) : ""}</div>
-        </div>
-      </div>
-      {free != null ? (
-        <p className="num text-[11px] text-[var(--muted)]">{fmtUsd(free)} free</p>
-      ) : null}
-      <Button
-        type="button"
-        variant={long ? "long" : "short"}
-        disabled={primaryDisabled}
-        onClick={() => {
-          if (loggedOut) {
-            onLogin?.();
-            return;
-          }
-          void submit();
-        }}
-        className="h-10 w-full rounded-[6px] text-[13px]"
-      >
-        {primaryLabel}
-      </Button>
-      <div className="flex items-center justify-between gap-2">
-        <button
-          type="button"
-          disabled={!canTrade || busy}
-          onClick={() => void cancelAll()}
-          className="lg-focus text-[12px] text-[var(--dim)] hover:text-[var(--muted)] disabled:opacity-40"
-        >
-          Cancel open
-        </button>
-        {perpsAccess?.kind === "invite" ? null : perpsAccess?.href ? (
-          <a href={PERPS_INVITE_URL} target="_blank" rel="noreferrer" className="break-all text-[12px] text-[var(--mark)] hover:underline">
-            {PERPS_INVITE_LABEL}
-          </a>
         ) : null}
-      </div>
-      {hint ? <p className="text-[12px] leading-4 text-[var(--muted)]">{hint}</p> : null}
-      {status ? <p className="text-[13px] leading-4 text-[var(--warn)]">{status}</p> : null}
+
+        <div className="grid grid-cols-2 gap-1">
+          <button
+            type="button"
+            aria-pressed={long}
+            onClick={() => setSide("BUY")}
+            className={cn(
+              buttonVariants({ variant: long ? "long" : "ghost", size: "sm" }),
+              "h-9 rounded-[6px]",
+            )}
+          >
+            Long
+          </button>
+          <button
+            type="button"
+            aria-pressed={!long}
+            onClick={() => setSide("SELL")}
+            className={cn(
+              buttonVariants({
+                variant: !long ? "short" : "ghost",
+                size: "sm",
+              }),
+              "h-9 rounded-[6px]",
+            )}
+          >
+            Short
+          </button>
+        </div>
+
+        <div className="flex items-center gap-1">
+          {(["IOC", "GTC"] as const).map((id) => (
+            <button
+              key={id}
+              type="button"
+              aria-pressed={tif === id}
+              onClick={() => setTif(id)}
+              className={cn(
+                "flex-1 rounded-[6px] py-1.5 text-[12px] font-medium focus-visible:ring-2 focus-visible:ring-[color-mix(in_srgb,var(--odds)_40%,transparent)]",
+                tif === id
+                  ? "bg-[var(--elevated)] text-[var(--text)]"
+                  : "text-[var(--dim)] hover:text-[var(--muted)]",
+              )}
+            >
+              {id === "IOC" ? "Market" : "Limit"}
+            </button>
+          ))}
+          <label className="flex items-center gap-1 px-1 text-[12px] text-[var(--dim)]">
+            <input
+              type="checkbox"
+              checked={reduceOnly}
+              onChange={(e) => setReduceOnly(e.target.checked)}
+            />
+            Reduce
+          </label>
+        </div>
+
+        {tif === "GTC" ? (
+          <label className="block text-[11px] text-[var(--dim)]">
+            Price
+            <input
+              inputMode="decimal"
+              value={price}
+              onChange={(e) => setPrice(e.target.value)}
+              className={field}
+            />
+          </label>
+        ) : null}
+
+        <div>
+          <div className="flex items-center justify-between text-[11px] text-[var(--dim)]">
+            <span className="flex items-center gap-1.5">
+              Size
+              <span className="inline-flex rounded-[4px] bg-[var(--elevated)] p-px">
+                {(["usd", "base"] as const).map((unit) => (
+                  <button
+                    key={unit}
+                    type="button"
+                    onClick={() => changeSizeUnit(unit)}
+                    className={cn(
+                      "rounded-[3px] px-1.5 py-0.5 text-[10px] font-medium",
+                      sizeUnit === unit
+                        ? "bg-[var(--hover)] text-[var(--text)]"
+                        : "text-[var(--dim)] hover:text-[var(--muted)]",
+                    )}
+                  >
+                    {unit === "usd" ? "USD" : base}
+                  </button>
+                ))}
+              </span>
+            </span>
+            <span className="num text-[12px] text-[var(--muted)]">
+              {sizeTrailingHint(sizeUnit, size, qtyStr, base, notional)}
+            </span>
+          </div>
+          <div className="mt-0.5 flex gap-1">
+            <button
+              type="button"
+              aria-label="Decrease order size"
+              onClick={() => bump(-1)}
+              className="w-7 rounded-[6px] bg-[var(--elevated)] text-[var(--muted)] hover:bg-[var(--hover)]"
+            >
+              −
+            </button>
+            <input
+              aria-label="Order size"
+              inputMode="decimal"
+              value={sizeInput}
+              onChange={(e) => setSizeInput(e.target.value)}
+              className="lg-input num w-full px-2 py-1 text-[12px]"
+            />
+            <button
+              type="button"
+              aria-label="Increase order size"
+              onClick={() => bump(1)}
+              className="w-7 rounded-[6px] bg-[var(--elevated)] text-[var(--muted)] hover:bg-[var(--hover)]"
+            >
+              +
+            </button>
+          </div>
+          {belowMin ? (
+            <p className="mt-1 text-[11px] text-[var(--warn)]">
+              Min {fmtUsd(minNotional)}
+            </p>
+          ) : null}
+        </div>
+        <div className="grid grid-cols-4 gap-1">
+          {[0.25, 0.5, 0.75, 1].map((pct) => (
+            <button
+              key={pct}
+              type="button"
+              disabled={free == null || free <= 0}
+              onClick={() => applyPct(pct)}
+              className="rounded-[4px] bg-[var(--elevated)] py-1 text-[11px] text-[var(--dim)] hover:bg-[var(--hover)] hover:text-[var(--text)]"
+            >
+              {pct * 100}%
+            </button>
+          ))}
+        </div>
+
+        <div className="flex items-center justify-between text-[11px] text-[var(--dim)]">
+          <span>Leverage</span>
+          <span className="num text-[12px] text-[var(--text)]">
+            {leverage}x
+          </span>
+        </div>
+        <div className="flex flex-wrap gap-1">
+          {levPresets.map((n) => (
+            <button
+              key={n}
+              type="button"
+              onClick={() => setLeverage(n)}
+              className={cn(
+                "rounded-[4px] px-1.5 py-0.5 text-[11px]",
+                leverage === n
+                  ? "bg-[var(--elevated)] text-[var(--text)]"
+                  : "text-[var(--dim)] hover:text-[var(--muted)]",
+              )}
+            >
+              {n}x
+            </button>
+          ))}
+        </div>
+        <input
+          aria-label="Leverage"
+          type="range"
+          min={1}
+          max={instrument.maxLeverage}
+          value={leverage}
+          onChange={(e) => setLeverage(Number(e.target.value))}
+          className="w-full accent-[var(--mark)]"
+        />
+
+        <details className="rounded-[6px] bg-[var(--elevated)] px-2 py-1.5">
+          <summary className="cursor-pointer text-[12px] text-[var(--muted)]">
+            Advanced
+          </summary>
+          <div className="mt-2 grid grid-cols-2 gap-1.5">
+            <label className="text-[11px] text-[var(--dim)]">
+              Take profit
+              <input
+                value={tp}
+                onChange={(e) => setTp(e.target.value)}
+                placeholder="—"
+                className={field}
+              />
+            </label>
+            <label className="text-[11px] text-[var(--dim)]">
+              Stop loss
+              <input
+                value={sl}
+                onChange={(e) => setSl(e.target.value)}
+                placeholder="—"
+                className={field}
+              />
+            </label>
+          </div>
+        </details>
+
+        <div className="grid grid-cols-3 gap-1 pt-1 text-[11px] text-[var(--dim)]">
+          <div>
+            Margin
+            <div className="num text-[12px] text-[var(--text)]">
+              {fmtPx(marginEst, 2)}
+            </div>
+          </div>
+          <div>
+            Est. liq
+            <div className="num text-[12px] text-[var(--text)]">
+              {liq != null ? fmtPx(liq, instrument.priceDecimals) : "—"}
+            </div>
+          </div>
+          <div className="text-right">
+            Funding
+            <div
+              className={`num text-[12px] ${ticker ? signedClass(ticker.fundingRate) : "text-[var(--text)]"}`}
+            >
+              {ticker ? fmtFunding(ticker.fundingRate) : "—"}
+            </div>
+            <div className="num text-[var(--muted)]">
+              {ticker ? fmtCountdown(ticker.nextFunding) : ""}
+            </div>
+          </div>
+        </div>
+        {free != null ? (
+          <p className="num text-[11px] text-[var(--muted)]">
+            {fmtUsd(free)} free
+          </p>
+        ) : null}
+        {validation ? (
+          <p className="text-xs leading-5 text-[var(--warn)]">{validation}</p>
+        ) : null}
+        <Button
+          type="button"
+          variant={long ? "long" : "short"}
+          disabled={primaryDisabled}
+          onClick={() => {
+            if (loggedOut) {
+              onLogin?.();
+              return;
+            }
+            void submit();
+          }}
+          className="h-10 w-full rounded-[6px] text-[13px]"
+        >
+          {primaryLabel}
+        </Button>
+        <div className="flex items-center justify-between gap-2">
+          <button
+            type="button"
+            disabled={!canTrade || busy}
+            onClick={() => void cancelAll()}
+            className="lg-focus text-[12px] text-[var(--dim)] hover:text-[var(--muted)] disabled:opacity-40"
+          >
+            Cancel open
+          </button>
+          {perpsAccess?.kind === "invite" ? null : perpsAccess?.href ? (
+            <a
+              href={PERPS_INVITE_URL}
+              target="_blank"
+              rel="noreferrer"
+              className="break-all text-[12px] text-[var(--mark)] hover:underline"
+            >
+              {PERPS_INVITE_LABEL}
+            </a>
+          ) : null}
+        </div>
+        {hint ? (
+          <p className="text-[12px] leading-4 text-[var(--muted)]">{hint}</p>
+        ) : null}
+        <p className="text-xs leading-5 text-[var(--muted)]">
+          {instrument.isolatedOnly ? "Isolated" : "Cross"} margin · estimates
+          exclude fees.{" "}
+          {tif === "IOC"
+            ? "Market execution may differ from the mark price."
+            : "Limit orders remain open until filled or canceled."}
+        </p>
+        {status ? (
+          <p role="status" className="text-[13px] leading-4 text-[var(--warn)]">
+            {status}
+          </p>
+        ) : null}
       </div>
     </div>
   );

@@ -1,20 +1,11 @@
 "use client";
-
-import { useEffect, useState } from "react";
+import { useSyncExternalStore } from "react";
 import { isSecureOrigin, privyAppId } from "@/lib/privy";
-
 export type PrivyMount = "off" | "wait" | "insecure" | "ready";
-
+const subscribe = () => () => {};
+const snapshot = (): PrivyMount =>
+  !privyAppId() ? "off" : isSecureOrigin() ? "ready" : "insecure";
+const serverSnapshot = (): PrivyMount => (privyAppId() ? "wait" : "off");
 export function usePrivyMount(): PrivyMount {
-  const [state, setState] = useState<PrivyMount>(privyAppId() ? "wait" : "off");
-
-  useEffect(() => {
-    if (!privyAppId()) {
-      setState("off");
-      return;
-    }
-    setState(isSecureOrigin() ? "ready" : "insecure");
-  }, []);
-
-  return state;
+  return useSyncExternalStore(subscribe, snapshot, serverSnapshot);
 }

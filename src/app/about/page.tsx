@@ -1,136 +1,159 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import {
-  DataTable,
-  DataTableBody,
-  DataTableCell,
-  DataTableHead,
-  DataTableHeader,
-  DataTableRow,
-} from "@/components/DataTable";
+import { ArrowRight, ArrowUpRight } from "lucide-react";
 import { GapMeter } from "@/components/GapMeter";
-import { LogoMark } from "@/components/LogoMark";
-import { OddsFigure } from "@/components/OddsFigure";
-import { PageShell } from "@/components/PageShell";
 import { SocialLinks } from "@/components/SocialLinks";
-import { buttonVariants } from "@/components/ui/button";
-import { APP_NAME, APP_TAGLINE, PERPS_INVITE_LABEL, PERPS_INVITE_URL } from "@/lib/brand";
-import { cn } from "@/lib/utils";
+import { PERPS_INVITE_LABEL, PERPS_INVITE_URL } from "@/lib/brand";
 
 export const metadata: Metadata = {
-  title: "About",
-  description: APP_TAGLINE,
+  title: "Guide",
+  description:
+    "Understand event odds, mapped perpetual markets, and the Leadgap model.",
 };
-
 export default function AboutPage() {
   return (
-    <PageShell>
-      <article className="mx-auto max-w-[640px] py-8 text-[14px] leading-6 text-[var(--muted)]">
-        <div className="flex items-center gap-3">
-          <LogoMark className="h-8 w-8 shrink-0" />
-          <h1 className="text-[22px] font-medium leading-7 text-[var(--text)]">{APP_NAME}</h1>
+    <div className="min-h-0 flex-1 overflow-auto">
+      <article className="guide-layout">
+        <div className="mb-12 max-w-2xl">
+          <p className="mb-4 text-sm text-[var(--muted)]">The Leadgap guide</p>
+          <h1 className="text-4xl font-medium leading-tight tracking-tight sm:text-5xl">
+            Read the event.
+            <br />
+            <span className="text-[var(--odds)]">Understand the gap.</span>
+          </h1>
+          <p className="mt-6 max-w-xl text-base leading-7 text-[var(--muted)]">
+            Leadgap compares changes in Polymarket event probabilities with
+            related perpetual markets. Use it to investigate a divergence, then
+            make your own trading decision.
+          </p>
+          <Link
+            href="/"
+            className="lg-focus mt-6 inline-flex items-center gap-2 text-sm"
+          >
+            Explore signals <ArrowRight size={16} />
+          </Link>
         </div>
-        <p className="mt-2 text-[15px] text-[var(--text)]">{APP_TAGLINE}</p>
-
-        <section className="mt-8">
-          <h2 className="text-[15px] font-medium text-[var(--text)]">1. Discover a setup</h2>
-          <p className="mt-2">
-            Signals ranks Polymarket events whose Yes odds moved before the mapped perpetual. Tradeable means the residual
-            is large enough to act. Watching is odds-led but not yet a trade. All includes in-line and perp-led prints for
-            context.
-          </p>
+        <section className="guide-section">
+          <h2>01 · Find a signal</h2>
+          <div>
+            <p>
+              Choose a comparison window on Signals. Tradeable shows signals
+              that pass the model’s thresholds. Watching shows odds-led signals
+              below those thresholds. All signals includes comparisons where the
+              perp led or the moves are in line.
+            </p>
+            <p className="mt-3">
+              Select a row to see the specific event question, Yes probability,
+              linked market, and the reasoning behind the mapping.
+            </p>
+          </div>
         </section>
-
-        <section className="mt-8">
-          <h2 className="text-[15px] font-medium text-[var(--text)]">2. Read Yes, gap, expected vs actual</h2>
-          <p className="mt-2">
-            Yes is ice. The perp is stone. Expected is what the odds move implied for the mark. Actual is what the mark did.
-            The empty band between them is the gap.
-          </p>
-          <div className="mt-4 flex flex-wrap items-center gap-3">
-            <OddsFigure yes={0.645} delta={0.03} />
-            <span className="text-[12px] text-[var(--dim)]">WTIOIL</span>
+        <section className="guide-section">
+          <h2>02 · Read the gap</h2>
+          <div>
+            <p>
+              The model multiplies the change in Yes probability by a signed
+              sensitivity estimate. It then subtracts the observed perp return.
+              The difference is the remaining gap.
+            </p>
+            <div className="my-6 rounded-lg border border-[var(--line)] bg-[var(--surface)] p-6">
+              <p className="mb-5 text-xs">
+                Illustrative example · not a live signal
+              </p>
+              <GapMeter expected={0.03} actual={0.01} />
+              <dl className="mt-5 grid grid-cols-3 gap-3 text-xs text-[var(--muted)]">
+                <div>
+                  <dt>Model-implied</dt>
+                  <dd className="num mt-2 text-lg text-[var(--odds)]">
+                    +3.00%
+                  </dd>
+                </div>
+                <div>
+                  <dt>Observed</dt>
+                  <dd className="num mt-2 text-lg text-[var(--mark)]">
+                    +1.00%
+                  </dd>
+                </div>
+                <div>
+                  <dt>Gap</dt>
+                  <dd className="num mt-2 text-lg text-[var(--odds)]">
+                    +2.00%
+                  </dd>
+                </div>
+              </dl>
+            </div>
+            <p>
+              A higher score reflects the model’s residual, mapping confidence,
+              movement, and liquidity factors. It is not a probability of
+              success. “Odds first” is a magnitude heuristic within the selected
+              window; it does not establish which market moved first in time or
+              prove causation.
+            </p>
           </div>
-          <GapMeter className="mt-3" expected={-0.045} actual={0.0001} />
-          <div className="mt-3">
-            <DataTable>
-              <DataTableHeader>
-                <tr>
-                  <DataTableHead>Event</DataTableHead>
-                  <DataTableHead align="right">Yes</DataTableHead>
-                  <DataTableHead align="right">Gap</DataTableHead>
-                </tr>
-              </DataTableHeader>
-              <DataTableBody>
-                <DataTableRow selected>
-                  <DataTableCell>What will WTI Crude Oil hit in August 2026?</DataTableCell>
-                  <DataTableCell numeric>
-                    <OddsFigure yes={0.645} delta={0.03} size="sm" />
-                  </DataTableCell>
-                  <DataTableCell>
-                    <GapMeter dense expected={-0.045} actual={0.0001} className="ml-auto" />
-                  </DataTableCell>
-                </DataTableRow>
-              </DataTableBody>
-            </DataTable>
+        </section>
+        <section className="guide-section">
+          <h2>03 · Inspect the market</h2>
+          <div>
+            <p>
+              Open the related desk to compare its chart, event odds, order
+              book, and funding. Choose Long or Short in the order ticket. You
+              are trading a perpetual contract, not buying an event’s Yes or No
+              shares.
+            </p>
+            <p className="mt-3">
+              Check the data timestamp. Delayed or interrupted feeds may show
+              the last available values. Model estimates can be wrong, and
+              historical relationships can break.
+            </p>
           </div>
-          <div className="mt-3 grid grid-cols-2 gap-2">
-            <Link href="/markets/WTIOIL-USD" className={cn(buttonVariants({ variant: "long", size: "sm" }), "h-10")}>
-              Long WTIOIL
-            </Link>
-            <Link
-              href="/markets/WTIOIL-USD"
-              className={cn(buttonVariants({ variant: "short", size: "sm" }), "h-10 opacity-40")}
+        </section>
+        <section className="guide-section">
+          <h2>04 · Connect and trade</h2>
+          <div>
+            <p>
+              Trading requires a connected wallet, a supported location, and
+              Polymarket Perps access. The first connection may request a
+              signature to create a trading session. Review the market,
+              direction, quantity, price, leverage, and margin mode before
+              submitting.
+            </p>
+            <a
+              href={PERPS_INVITE_URL}
+              target="_blank"
+              rel="noreferrer"
+              className="lg-focus mt-4 inline-flex items-center gap-1.5 text-sm"
             >
-              Short WTIOIL
-            </Link>
+              {PERPS_INVITE_LABEL} <ArrowUpRight size={14} />
+            </a>
+            <p className="mt-3">
+              Your account’s available access and balances are determined by
+              Polymarket. Signing in to Leadgap does not grant Perps access.
+            </p>
           </div>
         </section>
-
-        <section className="mt-8">
-          <h2 className="text-[15px] font-medium text-[var(--text)]">3. Trade the mapped perp</h2>
-          <p className="mt-2">
-            Open a row to load Trade with the event attached. You long or short the perpetual on Leadgap — not the event
-            share — with the same Polymarket account. Markets is the full instrument table if you want the book without a
-            setup.
-          </p>
+        <section className="guide-section">
+          <h2>05 · Costs and risk</h2>
+          <div>
+            <p>
+              Leadgap is configured with no builder add-on fee. Venue trading
+              fees, funding, and liquidation charges may still apply. Review the
+              venue’s current terms before trading.
+            </p>
+            <p className="mt-3">
+              This tool is not financial advice. Event odds can be wrong,
+              liquidity can disappear, and leveraged positions can be
+              liquidated. Treat every score and estimated liquidation price as
+              an approximation.
+            </p>
+          </div>
         </section>
-
-        <section className="mt-8">
-          <h2 className="text-[15px] font-medium text-[var(--text)]">4. Fees</h2>
-          <p className="mt-2">
-            Leadgap adds none. You pay Polymarket’s trading, funding, and liquidation fees — the same as trading on
-            polymarket.com.
-          </p>
-        </section>
-
-        <section className="mt-8">
-          <h2 className="text-[15px] font-medium text-[var(--text)]">5. Login, HTTPS, geo, waitlist</h2>
-          <p className="mt-2">
-            Log in to Polymarket through Privy — the same account model polymarket.com uses. Trading requires HTTPS and a
-            supported location. Perps access is still gated on Polymarket’s side; request it at{" "}
-            <a href={PERPS_INVITE_URL} target="_blank" rel="noreferrer" className="text-[var(--text)] hover:underline">
-              {PERPS_INVITE_LABEL}
-            </a>
-            .
-          </p>
-        </section>
-
-        <section className="mt-8">
-          <h2 className="text-[15px] font-medium text-[var(--text)]">6. Disclaimer</h2>
-          <p className="mt-2">
-            Not financial advice. Scores are a ranking of residual, not a forecast. Event odds can be wrong. Perps can gap.
-            You can lose the margin you post.
-          </p>
-        </section>
-
-        <footer className="mt-10 flex flex-wrap items-center justify-between gap-3 border-t border-[var(--line)] pt-4 text-[13px]">
-          <Link href="/" className="lg-focus text-[var(--text)] hover:underline">
-            Signals
+        <footer className="mt-8 flex flex-wrap items-center justify-between gap-5 border-t border-[var(--line)] pt-6">
+          <Link href="/markets" className="lg-focus text-sm">
+            Browse all markets →
           </Link>
           <SocialLinks />
         </footer>
       </article>
-    </PageShell>
+    </div>
   );
 }

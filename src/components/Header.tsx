@@ -15,20 +15,24 @@ export function Header() {
 
   return (
     <header className="sticky top-0 z-30 bg-[var(--bg)]">
-      <div className="flex h-10 w-full min-w-0 items-center gap-3 border-b border-[var(--line)] px-3">
+      <div className="flex h-16 w-full min-w-0 items-center gap-6 border-b border-[var(--line)] px-4 md:px-7">
         <Link
           href="/"
-          className="lg-focus flex shrink-0 items-center gap-2 rounded-[4px] text-[15px] font-medium tracking-tight text-[var(--text)]"
+          className="lg-focus flex shrink-0 items-center gap-2 rounded-[4px] text-[19px] font-medium tracking-tight text-[var(--text)]"
         >
           <LogoMark />
           <span>{APP_NAME}</span>
         </Link>
-        <nav className="hidden h-full items-stretch text-[12px] md:flex" aria-label="Primary">
+        <nav
+          className="hidden h-full items-stretch text-[13px] md:flex"
+          aria-label="Primary"
+        >
           {APP_NAV.map((link) => {
             const on = navItemActive(path, link);
             return (
               <Link
                 key={link.href}
+                aria-current={on ? "page" : undefined}
                 href={link.href}
                 className={cn(
                   "lg-focus flex items-center border-b-2 px-3",

@@ -1,6 +1,7 @@
-import type { ErrorEvent, EventHint } from "@sentry/nextjs";
+import type { ErrorEvent } from "@sentry/nextjs";
 
-const SECRET_KEYS = /poly_|gemini_|passphrase|private[_-]?key|authorization|cookie|secret|api[_-]?key/i;
+const SECRET_KEYS =
+  /poly_|gemini_|passphrase|private[_-]?key|authorization|cookie|secret|api[_-]?key/i;
 
 function redactValue(value: unknown): unknown {
   if (typeof value === "string") {
@@ -10,7 +11,9 @@ function redactValue(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(redactValue);
   if (value && typeof value === "object") {
     const out: Record<string, unknown> = {};
-    for (const [key, nested] of Object.entries(value as Record<string, unknown>)) {
+    for (const [key, nested] of Object.entries(
+      value as Record<string, unknown>,
+    )) {
       out[key] = SECRET_KEYS.test(key) ? "[redacted]" : redactValue(nested);
     }
     return out;
@@ -18,7 +21,7 @@ function redactValue(value: unknown): unknown {
   return value;
 }
 
-export function scrubSentryEvent(event: ErrorEvent, _hint: EventHint): ErrorEvent | null {
+export function scrubSentryEvent(event: ErrorEvent): ErrorEvent | null {
   if (event.request) {
     delete event.request.cookies;
     if (event.request.headers) {
@@ -29,10 +32,13 @@ export function scrubSentryEvent(event: ErrorEvent, _hint: EventHint): ErrorEven
       event.request.headers = headers;
     }
     if (event.request.data) {
-      event.request.data = redactValue(event.request.data) as typeof event.request.data;
+      event.request.data = redactValue(
+        event.request.data,
+      ) as typeof event.request.data;
     }
   }
   if (event.extra) event.extra = redactValue(event.extra) as typeof event.extra;
-  if (event.contexts) event.contexts = redactValue(event.contexts) as typeof event.contexts;
+  if (event.contexts)
+    event.contexts = redactValue(event.contexts) as typeof event.contexts;
   return event;
 }

@@ -9,7 +9,13 @@ import { MobileTabBar } from "@/components/MobileTabBar";
 import { Providers } from "@/components/Providers";
 import { StatusStrip } from "@/components/StatusStrip";
 import { Toaster } from "@/components/ui/sonner";
-import { APP_LOGO, APP_LOGO_RASTER, APP_NAME, APP_ORIGIN, APP_TAGLINE } from "@/lib/brand";
+import {
+  APP_LOGO,
+  APP_LOGO_RASTER,
+  APP_NAME,
+  APP_ORIGIN,
+  APP_TAGLINE,
+} from "@/lib/brand";
 import { cn } from "@/lib/utils";
 
 export const metadata: Metadata = {
@@ -48,8 +54,17 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     >
       <body className="flex h-full min-h-full flex-col overflow-hidden bg-background font-sans text-foreground antialiased">
         <Providers>
+          <a href="#main-content" className="skip-link">
+            Skip to content
+          </a>
           <Header />
-          <div className="flex min-h-0 flex-1 flex-col overflow-hidden">{children}</div>
+          <main
+            id="main-content"
+            tabIndex={-1}
+            className="flex min-h-0 flex-1 flex-col overflow-hidden outline-none"
+          >
+            {children}
+          </main>
           <StatusStrip />
           <MobileTabBar />
           <Toaster />

@@ -2,7 +2,7 @@ import type { NextConfig } from "next";
 
 const CONTENT_SECURITY_POLICY = [
   "default-src 'self'",
-  "script-src 'self' 'unsafe-inline' https://va.vercel-scripts.com https://vitals.vercel-insights.com https://challenges.cloudflare.com",
+  `script-src 'self' 'unsafe-inline' ${process.env.NODE_ENV === "development" ? "'unsafe-eval' " : ""}https://va.vercel-scripts.com https://vitals.vercel-insights.com https://challenges.cloudflare.com`,
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob: https://*.polymarket.com https://polymarket.com https://*.googleusercontent.com https://*.amazonaws.com https://*.cloudfront.net https://*.privy.io https://*.walletconnect.com",
   "font-src 'self' data:",
@@ -37,7 +37,13 @@ const CONTENT_SECURITY_POLICY = [
 ].join("; ");
 
 const nextConfig: NextConfig = {
-  serverExternalPackages: ["rss-parser", "@privy-io/react-auth", "@privy-io/server-auth", "@privy-io/wagmi"],
+  devIndicators: false,
+  serverExternalPackages: [
+    "rss-parser",
+    "@privy-io/react-auth",
+    "@privy-io/server-auth",
+    "@privy-io/wagmi",
+  ],
   allowedDevOrigins: [
     "138.124.119.188",
     "localhost",
@@ -55,7 +61,10 @@ const nextConfig: NextConfig = {
           { key: "X-Frame-Options", value: "DENY" },
           { key: "X-Content-Type-Options", value: "nosniff" },
           { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
-          { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
+          {
+            key: "Permissions-Policy",
+            value: "camera=(), microphone=(), geolocation=()",
+          },
           { key: "Content-Security-Policy", value: CONTENT_SECURITY_POLICY },
         ],
       },

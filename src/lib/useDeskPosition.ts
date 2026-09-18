@@ -88,9 +88,12 @@ export function useDeskPosition(instrumentId: number): {
   }, [instrumentId, isConnected, mount, walletClient]);
 
   useEffect(() => {
-    void refresh();
+    const initial = setTimeout(() => void refresh(), 0);
     const id = setInterval(() => void refresh(), 15_000);
-    return () => clearInterval(id);
+    return () => {
+      clearTimeout(initial);
+      clearInterval(id);
+    };
   }, [refresh]);
 
   return { position, tpSl, refresh };

@@ -20,7 +20,12 @@ import {
   type Time,
   type UTCTimestamp,
 } from "lightweight-charts";
-import type { Candle, GapTapePoint, KlineInterval, Snapshot } from "@/lib/types";
+import type {
+  Candle,
+  GapTapePoint,
+  KlineInterval,
+  Snapshot,
+} from "@/lib/types";
 import { priceDigits } from "@/lib/format";
 
 type Tool = "cursor" | "hline" | "trend";
@@ -46,8 +51,12 @@ function clock(realSec: number, withDate = false): string {
 
 function fmtN(n: number, digits: number): string {
   if (!Number.isFinite(n)) return "—";
-  if (Math.abs(n) >= 1000) return n.toLocaleString("en-US", { maximumFractionDigits: 1 });
-  return n.toLocaleString("en-US", { maximumFractionDigits: digits, minimumFractionDigits: 0 });
+  if (Math.abs(n) >= 1000)
+    return n.toLocaleString("en-US", { maximumFractionDigits: 1 });
+  return n.toLocaleString("en-US", {
+    maximumFractionDigits: digits,
+    minimumFractionDigits: 0,
+  });
 }
 
 function seriesPriceFormat(digits: number) {
@@ -59,7 +68,9 @@ function seriesPriceFormat(digits: number) {
   };
 }
 
-function gapMarkerShape(bias: GapTapePoint["bias"]): SeriesMarker<UTCTimestamp>["shape"] {
+function gapMarkerShape(
+  bias: GapTapePoint["bias"],
+): SeriesMarker<UTCTimestamp>["shape"] {
   switch (bias) {
     case "long":
       return "arrowUp";
@@ -102,7 +113,7 @@ function buildGapMarkers(
       time: logical as UTCTimestamp,
       position: mark.bias === "short" ? "aboveBar" : "belowBar",
       shape: gapMarkerShape(mark.bias),
-      color: mark.bias === "short" ? "#F0564E" : "#3ECF8E",
+      color: mark.bias === "short" ? "#FF8179" : "#3ECF8E",
       text: String(Math.round(mark.score)),
       size: 1,
     }));
@@ -110,14 +121,14 @@ function buildGapMarkers(
 
 const INTERVALS: KlineInterval[] = ["1m", "5m", "15m", "30m", "1h", "4h", "1d"];
 
-const ICE = "#8FC9F2";
-const STONE = "#8A909B";
+const ICE = "#9ED7FF";
+const STONE = "#B4BDCA";
 const LONG = "#3ECF8E";
-const SHORT = "#F0564E";
-const LINE = "#191E27";
-const ELEV = "#10141B";
-const INK = "#07090C";
-const MUTE = "#79818F";
+const SHORT = "#FF8179";
+const LINE = "#26313E";
+const ELEV = "#18212C";
+const INK = "#090D12";
+const MUTE = "#A4AFBF";
 
 export function PriceChart({
   candles,
@@ -145,13 +156,17 @@ export function PriceChart({
   const oddsRef = useRef<ISeriesApi<"Area"> | null>(null);
   const markersRef = useRef<ISeriesMarkersPluginApi<Time> | null>(null);
   const fitted = useRef(false);
-  const pendingTrend = useRef<{ time: UTCTimestamp; value: number } | null>(null);
+  const pendingTrend = useRef<{ time: UTCTimestamp; value: number } | null>(
+    null,
+  );
   const linesRef = useRef<IPriceLine[]>([]);
   const trendsRef = useRef<ISeriesApi<"Line">[]>([]);
   const realByLogical = useRef(new Map<number, number>());
   const packedRef = useRef<{ logical: UTCTimestamp; real: number }[]>([]);
   const stepRef = useRef(STEP[interval]);
-  stepRef.current = STEP[interval];
+  useEffect(() => {
+    stepRef.current = STEP[interval];
+  }, [interval]);
   const [tool, setTool] = useState<Tool>("cursor");
   const [style, setStyle] = useState<Style>("line");
   const [oddsOn, setOddsOn] = useState(true);
@@ -164,14 +179,20 @@ export function PriceChart({
     odds?: number;
   } | null>(null);
   const toolRef = useRef<Tool>("cursor");
-  toolRef.current = tool;
-  const ohlcRef = useRef<Map<number, { o: number; h: number; l: number; c: number }>>(new Map());
+  useEffect(() => {
+    toolRef.current = tool;
+  }, [tool]);
+  const ohlcRef = useRef<
+    Map<number, { o: number; h: number; l: number; c: number }>
+  >(new Map());
   const oddsMapRef = useRef<Map<number, number>>(new Map());
   const userTouched = useRef(false);
   const ignoreRange = useRef(false);
   const digits = priceDigits(decimals, candles.at(-1)?.close ?? 0);
   const digitsRef = useRef(digits);
-  digitsRef.current = digits;
+  useEffect(() => {
+    digitsRef.current = digits;
+  }, [digits]);
 
   useEffect(() => {
     const el = host.current;
@@ -199,7 +220,8 @@ export function PriceChart({
         borderColor: LINE,
       },
       localization: {
-        timeFormatter: (t: Time) => clock(realByLogical.current.get(Number(t)) ?? Number(t), true),
+        timeFormatter: (t: Time) =>
+          clock(realByLogical.current.get(Number(t)) ?? Number(t), true),
         priceFormatter: (p: number) => fmtN(p, digitsRef.current),
       },
       timeScale: {
@@ -209,7 +231,8 @@ export function PriceChart({
         rightOffset: 8,
         barSpacing: 7,
         minBarSpacing: 3,
-        tickMarkFormatter: (t: Time) => clock(realByLogical.current.get(Number(t)) ?? Number(t)),
+        tickMarkFormatter: (t: Time) =>
+          clock(realByLogical.current.get(Number(t)) ?? Number(t)),
       },
       crosshair: {
         mode: CrosshairMode.Magnet,
@@ -222,7 +245,11 @@ export function PriceChart({
         horzTouchDrag: true,
         vertTouchDrag: true,
       },
-      handleScale: { axisPressedMouseMove: true, mouseWheel: true, pinch: true },
+      handleScale: {
+        axisPressedMouseMove: true,
+        mouseWheel: true,
+        pinch: true,
+      },
     });
     const candlesSeries = chart.addSeries(CandlestickSeries, {
       upColor: LONG,
@@ -357,7 +384,10 @@ export function PriceChart({
     const t0 = rows[0]!.time;
     const map = new Map<number, number>();
     const packed: { logical: UTCTimestamp; real: number }[] = [];
-    const bars = new Map<number, { o: number; h: number; l: number; c: number }>();
+    const bars = new Map<
+      number,
+      { o: number; h: number; l: number; c: number }
+    >();
     const ohlc = rows.map((c, i) => {
       const logical = (t0 + i * step) as UTCTimestamp;
       map.set(logical, c.time);
@@ -373,7 +403,9 @@ export function PriceChart({
     packedRef.current = packed;
     ohlcRef.current = bars;
     candleRef.current.setData(ohlc);
-    closeRef.current.setData(ohlc.map((c) => ({ time: c.time, value: c.close })));
+    closeRef.current.setData(
+      ohlc.map((c) => ({ time: c.time, value: c.close })),
+    );
     const digits = priceDigits(decimals, rows.at(-1)?.close ?? 0);
     digitsRef.current = digits;
     const format = seriesPriceFormat(digits);
@@ -431,11 +463,16 @@ export function PriceChart({
   }, [style]);
 
   useEffect(() => {
-    markersRef.current?.setMarkers(buildGapMarkers(packedRef.current, gapMarks));
+    markersRef.current?.setMarkers(
+      buildGapMarkers(packedRef.current, gapMarks),
+    );
   }, [gapMarks, candles, interval, style]);
 
   useEffect(() => {
-    oddsRef.current?.applyOptions({ visible: oddsOn, title: oddsLabel.slice(0, 28) || "Yes %" });
+    oddsRef.current?.applyOptions({
+      visible: oddsOn,
+      title: oddsLabel.slice(0, 28) || "Yes %",
+    });
     const panes = chartRef.current?.panes();
     panes?.[0]?.setStretchFactor(1);
     panes?.[1]?.setStretchFactor(oddsOn ? 0.22 : 0.001);
@@ -456,10 +493,15 @@ export function PriceChart({
         horzTouchDrag: !drawing,
         vertTouchDrag: !drawing,
       },
-      handleScale: { axisPressedMouseMove: !drawing, mouseWheel: true, pinch: true },
+      handleScale: {
+        axisPressedMouseMove: !drawing,
+        mouseWheel: true,
+        pinch: true,
+      },
       crosshair: { mode: CrosshairMode.Magnet },
     });
-    if (host.current) host.current.style.cursor = drawing ? "crosshair" : "default";
+    if (host.current)
+      host.current.style.cursor = drawing ? "crosshair" : "default";
   }, [tool]);
 
   useEffect(() => {
@@ -494,18 +536,47 @@ export function PriceChart({
         <div className="pointer-events-auto flex min-w-0 flex-wrap items-center gap-1 rounded-[6px] bg-[color-mix(in_srgb,var(--bg)_82%,transparent)] px-1 py-0.5">
           {onInterval
             ? INTERVALS.map((id) => (
-                <ToolBtn key={id} active={interval === id} onClick={() => onInterval(id)} label={id} />
+                <ToolBtn
+                  key={id}
+                  active={interval === id}
+                  onClick={() => onInterval(id)}
+                  label={id}
+                />
               ))
             : null}
           <span className="mx-0.5 h-3 w-px bg-[var(--line)]" />
-          <ToolBtn active={style === "candle"} onClick={() => setStyle("candle")} label="Candles" />
-          <ToolBtn active={style === "line"} onClick={() => setStyle("line")} label="Line" />
-          <ToolBtn active={oddsOn} onClick={() => setOddsOn((v) => !v)} label="Yes %" />
+          <ToolBtn
+            active={style === "candle"}
+            onClick={() => setStyle("candle")}
+            label="Candles"
+          />
+          <ToolBtn
+            active={style === "line"}
+            onClick={() => setStyle("line")}
+            label="Line"
+          />
+          <ToolBtn
+            active={oddsOn}
+            onClick={() => setOddsOn((v) => !v)}
+            label="Yes %"
+          />
           <ToolBtn active={log} onClick={() => setLog((v) => !v)} label="Log" />
           <span className="mx-0.5 h-3 w-px bg-[var(--line)]" />
-          <ToolBtn active={tool === "cursor"} onClick={() => setTool("cursor")} label="Cursor" />
-          <ToolBtn active={tool === "hline"} onClick={() => setTool("hline")} label="H-line" />
-          <ToolBtn active={tool === "trend"} onClick={() => setTool("trend")} label="Trend" />
+          <ToolBtn
+            active={tool === "cursor"}
+            onClick={() => setTool("cursor")}
+            label="Cursor"
+          />
+          <ToolBtn
+            active={tool === "hline"}
+            onClick={() => setTool("hline")}
+            label="H-line"
+          />
+          <ToolBtn
+            active={tool === "trend"}
+            onClick={() => setTool("trend")}
+            label="Trend"
+          />
           <ToolBtn active={false} onClick={clearDrawings} label="Clear" />
           <ToolBtn
             active={false}
@@ -523,13 +594,21 @@ export function PriceChart({
         <div className="pointer-events-none ml-auto flex min-w-0 flex-col items-end gap-0.5">
           {hover ? (
             <span className="num rounded-[6px] bg-[color-mix(in_srgb,var(--bg)_82%,transparent)] px-1.5 py-0.5 text-[11px] text-[var(--dim)]">
-              O {fmtN(hover.o, digitsRef.current)} H {fmtN(hover.h, digitsRef.current)} L{" "}
-              {fmtN(hover.l, digitsRef.current)} C{" "}
-              <span className={hover.c >= hover.o ? "text-[var(--long)]" : "text-[var(--short)]"}>
-                {fmtN(hover.c, digitsRef.current)}
+              O {fmtN(hover.o, digits)} H {fmtN(hover.h, digits)} L{" "}
+              {fmtN(hover.l, digits)} C{" "}
+              <span
+                className={
+                  hover.c >= hover.o
+                    ? "text-[var(--long)]"
+                    : "text-[var(--short)]"
+                }
+              >
+                {fmtN(hover.c, digits)}
               </span>
               {oddsOn && hover.odds != null ? (
-                <span className="ml-2 text-[var(--odds)]">Yes {hover.odds.toFixed(1)}%</span>
+                <span className="ml-2 text-[var(--odds)]">
+                  Yes {hover.odds.toFixed(1)}%
+                </span>
               ) : null}
             </span>
           ) : null}
@@ -564,7 +643,9 @@ function ToolBtn({
       type="button"
       onClick={onClick}
       className={`rounded-[4px] px-1.5 py-0.5 text-[11px] focus-visible:ring-2 focus-visible:ring-[color-mix(in_srgb,var(--odds)_40%,transparent)] ${
-        active ? "text-[var(--text)]" : "text-[var(--muted)] hover:text-[var(--text)]"
+        active
+          ? "text-[var(--text)]"
+          : "text-[var(--muted)] hover:text-[var(--text)]"
       }`}
     >
       {label}

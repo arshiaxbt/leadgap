@@ -28,19 +28,43 @@ function parseMaybeJson<T>(value: unknown): T | null {
   }
 }
 
-export function parseTokenIds(market: GammaMarket): { yes: string | null; no: string | null } {
-  const ids = parseMaybeJson<string[]>(market.clobTokenIds) ?? [];
-  return { yes: ids[0] ?? null, no: ids[1] ?? null };
+function outcomesOf(market: GammaMarket): string[] | null {
+  const raw = parseMaybeJson<unknown>(market.outcomes);
+  if (raw == null) return ["yes", "no"];
+  return Array.isArray(raw) &&
+    raw.length === 2 &&
+    raw.every((v) => typeof v === "string")
+    ? raw.map((v) => v.toLowerCase())
+    : null;
 }
-
+export function parseTokenIds(market: GammaMarket): {
+  yes: string | null;
+  no: string | null;
+} {
+  const ids = parseMaybeJson<unknown>(market.clobTokenIds);
+  const outcomes = outcomesOf(market);
+  if (!Array.isArray(ids) || !outcomes) return { yes: null, no: null };
+  const yes = ids[outcomes.indexOf("yes")];
+  const no = ids[outcomes.indexOf("no")];
+  return {
+    yes: typeof yes === "string" ? yes : null,
+    no: typeof no === "string" ? no : null,
+  };
+}
 export function parseYesPrice(market: GammaMarket): number | null {
-  const prices = parseMaybeJson<string[]>(market.outcomePrices);
-  if (!prices?.[0]) return null;
-  const n = Number(prices[0]);
-  return Number.isFinite(n) ? n : null;
+  const prices = parseMaybeJson<unknown>(market.outcomePrices);
+  const outcomes = outcomesOf(market);
+  if (!Array.isArray(prices) || !outcomes) return null;
+  const raw = prices[outcomes.indexOf("yes")];
+  if (raw === null || raw === undefined || raw === "") return null;
+  const n = Number(raw);
+  return Number.isFinite(n) && n >= 0 && n <= 1 ? n : null;
 }
 
-export async function searchGammaEvents(query: string, limit = 4): Promise<GammaSearchEvent[]> {
+export async function searchGammaEvents(
+  query: string,
+  limit = 4,
+): Promise<GammaSearchEvent[]> {
   const url = new URL("https://gamma-api.polymarket.com/public-search");
   url.searchParams.set("q", query);
   url.searchParams.set("limit_per_type", String(limit));
@@ -55,7 +79,9 @@ export async function searchGammaEvents(query: string, limit = 4): Promise<Gamma
   return (body.events ?? []).filter((event) => event.closed !== true);
 }
 
-export async function fetchGammaEvent(id: string): Promise<GammaSearchEvent | null> {
+export async function fetchGammaEvent(
+  id: string,
+): Promise<GammaSearchEvent | null> {
   const url = `https://gamma-api.polymarket.com/events/${id}`;
   const res = await fetch(url, {
     cache: "no-store",
@@ -67,21 +93,30 @@ export async function fetchGammaEvent(id: string): Promise<GammaSearchEvent | nu
 }
 
 export function bestMarket(event: GammaSearchEvent): GammaMarket | null {
-  const markets = (event.markets ?? []).filter((m) => m.closed !== true);
+  const markets = (event.markets ?? []).filter(
+    (m) => m.closed !== true && m.active !== false && parseYesPrice(m) != null,
+  );
   if (markets.length === 0) return null;
-  return [...markets].sort((a, b) => Number(b.volume ?? 0) - Number(a.volume ?? 0))[0] ?? null;
+  return (
+    [...markets].sort(
+      (a, b) => Number(b.volume ?? 0) - Number(a.volume ?? 0),
+    )[0] ?? null
+  );
 }
 
 export async function fetchYesMid(tokenId: string): Promise<number | null> {
-  const res = await fetch(`https://clob.polymarket.com/midpoint?token_id=${tokenId}`, {
-    cache: "no-store",
-    headers: { accept: "application/json" },
-    signal: AbortSignal.timeout(8_000),
-  });
+  const res = await fetch(
+    `https://clob.polymarket.com/midpoint?token_id=${tokenId}`,
+    {
+      cache: "no-store",
+      headers: { accept: "application/json" },
+      signal: AbortSignal.timeout(8_000),
+    },
+  );
   if (!res.ok) return null;
   const body = (await res.json()) as { mid?: string };
   const n = Number(body.mid);
-  return Number.isFinite(n) ? n : null;
+  return Number.isFinite(n) && n >= 0 && n <= 1 ? n : null;
 }
 
 export type PublicProfile = {
@@ -97,7 +132,9 @@ export type PublicProfile = {
 
 const ADDR_RE = /^0x[a-fA-F0-9]{40}$/;
 
-export async function fetchPublicProfile(address: string): Promise<PublicProfile | null> {
+export async function fetchPublicProfile(
+  address: string,
+): Promise<PublicProfile | null> {
   if (!ADDR_RE.test(address)) return null;
   const url = new URL("https://gamma-api.polymarket.com/public-profile");
   url.searchParams.set("address", address);
@@ -129,7 +166,9 @@ export async function fetchPublicProfile(address: string): Promise<PublicProfile
   };
 }
 
-export async function fetchOddsHistory(tokenId: string): Promise<{ t: number; v: number }[]> {
+export async function fetchOddsHistory(
+  tokenId: string,
+): Promise<{ t: number; v: number }[]> {
   const url = new URL("https://clob.polymarket.com/prices-history");
   url.searchParams.set("market", tokenId);
   url.searchParams.set("interval", "max");
@@ -140,9 +179,12 @@ export async function fetchOddsHistory(tokenId: string): Promise<{ t: number; v:
     signal: AbortSignal.timeout(12_000),
   });
   if (!res.ok) return [];
-  const body = (await res.json()) as { history?: { t: number; p: number | string }[] };
+  const body = (await res.json()) as {
+    history?: { t: number; p: number | string }[];
+  };
   return (body.history ?? [])
     .map((row) => ({ t: Number(row.t) * 1000, v: Number(row.p) }))
-    .filter((row) => Number.isFinite(row.t) && Number.isFinite(row.v) && row.v > 0);
+    .filter(
+      (row) => Number.isFinite(row.t) && Number.isFinite(row.v) && row.v > 0,
+    );
 }
-

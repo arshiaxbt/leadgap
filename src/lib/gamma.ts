@@ -74,7 +74,7 @@ export async function searchGammaEvents(
     headers: { accept: "application/json" },
     signal: AbortSignal.timeout(12_000),
   });
-  if (!res.ok) return [];
+  if (!res.ok) throw new Error(`Event discovery failed: ${res.status}`);
   const body = (await res.json()) as { events?: GammaSearchEvent[] };
   return (body.events ?? []).filter((event) => event.closed !== true);
 }

@@ -52,3 +52,12 @@ next-env.d.ts
 # Browser validation artifacts
 /test-results/
 /playwright-report/
+
+# Provider local state
+.netlify/
+workers/data/worker-configuration.d.ts
+.wrangler/
+.dev.vars*
+workers/data/.wrangler/
+
+/artifacts/

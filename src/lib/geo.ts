@@ -27,6 +27,7 @@ const JURISDICTION_REASON =
 const UNVERIFIED_REASON = "Could not verify location.";
 
 export function geoFromRequest(req: Request): GeoDecision {
+  if (process.env.NETLIFY) return decisionForLocation("XX", null, true); // Only the trusted edge function can establish Netlify location.
   const country = (
     (process.env.VERCEL
       ? header(req, "x-vercel-ip-country")
@@ -39,10 +40,22 @@ export function geoFromRequest(req: Request): GeoDecision {
         : header(req, "cf-region-code")) || ""
     ).toUpperCase() || null;
 
+  return decisionForLocation(
+    country,
+    region,
+    Boolean(process.env.VERCEL || process.env.NETLIFY),
+  );
+}
+
+export function decisionForLocation(
+  country: string,
+  region: string | null,
+  failClosed: boolean,
+): GeoDecision {
   const geoKey = region && country === "UA" ? `UA-${region}` : country;
   const listed = BLOCKED.has(country) || BLOCKED.has(geoKey);
   const unknown = country === "XX" || country === "";
-  const failClosedUnknown = Boolean(process.env.VERCEL) && unknown;
+  const failClosedUnknown = failClosed && unknown;
   const blocked = listed || failClosedUnknown;
   return {
     country,

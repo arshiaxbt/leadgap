@@ -40,14 +40,17 @@ export function valueAt(
   const target = now - ageMs;
   let best: Snapshot | null = null;
   for (const snap of history) {
-    if (snap.t <= target) best = snap;
-    else break;
+    // Scheduled collection can jitter slightly around the boundary. Never
+    // accept a half-window sample or a future observation for the current value.
+    if (snap.t > now || snap.t > target + (ageMs ? 12_000 : 0)) break;
+    if (!best || Math.abs(snap.t - target) < Math.abs(best.t - target))
+      best = snap;
   }
   // Require history near the requested boundary. A half-window or arbitrarily
   // old observation cannot represent the selected comparison window.
   const tolerance =
     ageMs === 0 ? 90_000 : Math.max(30_000, Math.min(10 * 60_000, ageMs * 0.2));
-  if (best && target - best.t <= tolerance && Number.isFinite(best.v))
+  if (best && Math.abs(target - best.t) <= tolerance && Number.isFinite(best.v))
     return best.v;
   return null;
 }

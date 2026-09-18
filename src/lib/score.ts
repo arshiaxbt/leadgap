@@ -1,3 +1,5 @@
+/** Increment when scoring coefficients or formula change. */
+export const SCORE_MODEL_VERSION = "heuristic-v1";
 import type { GapRow } from "./types";
 
 export type Bias = "long" | "short" | "none";

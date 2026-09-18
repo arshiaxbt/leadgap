@@ -1,0 +1,17 @@
+[build]
+command = "npm run build"
+publish = ".next"
+[build.environment]
+NODE_VERSION = "24"
+[[plugins]]
+package = "@netlify/plugin-nextjs"
+[[edge_functions]]
+path = "/api/geo"
+function = "geo"
+[context.deploy-preview.environment]
+NEXT_PUBLIC_ENABLE_STREAMING = "false"
+NEXT_PUBLIC_ENABLE_RESEARCH = "false"
+NEXT_PUBLIC_ENABLE_TELEMETRY = "false"
+
+# Server flags (including ENABLE_DURABLE_DATA) must be set through Netlify's
+# environment API/CLI/UI. Variables here are build-only, not function runtime.

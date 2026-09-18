@@ -41,7 +41,7 @@ const nextConfig: NextConfig = {
   serverExternalPackages: [
     "rss-parser",
     "@privy-io/react-auth",
-    "@privy-io/server-auth",
+    "@privy-io/node",
     "@privy-io/wagmi",
   ],
   allowedDevOrigins: [

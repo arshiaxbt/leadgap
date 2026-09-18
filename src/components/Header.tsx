@@ -1,5 +1,6 @@
 "use client";
 
+import { ResearchControls } from "@/components/ResearchControls";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { CommandSearch } from "@/components/CommandSearch";
@@ -47,6 +48,7 @@ export function Header() {
           })}
         </nav>
         <div className="ml-auto flex min-w-0 items-center gap-2">
+          <ResearchControls />
           <CommandSearch />
           <LoginButton />
         </div>

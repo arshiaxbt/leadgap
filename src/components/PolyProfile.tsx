@@ -1,4 +1,5 @@
 "use client";
+import { polymarketReferralUrl } from "@/lib/brand";
 import Image from "next/image";
 
 import { useEffect, useState } from "react";
@@ -99,7 +100,7 @@ export function PolyProfileChip({
   if (!href) return inner;
   return (
     <a
-      href={href}
+      href={polymarketReferralUrl(href)}
       target="_blank"
       rel="noreferrer"
       className="hover:opacity-80"
@@ -168,7 +169,7 @@ export function PolyProfileCard({
         <div className="flex flex-wrap items-center gap-2">
           {href && name ? (
             <a
-              href={href}
+              href={polymarketReferralUrl(href)}
               target="_blank"
               rel="noreferrer"
               className="text-sm font-medium text-[var(--text)] hover:underline"
@@ -209,7 +210,7 @@ export function PolyProfileCard({
       </div>
       {href ? (
         <a
-          href={href}
+          href={polymarketReferralUrl(href)}
           target="_blank"
           rel="noreferrer"
           className="text-[11px] text-[var(--muted)] hover:text-[var(--text)]"

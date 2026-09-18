@@ -45,10 +45,22 @@ Browser tests intercept API reads with deterministic fixtures. They do not submi
 - `/about`: product guide; `/guide` redirects here.
 - Public data routes read Gamma/CLOB/Perps sources through the ingestion store. Trading uses Privy, wagmi and delegated Polymarket sessions.
 
-History currently lives in process memory and local JSON (`/tmp` on Vercel). It is not shared across instances; use the roadmap before treating this as a durable signal archive.
+Production history uses shared Cloudflare D1 with `ENABLE_DURABLE_DATA=true`. Local development can use process memory and JSON files; these are not a durable production archive.
 
 ## Audit and design
 
 - [Completed plan](PLAN.md), [audit](docs/audit/REPORT.md), [validation](docs/audit/VALIDATION.md), [recommendations](docs/audit/RECOMMENDATIONS.md).
 - [Design system](DESIGN.md), [product brief](docs/frontend/BRIEF.md), [frontend quality rules](docs/frontend/FRONTEND_CONTRACT.md).
 - [Figma direction board](https://www.figma.com/design/zM6zNkiZI7nDwZGRQg6CC5).
+
+
+### Roadmap infrastructure and release gates
+
+Production runs on Vercel with the existing `leadgap.xyz` domain. The shared
+data service lives in `workers/data`; Cloudflare schedules the authenticated
+Vercel `/api/collect` route once per minute. `netlify.toml` is retained for the
+earlier optional preview. Watchlists, in-app alerts, signal history, telemetry and market
+streaming have independent flags. See [the rollout runbook](docs/operations/ROADMAP-ROLLOUT.md)
+for provider setup, private environment variables, validation, the 72-hour soak,
+owner account checks and rollback. Local build/test success does not imply that
+production migration or real-money execution has been verified.

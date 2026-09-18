@@ -329,7 +329,7 @@ input:focus-visible {
   align-items: center;
   justify-content: space-between;
   gap: 20px;
-  padding: 24px 28px 20px;
+  padding: 16px 24px;
 }
 .workspace-heading h1 {
   font-size: 30px;
@@ -370,8 +370,8 @@ input:focus-visible {
   flex-shrink: 0;
   flex-wrap: wrap;
   gap: 24px;
-  margin: 0 28px 20px;
-  padding-bottom: 20px;
+  margin: 0 24px 12px;
+  padding-bottom: 12px;
   border-bottom: 1px solid var(--line);
 }
 .workspace-summary > div {
@@ -383,7 +383,7 @@ input:focus-visible {
 }
 .workspace-summary dd {
   margin-top: 5px;
-  font-size: 24px;
+  font-size: 20px;
   line-height: 1.2;
   letter-spacing: -1px;
 }
@@ -403,7 +403,7 @@ input:focus-visible {
 }
 .signals-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 360px;
+  grid-template-columns: minmax(0, 1fr) clamp(380px, 29vw, 420px);
   gap: 0;
 }
 .signal-table td {
@@ -422,7 +422,7 @@ input:focus-visible {
   background: var(--surface);
 }
 .inspector-heading {
-  padding: 18px 24px;
+  padding: 14px 20px;
   border-bottom: 1px solid var(--line);
   color: var(--muted);
   font-size: 12px;
@@ -431,10 +431,10 @@ input:focus-visible {
   justify-content: space-between;
 }
 .inspector-body {
-  padding: 24px;
+  padding: 20px;
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: 16px;
 }
 .inspector-body h2 {
   font-size: 22px;
@@ -444,7 +444,7 @@ input:focus-visible {
   overflow-wrap: anywhere;
 }
 .inspector-metric {
-  font-size: 44px;
+  font-size: 36px;
   letter-spacing: -2px;
   line-height: 1.2;
   color: var(--odds);
@@ -552,3 +552,5 @@ input:focus-visible {
     scroll-behavior: auto !important;
   }
 }
+
+@media (min-width: 768px) { .workspace-summary > div { display: flex; align-items: baseline; gap: 10px; } .workspace-summary dd { margin-top: 0; } }

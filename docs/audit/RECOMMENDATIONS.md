@@ -1,5 +1,7 @@
 # Recommended next work
 
+**Roadmap implementation update:** Shared data, private watchlists/alerts, public market streaming, order review, signal history and offline calibration tools are now implemented on `codex/leadgap-roadmap`. Their production activation is gated by the [rollout runbook](../operations/ROADMAP-ROLLOUT.md). The table below records the original audit priorities.
+
 These priorities come from the repository and observed workflows. Effort is relative, not a delivery estimate.
 
 | Priority | Change                                         | User value / risk addressed                                                                                                      | Effort / dependency                                                             | Acceptance evidence                                                                                        |
@@ -19,3 +21,12 @@ These priorities come from the repository and observed workflows. Effort is rela
 - Define what qualifies as Tradeable, and expose the actual coverage/uncertainty behind that label. Avoid presenting a heuristic threshold as a recommendation to trade.
 - Decide the supported market and jurisdiction scope through the venue's current requirements before expanding eligibility. This audit changed header trust, not the policy list.
 - Establish an owner-run release check for private account flows. Public-browser tests cannot substitute for account-specific venue behavior.
+
+
+## Next priorities after this release
+
+1. Finish the Netlify/Cloudflare cutover and collect a real 72-hour reliability/usage baseline.
+2. Run the owner account execution checklist and reconcile builder/referral attribution with venue records.
+3. Gather several weeks of independent event histories, examine calibration by mapping category, and show evidence/coverage alongside scores before adjusting coefficients.
+4. Resolve the remaining upstream wallet dependency advisories when compatible patched releases land.
+5. Add alert frequency preferences and notification grouping after observing inbox volume. Keep external delivery opt-in and within the chosen free-service budget.

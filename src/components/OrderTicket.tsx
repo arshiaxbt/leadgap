@@ -1,6 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import {
+  Dialog,
+  DialogContent,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
+import { useEffect, useMemo, useState, useRef } from "react";
 import { usePrivy } from "@privy-io/react-auth";
 import { useAccount, useWalletClient } from "wagmi";
 import type { WalletClient } from "viem";
@@ -172,6 +178,19 @@ function TicketForm({
   const [sl, setSl] = useState("");
   const [status, setStatus] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const submitting = useRef(false);
+  const currentAccount = useRef(address);
+  useEffect(() => {
+    currentAccount.current = address;
+  }, [address]);
+  const [review, setReview] = useState<
+    | (Parameters<typeof submitPerpOrder>[1] & {
+        account: string;
+        position: number | null;
+      })
+    | null
+  >(null);
+  const [positionSize, setPositionSize] = useState<number | null>(null);
   const [ticketAccess, setTicketAccess] = useState<PerpsAccess | null>(null);
   const [free, setFree] = useState<number | null>(null);
   const stripAccess = usePerpsStrip()?.state.access ?? null;
@@ -210,7 +229,16 @@ function TicketForm({
         const raw = Number(
           margin.availableOrderMargin ?? portfolio.withdrawable,
         );
-        if (!stop && Number.isFinite(raw)) setFree(raw);
+        if (!stop && Number.isFinite(raw)) {
+          setFree(raw);
+          setPositionSize(
+            Number(
+              portfolio.positions?.find(
+                (p) => Number(p.instrumentId) === instrument.instrumentId,
+              )?.size ?? 0,
+            ),
+          );
+        }
       } catch {
         // stay at null
       }
@@ -218,7 +246,7 @@ function TicketForm({
     return () => {
       stop = true;
     };
-  }, [mount, perpsAccess?.kind, walletClient]);
+  }, [mount, perpsAccess?.kind, walletClient, instrument.instrumentId]);
 
   const blocked = geo?.blocked ?? true;
   const inviteBlocked = perpsAccess?.kind === "invite";
@@ -346,18 +374,48 @@ function TicketForm({
     stopLoss: sl,
   });
 
-  async function submit() {
-    if (!walletClient || !address || busy) return;
+  function openReview() {
     if (validation) {
       setStatus(validation);
       return;
     }
-    if (!(size > 0) || qtyStr === "0") {
-      const message = "Size is below this market's quantity step.";
-      setStatus(message);
-      notifyErr(message);
+    setStatus(null);
+    setReview({
+      quoteTimestamp: ticker?.timestamp ?? 0,
+      instrumentId: instrument.instrumentId,
+      isolatedOnly: instrument.isolatedOnly,
+      side,
+      tif,
+      quantity: size,
+      quantityText: qtyStr,
+      price: px,
+      limitPrice: price,
+      minNotional,
+      priceDecimals: instrument.priceDecimals,
+      leverage,
+      maxLeverage: instrument.maxLeverage,
+      takeProfit: tp,
+      stopLoss: sl,
+      reduceOnly,
+      account: address ?? "",
+      position: positionSize,
+    });
+  }
+  async function submit() {
+    if (!walletClient || !address || busy || submitting.current || !review)
+      return;
+    if (review.account !== address) {
+      setStatus("Account changed. Review this order again.");
+      setReview(null);
       return;
     }
+    const invalid = validateOrder(review);
+    if (invalid) {
+      setStatus(invalid);
+      setReview(null);
+      return;
+    }
+    submitting.current = true;
     setBusy(true);
     setStatus(null);
     try {
@@ -365,24 +423,10 @@ function TicketForm({
       setGeo(geoCheck);
       const { openCachedPerpsSession } = await import("@/lib/perpsSession");
       const { session } = await openCachedPerpsSession(walletClient);
-      const placed = await submitPerpOrder(session, {
-        quoteTimestamp: ticker?.timestamp ?? 0,
-        instrumentId: instrument.instrumentId,
-        isolatedOnly: instrument.isolatedOnly,
-        side,
-        tif,
-        quantity: size,
-        quantityText: qtyStr,
-        price: px,
-        limitPrice: price,
-        minNotional,
-        priceDecimals: instrument.priceDecimals,
-        leverage,
-        maxLeverage: instrument.maxLeverage,
-        takeProfit: tp,
-        stopLoss: sl,
-        reduceOnly,
-      });
+      if (currentAccount.current !== review.account)
+        throw new Error("Account changed. Review this order again.");
+      const placed = await submitPerpOrder(session, review);
+      setReview(null);
       trackEvent("submit_order", { symbol: instrument.symbol, side });
       const line = `Order ${placed.order.id} ${placed.order.status}`;
       setStatus(line);
@@ -393,6 +437,7 @@ function TicketForm({
       setStatus(access.message);
       notifyErr(access.message);
     } finally {
+      submitting.current = false;
       setBusy(false);
     }
   }
@@ -433,13 +478,6 @@ function TicketForm({
   ].sort((a, b) => a - b);
   const field = "lg-input num mt-0.5 w-full px-2 py-1 text-[12px]";
   const fromEvent = bias === "long" || bias === "short";
-  const primaryDisabled =
-    busy || (loggedOut ? !onLogin : !canTrade || !!validation);
-  const primaryLabel = busy
-    ? "Submitting…"
-    : loggedOut
-      ? "Log in to Polymarket"
-      : `${long ? "Long" : "Short"} ${base}`;
 
   useEffect(() => {
     onPreview?.({
@@ -709,18 +747,112 @@ function TicketForm({
         <Button
           type="button"
           variant={long ? "long" : "short"}
-          disabled={primaryDisabled}
-          onClick={() => {
-            if (loggedOut) {
-              onLogin?.();
-              return;
-            }
-            void submit();
-          }}
+          disabled={busy || !!validation}
+          onClick={openReview}
           className="h-10 w-full rounded-[6px] text-[13px]"
         >
-          {primaryLabel}
+          {busy ? "Submitting…" : "Review order"}
         </Button>
+        <Dialog
+          open={!!review}
+          onOpenChange={(open) => {
+            if (!open && !busy) setReview(null);
+          }}
+        >
+          <DialogContent
+            showCloseButton={!busy}
+            onEscapeKeyDown={(e) => {
+              if (busy) e.preventDefault();
+            }}
+            onPointerDownOutside={(e) => {
+              if (busy) e.preventDefault();
+            }}
+            className="max-h-[85dvh] overflow-y-auto"
+          >
+            <DialogTitle>Review {base} order</DialogTitle>
+            <DialogDescription>
+              Confirm the exact order below. Market execution and costs can
+              differ from these estimates.
+            </DialogDescription>
+            {review ? (
+              <dl className="divide-y divide-[var(--line)] text-sm">
+                {[
+                  [
+                    "Direction",
+                    review.side === "BUY" ? "Long / buy" : "Short / sell",
+                  ],
+                  ["Quantity", `${review.quantityText} ${base}`],
+                  [
+                    "Type",
+                    review.tif === "IOC"
+                      ? "Market · immediate or cancel"
+                      : "Limit · good until cancelled",
+                  ],
+                  [
+                    review.tif === "IOC" ? "Reference mark" : "Limit price",
+                    fmtPx(review.price, instrument.priceDecimals),
+                  ],
+                  [
+                    "Leverage / margin",
+                    `${review.leverage}× · ${review.isolatedOnly ? "Isolated" : "Cross"}`,
+                  ],
+                  ["Reduce only", review.reduceOnly ? "Yes" : "No"],
+                  [
+                    "Current position",
+                    review.position == null
+                      ? "Unavailable"
+                      : `${review.position} ${base}`,
+                  ],
+                  [
+                    "Estimated margin",
+                    fmtUsd((review.quantity * review.price) / review.leverage),
+                  ],
+                  [
+                    "Take profit / stop loss",
+                    `${review.takeProfit || "None"} / ${review.stopLoss || "None"}`,
+                  ],
+                  [
+                    "Trading fees / slippage",
+                    "Determined by venue; excluded from margin estimate",
+                  ],
+                ].map(([label, value]) => (
+                  <div key={label} className="flex justify-between gap-6 py-2">
+                    <dt className="text-[var(--muted)]">{label}</dt>
+                    <dd className="max-w-[60%] text-right">{value}</dd>
+                  </div>
+                ))}
+              </dl>
+            ) : null}
+            {status ? (
+              <p role="status" className="text-sm text-[var(--warn)]">
+                {status}
+              </p>
+            ) : null}
+            <Button
+              disabled={busy || (loggedOut ? !onLogin : !canTrade)}
+              onClick={() => {
+                if (loggedOut) {
+                  setReview(null);
+                  onLogin?.();
+                  return;
+                }
+                void submit();
+              }}
+            >
+              {busy
+                ? "Submitting…"
+                : loggedOut
+                  ? "Log in to trade"
+                  : "Confirm order"}
+            </Button>
+            {!canTrade && !loggedOut ? (
+              <p className="text-xs text-[var(--muted)]">
+                {hint ??
+                  "Trading is unavailable until your account and location are verified."}
+              </p>
+            ) : null}
+          </DialogContent>
+        </Dialog>
         <div className="flex items-center justify-between gap-2">
           <button
             type="button"

@@ -49,3 +49,7 @@ The owner confirmed Workers Free. Cloudflare MCP provisioned `leadgap-data` and 
 The 72-hour freshness/usage gate, production CPU/D1/Netlify quota measurements, real-history calibration and owner-controlled private trading/account checks remain outstanding. Saved-research persistence is tested at the authenticated service boundary; real Privy login on two devices remains an owner check. No funds, real orders or signatures were used for validation.
 
 Follow [the rollout runbook](../operations/ROADMAP-ROLLOUT.md) to finish these gates and activate features in sequence.
+
+## Vercel production release — 18 September 2026
+
+The owner chose to keep Vercel and explicitly requested the latest version on `main`. Added the dedicated authenticated Node.js `/api/collect` route, moved the configured Cloudflare collector URL to the existing production domain, and removed the obsolete daily Vercel cron. Vercel production receives the shared-data service and separate collector/health credentials; existing private auth and builder settings are preserved. No DNS, paid-plan, signing or funding changes are included. The prior Netlify/Worker observations above remain historical evidence. A completed 72-hour soak and real owner account flows are still not claimed.

@@ -8,7 +8,7 @@
   "triggers": { "crons": ["* * * * *"] },
   "vars": {
     "INGEST_ENABLED": "true",
-    "COLLECTOR_URL": "https://roadmap--leadgap.netlify.app/.netlify/functions/collect",
+    "COLLECTOR_URL": "https://www.leadgap.xyz/api/collect",
   },
   "secrets": { "required": ["DATA_SERVICE_SECRET", "COLLECTOR_SECRET"] },
   "d1_databases": [

@@ -56,8 +56,10 @@ History currently lives in process memory and local JSON (`/tmp` on Vercel). It 
 
 ### Roadmap infrastructure and release gates
 
-The shared data service lives in `workers/data`; Netlify configuration is in
-`netlify.toml`. Watchlists, in-app alerts, signal history, telemetry and market
+Production runs on Vercel with the existing `leadgap.xyz` domain. The shared
+data service lives in `workers/data`; Cloudflare schedules the authenticated
+Vercel `/api/collect` route once per minute. `netlify.toml` is retained for the
+earlier optional preview. Watchlists, in-app alerts, signal history, telemetry and market
 streaming have independent flags. See [the rollout runbook](docs/operations/ROADMAP-ROLLOUT.md)
 for provider setup, private environment variables, validation, the 72-hour soak,
 owner account checks and rollback. Local build/test success does not imply that

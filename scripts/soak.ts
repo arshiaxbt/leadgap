@@ -73,7 +73,7 @@ async function main() {
     pass:
       durationMs >= 71.99 * 3600_000 && coverage >= 0.99 && maxGapMs < 180_000,
     providerQuotaReview:
-      "Required: verify CPU, D1 reads/writes and Netlify credits in provider dashboards.",
+      "Required: verify CPU, D1 reads/writes and Vercel function usage in provider dashboards.",
   };
   await writeFile(
     `${directory}/report.json`,

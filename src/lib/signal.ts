@@ -12,21 +12,25 @@ export function oddsPrior(yesNow: number, oddsMove: number): number {
   return Math.min(0.999, Math.max(0.001, yesNow - oddsMove));
 }
 
-export function thesisLine(row: Pick<GapRow, "leader" | "bias" | "symbol" | "catchup">): string {
+export function thesisLine(
+  row: Pick<GapRow, "leader" | "bias" | "symbol" | "catchup">,
+): string {
   const name = perpName(row.symbol);
   switch (row.leader) {
     case "perp":
-      return `Perp already led. ${name} moved first — this is not a Leadgap setup.`;
+      return `The ${name} move is larger than the odds change in this window.`;
     case "flat":
       return `Odds and ${name} are in line. Gap is too small to act on.`;
     case "odds": {
       const caught =
         row.catchup != null && Number.isFinite(row.catchup)
-          ? ` Mark captured ${Math.round(Math.max(0, Math.min(1.8, row.catchup)) * 100)}% of the implied move.`
+          ? ` Mark captured ${Math.round(row.catchup * 100)}% of the implied move.`
           : "";
-      if (row.bias === "long") return `Prediction market is leading ${name}.${caught}`;
-      if (row.bias === "short") return `Prediction market is leading a ${name} short.${caught}`;
-      return `Odds moved first on ${name}, but the residual is not yet a trade.${caught}`;
+      if (row.bias === "long")
+        return `The model indicates a positive ${name} residual.${caught}`;
+      if (row.bias === "short")
+        return `The model indicates a negative ${name} residual.${caught}`;
+      return `The odds change is larger, but the residual does not meet the trade threshold.${caught}`;
     }
     default: {
       const _never: never = row.leader;
@@ -35,7 +39,9 @@ export function thesisLine(row: Pick<GapRow, "leader" | "bias" | "symbol" | "cat
   }
 }
 
-export function catalystImpact(gap?: Pick<GapRow, "oddsMove" | "bias" | "symbol" | "leader">): string | null {
+export function catalystImpact(
+  gap?: Pick<GapRow, "oddsMove" | "bias" | "symbol" | "leader">,
+): string | null {
   if (!gap) return null;
   const name = perpName(gap.symbol);
   const pts = `${(Math.abs(gap.oddsMove) * 100).toFixed(1)} pts`;
@@ -45,7 +51,8 @@ export function catalystImpact(gap?: Pick<GapRow, "oddsMove" | "bias" | "symbol"
       : gap.oddsMove < -0.002
         ? `Yes probability fell ${pts}`
         : "Yes probability little changed";
-  if (gap.leader === "perp") return `${odds}. ${name} already moved — not a Leadgap edge.`;
+  if (gap.leader === "perp")
+    return `${odds}. ${name} already moved — not a Leadgap edge.`;
   const bias = biasCopy(gap.bias, gap.symbol);
   if (gap.bias === "none") return `${odds}. No ${name} edge yet.`;
   return `${odds}. ${bias} while the mark lags.`;
@@ -63,7 +70,7 @@ export function signalAction(bias: Bias, symbol: string): string {
 export function chartStory(leader: GapRow["leader"]): string {
   switch (leader) {
     case "odds":
-      return "Odds moved first → perp has not fully followed.";
+      return "Compare the odds change with the observed perp move.";
     case "perp":
       return "Perp already led. This is not a Leadgap setup.";
     case "flat":
@@ -75,10 +82,16 @@ export function chartStory(leader: GapRow["leader"]): string {
   }
 }
 
-export function whyAsset(row: Pick<GapRow, "mappingReason" | "symbol" | "title">): string {
+export function whyAsset(
+  row: Pick<GapRow, "mappingReason" | "symbol" | "title">,
+): string {
   const name = perpName(row.symbol);
   const reason = row.mappingReason;
-  if (reason.startsWith("Direct map") || reason.startsWith("Named ") || reason.startsWith("Alias match")) {
+  if (
+    reason.startsWith("Direct map") ||
+    reason.startsWith("Named ") ||
+    reason.startsWith("Alias match")
+  ) {
     return `Event names ${name}.`;
   }
   if (reason.includes("macro")) return `Fed/macro cluster → ${name}.`;
@@ -88,18 +101,35 @@ export function whyAsset(row: Pick<GapRow, "mappingReason" | "symbol" | "title">
   return reason;
 }
 
-export function whyNow(row: Pick<GapRow, "window" | "oddsMove" | "perpMove" | "symbol" | "catchup" | "leader">): string {
+export function whyNow(
+  row: Pick<
+    GapRow,
+    "window" | "oddsMove" | "perpMove" | "symbol" | "catchup" | "leader"
+  >,
+): string {
   const name = perpName(row.symbol);
   const mark = `${row.perpMove >= 0 ? "+" : ""}${(row.perpMove * 100).toFixed(2)}%`;
-  if (row.leader === "perp") return `${row.window}: ${name} already moved ${mark}. Odds are not leading.`;
+  if (row.leader === "perp")
+    return `${row.window}: ${name} already moved ${mark}. Odds are not leading.`;
   const caught =
     row.catchup != null && Number.isFinite(row.catchup)
-      ? ` Mark captured ${Math.round(Math.max(0, Math.min(1.8, row.catchup)) * 100)}% of the implied move.`
+      ? ` Mark captured ${Math.round(row.catchup * 100)}% of the implied move.`
       : "";
   return `${row.window}: Yes moved ${fmtOddsDelta(row.oddsMove)}; ${name} moved ${mark}.${caught}`;
 }
 
-export function whyDirection(row: Pick<GapRow, "expected" | "actual" | "gap" | "bias" | "symbol" | "oddsMove" | "signedBeta">): string {
+export function whyDirection(
+  row: Pick<
+    GapRow,
+    | "expected"
+    | "actual"
+    | "gap"
+    | "bias"
+    | "symbol"
+    | "oddsMove"
+    | "signedBeta"
+  >,
+): string {
   const expected = row.expected ?? row.oddsMove * row.signedBeta;
   const actual = row.actual ?? 0;
   const action = signalAction(row.bias, row.symbol);

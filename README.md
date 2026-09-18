@@ -1,42 +1,54 @@
 # Leadgap
 
-Public terminal that watches Polymarket event odds against every live Polymarket Perp and lets eligible users trade the related perp from a full trading desk.
+An event-to-perp research and trading workspace. Compare Polymarket probability changes with related perpetual markets, inspect the model residual, and open an eligible market's trading desk. Mappings and sensitivities are heuristic; a ranked signal does not establish causality or predict returns.
 
-## Run
+## Run locally
+
+Use Node.js 24 (also configured for Vercel and CI).
 
 ```bash
-cd poly-event-terminal
+git clone https://github.com/arshiaxbt/leadgap.git
+cd leadgap
 cp .env.example .env.local
-npm install
+npm ci
 npm run dev
 ```
 
-Open [https://localhost:3000](https://localhost:3000). First ingest can take ~30 seconds.
+Open https://localhost:3000. For public-data UI work, `npm run dev:http` runs on http://localhost:3000. Initial ingestion can take roughly 30 seconds. Public routes work without login credentials; wallet features require Privy configuration and a secure origin.
 
-## Login (same stack as Polymarket)
+## Configuration
 
-1. Open [https://dashboard.privy.io](https://dashboard.privy.io) and create an app
-2. Enable **Email**, **Google**, and **Wallet**
-3. Enable embedded wallets for users without a wallet
-4. Allowlist `https://localhost:3000` and `https://leadgap.xyz` (plus any Vercel preview origins)
-5. Put the App ID in `.env.local`:
+See [.env.example](.env.example) for all variable names. Configure the public Privy app ID and allow the exact development/production origin in the Privy dashboard, including `https://www.leadgap.xyz`. Enable the required email, Google, wallet and embedded-wallet methods. Preview origins require their own allowlisting.
 
-```
-NEXT_PUBLIC_PRIVY_APP_ID=clxxxxxxxx
-```
+Keep `PRIVY_APP_SECRET`, builder signing credentials, `CRON_SECRET` and `SENTRY_DSN` server-only. Existing previews contain public identity values but no production signing secrets. Never add those secrets to `NEXT_PUBLIC_*` or version control.
 
-## Builder attribution (grants)
+The existing builder code is included in order requests. Venue-side attribution still needs verification against accepted trades because the installed SDK does not declare that field on its Perps order type.
 
-Every order attaches builder **arshia**. Keep maker/taker add-on at **0% / 0%**.
+## Verify
 
-```
-POLYMARKET_BUILDER_API_KEY=
-POLYMARKET_BUILDER_SECRET=
-POLYMARKET_BUILDER_PASSPHRASE=
+```bash
+npm run lint
+npm run typecheck
+npm test
+npm run build
+npx playwright install chromium
+npm run test:e2e
 ```
 
-Never prefix those with `NEXT_PUBLIC_`.
+Browser tests intercept API reads with deterministic fixtures. They do not submit orders or move funds. To test a running build, set `PLAYWRIGHT_BASE_URL`; otherwise Playwright starts the development server. CI runs the same checks on pushes and pull requests.
 
-## Optional
+## Application map
 
-- `NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID` from [cloud.reown.com](https://cloud.reown.com)
+- `/`: ranked signals, comparison windows, filters and event inspector.
+- `/markets`: instruments, search and categories; `/markets/[symbol]`: chart, book, event context and order ticket.
+- `/portfolio`: authenticated positions, orders, fills and funding entry points.
+- `/about`: product guide; `/guide` redirects here.
+- Public data routes read Gamma/CLOB/Perps sources through the ingestion store. Trading uses Privy, wagmi and delegated Polymarket sessions.
+
+History currently lives in process memory and local JSON (`/tmp` on Vercel). It is not shared across instances; use the roadmap before treating this as a durable signal archive.
+
+## Audit and design
+
+- [Completed plan](PLAN.md), [audit](docs/audit/REPORT.md), [validation](docs/audit/VALIDATION.md), [recommendations](docs/audit/RECOMMENDATIONS.md).
+- [Design system](DESIGN.md), [product brief](docs/frontend/BRIEF.md), [frontend quality rules](docs/frontend/FRONTEND_CONTRACT.md).
+- [Figma direction board](https://www.figma.com/design/zM6zNkiZI7nDwZGRQg6CC5).

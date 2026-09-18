@@ -2,7 +2,14 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { fmtCompact, fmtFunding, fmtOdds, fmtPct, fmtPx, signedClass } from "@/lib/format";
+import {
+  fmtCompact,
+  fmtFunding,
+  fmtOdds,
+  fmtPct,
+  fmtPx,
+  signedClass,
+} from "@/lib/format";
 import type { PerpsInstrument, PerpsTicker, ResolvedEvent } from "@/lib/types";
 
 const CATS = [
@@ -18,7 +25,11 @@ type SortDir = "asc" | "desc";
 
 const COLS = "grid-cols-[minmax(0,1fr)_72px_52px_80px_48px]";
 
-function sortValue(item: PerpsInstrument, col: SortCol, tickers: Record<string, PerpsTicker>): number | string {
+function sortValue(
+  item: PerpsInstrument,
+  col: SortCol,
+  tickers: Record<string, PerpsTicker>,
+): number | string {
   const t = tickers[item.symbol];
   switch (col) {
     case "name":
@@ -38,11 +49,21 @@ function sortValue(item: PerpsInstrument, col: SortCol, tickers: Record<string, 
   }
 }
 
-type MappedEvent = Pick<ResolvedEvent, "id" | "title" | "question" | "yesPrice" | "perps">;
+type MappedEvent = Pick<
+  ResolvedEvent,
+  "id" | "title" | "question" | "yesPrice" | "perps"
+>;
 
 type Hit =
   | { kind: "market"; key: string; instrument: PerpsInstrument }
-  | { kind: "event"; key: string; id: string; title: string; symbol: string; yesPrice: number };
+  | {
+      kind: "event";
+      key: string;
+      id: string;
+      title: string;
+      symbol: string;
+      yesPrice: number;
+    };
 
 export function PairPicker({
   instrument,
@@ -70,11 +91,15 @@ export function PairPicker({
   useEffect(() => {
     fetch("/api/markets")
       .then((r) => r.json())
-      .then((d: { tickers?: Record<string, PerpsTicker> }) => setTickers(d.tickers ?? {}))
+      .then((d: { tickers?: Record<string, PerpsTicker> }) =>
+        setTickers(d.tickers ?? {}),
+      )
       .catch(() => undefined);
     fetch("/api/events")
       .then((r) => r.json())
-      .then((d: { events?: MappedEvent[] }) => setMapped(d.events ?? seedEvents ?? []))
+      .then((d: { events?: MappedEvent[] }) =>
+        setMapped(d.events ?? seedEvents ?? []),
+      )
       .catch(() => undefined);
   }, [seedEvents]);
 
@@ -82,7 +107,9 @@ export function PairPicker({
     if (!open) return;
     fetch("/api/markets")
       .then((r) => r.json())
-      .then((d: { tickers?: Record<string, PerpsTicker> }) => setTickers(d.tickers ?? {}))
+      .then((d: { tickers?: Record<string, PerpsTicker> }) =>
+        setTickers(d.tickers ?? {}),
+      )
       .catch(() => undefined);
     fetch("/api/events")
       .then((r) => r.json())
@@ -122,13 +149,17 @@ export function PairPicker({
       .filter((item) => (cat === "all" ? true : item.category === cat))
       .filter((item) => {
         if (!needle) return true;
-        return `${item.symbol} ${item.baseAsset} ${item.category}`.toLowerCase().includes(needle);
+        return `${item.symbol} ${item.baseAsset} ${item.category}`
+          .toLowerCase()
+          .includes(needle);
       })
       .sort((a, b) => {
         const va = sortValue(a, sort, tickers);
         const vb = sortValue(b, sort, tickers);
         const cmp =
-          typeof va === "string" && typeof vb === "string" ? va.localeCompare(vb) : Number(va) - Number(vb);
+          typeof va === "string" && typeof vb === "string"
+            ? va.localeCompare(vb)
+            : Number(va) - Number(vb);
         if (cmp !== 0) return dir === "asc" ? cmp : -cmp;
         return a.symbol.localeCompare(b.symbol);
       });
@@ -137,39 +168,63 @@ export function PairPicker({
   const eventHits = useMemo(() => {
     const needle = q.trim().toLowerCase();
     const byCat = new Set(
-      instruments.filter((item) => (cat === "all" ? true : item.category === cat)).map((item) => item.symbol),
+      instruments
+        .filter((item) => (cat === "all" ? true : item.category === cat))
+        .map((item) => item.symbol),
     );
     const out: Extract<Hit, { kind: "event" }>[] = [];
     const seen = new Set<string>();
     for (const item of mapped) {
-      const symbol = item.perps.find((p) => byCat.has(p.symbol))?.symbol ?? item.perps[0]?.symbol;
+      const symbol =
+        item.perps.find((p) => byCat.has(p.symbol))?.symbol ??
+        item.perps[0]?.symbol;
       if (!symbol || !byCat.has(symbol)) continue;
-      if (needle && !`${item.title} ${item.question ?? ""} ${symbol}`.toLowerCase().includes(needle)) continue;
+      if (
+        needle &&
+        !`${item.title} ${item.question ?? ""} ${symbol}`
+          .toLowerCase()
+          .includes(needle)
+      )
+        continue;
       const key = `${item.id}:${symbol}`;
       if (seen.has(key)) continue;
       seen.add(key);
-      out.push({ kind: "event", key, id: item.id, title: item.title, symbol, yesPrice: item.yesPrice });
+      out.push({
+        kind: "event",
+        key,
+        id: item.id,
+        title: item.title,
+        symbol,
+        yesPrice: item.yesPrice,
+      });
     }
     return out.slice(0, 12);
   }, [cat, instruments, mapped, q]);
 
   const hits: Hit[] = useMemo(
     () => [
-      ...rows.map((item) => ({ kind: "market" as const, key: item.symbol, instrument: item })),
+      ...rows.map((item) => ({
+        kind: "market" as const,
+        key: item.symbol,
+        instrument: item,
+      })),
       ...eventHits,
     ],
     [eventHits, rows],
   );
 
   useEffect(() => {
-    setHi(0);
+    const id = setTimeout(() => setHi(0), 0);
+    return () => clearTimeout(id);
   }, [q, cat, open, sort, dir]);
 
   const base = instrument.symbol.replace("-USD", "");
 
   function go(symbol: string, eventId?: string) {
     setOpen(false);
-    router.push(eventId ? `/markets/${symbol}?event=${eventId}` : `/markets/${symbol}`);
+    router.push(
+      eventId ? `/markets/${symbol}?event=${eventId}` : `/markets/${symbol}`,
+    );
   }
 
   function activate(i: number) {
@@ -202,10 +257,19 @@ export function PairPicker({
         aria-expanded={open}
         aria-haspopup="listbox"
       >
-        <span className="text-[15px] font-medium tracking-wide text-[var(--text)]">{base}</span>
+        <span className="text-[15px] font-medium tracking-wide text-[var(--text)]">
+          {base}
+        </span>
         <span className="text-[11px] text-[var(--dim)]">Perp</span>
-        <svg viewBox="0 0 12 12" className={`h-2 w-2 text-[var(--muted)] ${open ? "rotate-180" : ""}`} aria-hidden>
-          <path fill="currentColor" d="M2.2 4.2 6 8l3.8-3.8-.9-.9L6 6.2 3.1 3.3z" />
+        <svg
+          viewBox="0 0 12 12"
+          className={`h-2 w-2 text-[var(--muted)] ${open ? "rotate-180" : ""}`}
+          aria-hidden
+        >
+          <path
+            fill="currentColor"
+            d="M2.2 4.2 6 8l3.8-3.8-.9-.9L6 6.2 3.1 3.3z"
+          />
         </svg>
       </button>
       {open ? (
@@ -240,23 +304,54 @@ export function PairPicker({
                 type="button"
                 onClick={() => setCat(c.id)}
                 className={`shrink-0 rounded-[4px] px-1.5 py-0.5 text-[11px] ${
-                  cat === c.id ? "bg-[var(--hover)] text-[var(--text)]" : "text-[var(--muted)] hover:text-[var(--text)]"
+                  cat === c.id
+                    ? "bg-[var(--hover)] text-[var(--text)]"
+                    : "text-[var(--muted)] hover:text-[var(--text)]"
                 }`}
               >
                 {c.label}
               </button>
             ))}
           </div>
-          <div className={`grid ${COLS} px-3 py-1 text-[11px] text-[var(--dim)]`}>
-            <Head id="name" label="Market" align="left" sort={sort} dir={dir} onSort={onSort} />
-            <Head id="mark" label="Mark" sort={sort} dir={dir} onSort={onSort} />
-            <Head id="change" label="1h" sort={sort} dir={dir} onSort={onSort} />
-            <Head id="funding" label="Fund" sort={sort} dir={dir} onSort={onSort} />
+          <div
+            className={`grid ${COLS} px-3 py-1 text-[11px] text-[var(--dim)]`}
+          >
+            <Head
+              id="name"
+              label="Market"
+              align="left"
+              sort={sort}
+              dir={dir}
+              onSort={onSort}
+            />
+            <Head
+              id="mark"
+              label="Mark"
+              sort={sort}
+              dir={dir}
+              onSort={onSort}
+            />
+            <Head
+              id="change"
+              label="1h"
+              sort={sort}
+              dir={dir}
+              onSort={onSort}
+            />
+            <Head
+              id="funding"
+              label="Fund"
+              sort={sort}
+              dir={dir}
+              onSort={onSort}
+            />
             <Head id="oi" label="OI" sort={sort} dir={dir} onSort={onSort} />
           </div>
           <div className="max-h-[min(70vh,420px)] overflow-auto pb-1">
             {rows.length === 0 && eventHits.length === 0 ? (
-              <p className="px-3 py-3 text-[12px] text-[var(--dim)]">No markets.</p>
+              <p className="px-3 py-3 text-[12px] text-[var(--dim)]">
+                No markets.
+              </p>
             ) : (
               rows.map((item, i) => {
                 const t = tickers[item.symbol];
@@ -269,20 +364,30 @@ export function PairPicker({
                     onMouseEnter={() => setHi(i)}
                     onClick={() => go(item.symbol)}
                     className={`grid w-full ${COLS} items-center px-3 py-1.5 text-left text-[12px] ${
-                      on || i === hi ? "bg-[var(--hover)]" : "hover:bg-[var(--hover)]"
+                      on || i === hi
+                        ? "bg-[var(--hover)]"
+                        : "hover:bg-[var(--hover)]"
                     }`}
                   >
                     <span className="flex min-w-0 items-center gap-1.5">
-                      <span className="truncate font-medium text-[var(--text)]">{item.symbol.replace("-USD", "")}</span>
-                      <span className="shrink-0 text-[11px] text-[var(--dim)]">{item.category}</span>
+                      <span className="truncate font-medium text-[var(--text)]">
+                        {item.symbol.replace("-USD", "")}
+                      </span>
+                      <span className="shrink-0 text-[11px] text-[var(--dim)]">
+                        {item.category}
+                      </span>
                     </span>
                     <span className="num text-right text-[var(--mark)]">
                       {t ? fmtPx(t.markPrice, item.priceDecimals) : "—"}
                     </span>
-                    <span className={`num text-right ${ch != null ? signedClass(ch) : "text-[var(--dim)]"}`}>
+                    <span
+                      className={`num text-right ${ch != null ? signedClass(ch) : "text-[var(--dim)]"}`}
+                    >
                       {ch != null ? fmtPct(ch) : "—"}
                     </span>
-                    <span className={`num text-right ${t ? signedClass(t.fundingRate) : "text-[var(--dim)]"}`}>
+                    <span
+                      className={`num text-right ${t ? signedClass(t.fundingRate) : "text-[var(--dim)]"}`}
+                    >
                       {t ? fmtFunding(t.fundingRate) : "—"}
                     </span>
                     <span className="num text-right text-[var(--muted)]">
@@ -294,7 +399,9 @@ export function PairPicker({
             )}
             {eventHits.length > 0 ? (
               <>
-                <p className="px-3 pt-2 pb-1 text-[11px] text-[var(--dim)]">Events</p>
+                <p className="px-3 pt-2 pb-1 text-[11px] text-[var(--dim)]">
+                  Events
+                </p>
                 {eventHits.map((item, i) => {
                   const idx = rows.length + i;
                   return (
@@ -304,12 +411,20 @@ export function PairPicker({
                       onMouseEnter={() => setHi(idx)}
                       onClick={() => go(item.symbol, item.id)}
                       className={`flex w-full items-center gap-2 px-3 py-1.5 text-left text-[12px] ${
-                        idx === hi ? "bg-[var(--hover)]" : "hover:bg-[var(--hover)]"
+                        idx === hi
+                          ? "bg-[var(--hover)]"
+                          : "hover:bg-[var(--hover)]"
                       }`}
                     >
-                      <span className="min-w-0 flex-1 truncate text-[var(--text)]">{item.title}</span>
-                      <span className="shrink-0 text-[11px] text-[var(--dim)]">{item.symbol.replace("-USD", "")}</span>
-                      <span className="num shrink-0 text-[var(--odds)]">{fmtOdds(item.yesPrice)}</span>
+                      <span className="min-w-0 flex-1 truncate text-[var(--text)]">
+                        {item.title}
+                      </span>
+                      <span className="shrink-0 text-[11px] text-[var(--dim)]">
+                        {item.symbol.replace("-USD", "")}
+                      </span>
+                      <span className="num shrink-0 text-[var(--odds)]">
+                        {fmtOdds(item.yesPrice)}
+                      </span>
                     </button>
                   );
                 })}
@@ -343,7 +458,9 @@ function Head({
       type="button"
       onClick={() => onSort(id)}
       className={`w-full ${align === "right" ? "text-right" : "text-left"} ${
-        on ? "text-[var(--text)]" : "text-[var(--dim)] hover:text-[var(--muted)]"
+        on
+          ? "text-[var(--text)]"
+          : "text-[var(--dim)] hover:text-[var(--muted)]"
       }`}
     >
       {label}

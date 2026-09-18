@@ -8,15 +8,21 @@ export async function generateMetadata({
   params: Promise<{ symbol: string }>;
 }): Promise<Metadata> {
   const { symbol } = await params;
-  return { title: decodeURIComponent(symbol).replace("-USD", "").toUpperCase() };
+  return { title: symbol.replace("-USD", "").toUpperCase() };
 }
 
-export default async function AssetPage({ params }: { params: Promise<{ symbol: string }> }) {
+export default async function AssetPage({
+  params,
+}: {
+  params: Promise<{ symbol: string }>;
+}) {
   const { symbol } = await params;
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <Suspense fallback={<div className="m-4 h-64 animate-pulse bg-[var(--hover)]" />}>
-        <TradeDesk symbol={decodeURIComponent(symbol).toUpperCase()} />
+      <Suspense
+        fallback={<div className="m-4 h-64 animate-pulse bg-[var(--hover)]" />}
+      >
+        <TradeDesk key={symbol.toUpperCase()} symbol={symbol.toUpperCase()} />
       </Suspense>
     </div>
   );

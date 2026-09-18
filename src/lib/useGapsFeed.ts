@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { isActionable } from "@/lib/score";
+import { useQuery } from "@tanstack/react-query";
+import { readJson } from "@/lib/http";
 import type { GapRow, GapWindow, PerpsTicker } from "@/lib/types";
+import { useMarkets } from "@/lib/useMarkets";
 
 export type FeedMappedEvent = {
   id: string;
@@ -12,7 +13,6 @@ export type FeedMappedEvent = {
   volume: number;
   perps: { symbol: string }[];
 };
-
 export type GapsFeed = {
   gaps: GapRow[];
   summary: { oddsFirst: number; actionable: number; topScore: number };
@@ -21,65 +21,47 @@ export type GapsFeed = {
   asOf: number;
   error: string | null;
   loading: boolean;
+  retry: () => void;
 };
+type GapPayload = Pick<GapsFeed, "gaps" | "summary" | "asOf" | "error">;
+const EMPTY_SUMMARY = { oddsFirst: 0, actionable: 0, topScore: 0 };
 
 export function useGapsFeed(window: GapWindow): GapsFeed {
-  const [gaps, setGaps] = useState<GapRow[]>([]);
-  const [summary, setSummary] = useState({ oddsFirst: 0, actionable: 0, topScore: 0 });
-  const [events, setEvents] = useState<FeedMappedEvent[]>([]);
-  const [tickers, setTickers] = useState<Record<string, PerpsTicker>>({});
-  const [asOf, setAsOf] = useState(0);
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    let stop = false;
-    async function load() {
-      try {
-        const [gapRes, eventRes, mktRes] = await Promise.all([
-          fetch(`/api/gaps?window=${window}`),
-          fetch("/api/events"),
-          fetch("/api/markets").catch(() => null),
-        ]);
-        if (!gapRes.ok) throw new Error(`Gaps unavailable (${gapRes.status}).`);
-        const data = (await gapRes.json()) as {
-          gaps: GapRow[];
-          asOf: number;
-          error: string | null;
-          summary?: { oddsFirst: number; actionable: number; topScore: number };
-        };
-        const ev = (await eventRes.json()) as { events?: FeedMappedEvent[] };
-        const mkt =
-          mktRes && mktRes.ok
-            ? ((await mktRes.json()) as { tickers?: Record<string, PerpsTicker> })
-            : { tickers: {} };
-        if (stop) return;
-        const rows = data.gaps ?? [];
-        setGaps(rows);
-        setSummary(
-          data.summary ?? {
-            oddsFirst: rows.filter((g) => g.leader === "odds" && !isActionable(g)).length,
-            actionable: rows.filter(isActionable).length,
-            topScore: rows[0]?.score ?? 0,
-          },
-        );
-        setEvents(ev.events ?? []);
-        setTickers(mkt.tickers ?? {});
-        setAsOf(data.asOf);
-        setError(data.error);
-      } catch (err) {
-        if (!stop) setError(err instanceof Error ? err.message : "Could not load markets.");
-      } finally {
-        if (!stop) setLoading(false);
-      }
-    }
-    load();
-    const id = setInterval(load, 20_000);
-    return () => {
-      stop = true;
-      clearInterval(id);
-    };
-  }, [window]);
-
-  return { gaps, summary, events, tickers, asOf, error, loading };
+  const markets = useMarkets();
+  const gaps = useQuery({
+    queryKey: ["gaps", window],
+    queryFn: ({ signal }) =>
+      readJson<GapPayload>(`/api/gaps?window=${window}`, signal),
+    refetchInterval: 20_000,
+    staleTime: 10_000,
+    retry: 1,
+  });
+  const events = useQuery({
+    queryKey: ["events"],
+    queryFn: ({ signal }) =>
+      readJson<{ events: FeedMappedEvent[] }>("/api/events", signal),
+    refetchInterval: 20_000,
+    staleTime: 10_000,
+    retry: 1,
+  });
+  return {
+    gaps: gaps.data?.gaps ?? [],
+    summary: gaps.data?.summary ?? EMPTY_SUMMARY,
+    events: events.data?.events ?? [],
+    tickers: markets.tickers,
+    asOf: gaps.data?.asOf ?? 0,
+    error:
+      gaps.error?.message ??
+      (gaps.data?.error
+        ? "Signals could not refresh. Last available values are shown."
+        : null) ??
+      events.error?.message ??
+      markets.error,
+    loading: gaps.isPending,
+    retry: () => {
+      void gaps.refetch();
+      void events.refetch();
+      markets.retry();
+    },
+  };
 }

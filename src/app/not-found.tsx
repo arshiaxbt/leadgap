@@ -6,7 +6,9 @@ export default function NotFound() {
     <PageShell>
       <div className="flex flex-col items-start gap-3 py-16">
         <p className="text-sm text-[var(--muted)]">404</p>
-        <h1 className="event-title text-2xl italic text-[var(--text)]">That page is not here.</h1>
+        <h1 className="event-title text-3xl font-medium text-[var(--text)]">
+          That page is not here.
+        </h1>
         <Link href="/" className="text-sm text-[var(--signal)] hover:underline">
           Signals
         </Link>

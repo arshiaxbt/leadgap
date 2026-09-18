@@ -23,7 +23,10 @@ function num(value: unknown): number | null {
 
 function missingAccount(body: unknown): boolean {
   if (!body || typeof body !== "object") return false;
-  const error = "error" in body ? String((body as { error?: unknown }).error ?? "").toLowerCase() : "";
+  const error =
+    "error" in body
+      ? String((body as { error?: unknown }).error ?? "").toLowerCase()
+      : "";
   return error.includes("account not found") || error === "not_found";
 }
 
@@ -33,7 +36,9 @@ function portfolioEquity(body: unknown): number | null {
   return num((body as { equity?: unknown }).equity) ?? 0;
 }
 
-async function fetchJson(url: string): Promise<{ status: number; body: unknown }> {
+async function fetchJson(
+  url: string,
+): Promise<{ status: number; body: unknown }> {
   const res = await fetch(url, {
     cache: "no-store",
     headers: HEADERS,
@@ -44,12 +49,20 @@ async function fetchJson(url: string): Promise<{ status: number; body: unknown }
 }
 
 async function inviteExists(address: string): Promise<boolean | null> {
-  const { body } = await fetchJson(`${INVITE_URL}?code=leadgap&address=${encodeURIComponent(address)}`);
+  const { body } = await fetchJson(
+    `${INVITE_URL}?code=leadgap&address=${encodeURIComponent(address)}`,
+  );
   if (!body || typeof body !== "object") return null;
-  const error = "error" in body ? String((body as { error?: unknown }).error ?? "").toLowerCase() : "";
-  if (error.includes("address already exists") || error.includes("already has")) return true;
-  if (error.includes("code not found") || error.includes("invalid")) return false;
-  if ("valid" in body && (body as { valid?: unknown }).valid === true) return false;
+  const error =
+    "error" in body
+      ? String((body as { error?: unknown }).error ?? "").toLowerCase()
+      : "";
+  if (error.includes("address already exists") || error.includes("already has"))
+    return true;
+  if (error.includes("code not found") || error.includes("invalid"))
+    return false;
+  if ("valid" in body && (body as { valid?: unknown }).valid === true)
+    return false;
   return null;
 }
 
@@ -62,7 +75,9 @@ async function probeAddress(address: string): Promise<Probe> {
     exists = null;
   }
   try {
-    const { status, body } = await fetchJson(`${PORTFOLIO_URL}?address=${encodeURIComponent(address)}`);
+    const { status, body } = await fetchJson(
+      `${PORTFOLIO_URL}?address=${encodeURIComponent(address)}`,
+    );
     const nextEquity = portfolioEquity(body);
     if (nextEquity != null) {
       equity = nextEquity;
@@ -82,25 +97,38 @@ export async function GET(req: Request) {
   }
 
   const url = new URL(req.url);
-  const addresses = [...new Set(url.searchParams.getAll("address").map((a) => a.trim()).filter((a) => ADDR_RE.test(a)))];
+  const addresses = [
+    ...new Set(
+      url.searchParams
+        .getAll("address")
+        .map((a) => a.trim())
+        .filter((a) => ADDR_RE.test(a)),
+    ),
+  ];
   if (!addresses.length) {
     return NextResponse.json({ error: "address required" }, { status: 400 });
   }
 
+  if (addresses.length > 4)
+    return NextResponse.json(
+      { error: "At most four addresses are supported." },
+      { status: 400 },
+    );
   let found = false;
   let missing = 0;
   let unknown = 0;
   let equity: number | null = null;
-  for (const address of addresses) {
-    const probe = await probeAddress(address);
+  for (const probe of await Promise.all(addresses.map(probeAddress))) {
     if (probe.exists === true) {
       found = true;
-      if (probe.equity != null && (equity == null || probe.equity > equity)) equity = probe.equity;
+      if (probe.equity != null && (equity == null || probe.equity > equity))
+        equity = probe.equity;
     } else if (probe.exists === false) missing += 1;
     else unknown += 1;
   }
 
   if (found) return NextResponse.json({ exists: true, equity: equity ?? 0 });
-  if (missing > 0 && unknown === 0) return NextResponse.json({ exists: false, equity: null });
+  if (missing > 0 && unknown === 0)
+    return NextResponse.json({ exists: false, equity: null });
   return NextResponse.json({ exists: null, equity: null });
 }

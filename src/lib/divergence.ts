@@ -1,6 +1,13 @@
 import { CONFIDENCE_FLOOR, isClearMapping, mappingKindOf } from "./mapping";
 import { leadgapMetrics } from "./score";
-import type { GapRow, GapWindow, PerpsTicker, ResidualPoint, ResolvedEvent, Snapshot } from "./types";
+import type {
+  GapRow,
+  GapWindow,
+  PerpsTicker,
+  ResidualPoint,
+  ResolvedEvent,
+  Snapshot,
+} from "./types";
 
 export const WINDOW_MS: Record<GapWindow, number> = {
   "1m": 60_000,
@@ -13,9 +20,22 @@ export const WINDOW_MS: Record<GapWindow, number> = {
   "1d": 24 * 60 * 60_000,
 };
 
-export const GAP_WINDOWS: GapWindow[] = ["1m", "5m", "15m", "30m", "1h", "4h", "12h", "1d"];
+export const GAP_WINDOWS: GapWindow[] = [
+  "1m",
+  "5m",
+  "15m",
+  "30m",
+  "1h",
+  "4h",
+  "12h",
+  "1d",
+];
 
-export function valueAt(history: Snapshot[] | undefined, ageMs: number, now: number): number | null {
+export function valueAt(
+  history: Snapshot[] | undefined,
+  ageMs: number,
+  now: number,
+): number | null {
   if (!history?.length) return null;
   const target = now - ageMs;
   let best: Snapshot | null = null;
@@ -23,9 +43,12 @@ export function valueAt(history: Snapshot[] | undefined, ageMs: number, now: num
     if (snap.t <= target) best = snap;
     else break;
   }
-  if (best) return best.v;
-  const first = history[0];
-  if (first && now - first.t >= ageMs * 0.5) return first.v;
+  // Require history near the requested boundary. A half-window or arbitrarily
+  // old observation cannot represent the selected comparison window.
+  const tolerance =
+    ageMs === 0 ? 90_000 : Math.max(30_000, Math.min(10 * 60_000, ageMs * 0.2));
+  if (best && target - best.t <= tolerance && Number.isFinite(best.v))
+    return best.v;
   return null;
 }
 
@@ -47,6 +70,8 @@ export function computeGaps(args: {
   const rows: GapRow[] = [];
 
   for (const event of args.events) {
+    const latestOdds = args.oddsHistory[event.id]?.at(-1);
+    if (!latestOdds || now - latestOdds.t > 90_000) continue;
     const oddsNow = event.yesPrice;
     const oddsThen = valueAt(args.oddsHistory[event.id], age, now);
     const oddsMove = oddsThen == null ? null : oddsNow - oddsThen;
@@ -54,8 +79,17 @@ export function computeGaps(args: {
     for (const link of event.perps) {
       if (link.confidence < CONFIDENCE_FLOOR) continue;
       const ticker = args.tickers[link.symbol];
-      if (!ticker) continue;
-      const perpMove = move(valueAt(args.markHistory[link.symbol], age, now), ticker.markPrice);
+      if (
+        !ticker ||
+        now - ticker.timestamp > 90_000 ||
+        !Number.isFinite(ticker.markPrice) ||
+        ticker.markPrice <= 0
+      )
+        continue;
+      const perpMove = move(
+        valueAt(args.markHistory[link.symbol], age, now),
+        ticker.markPrice,
+      );
       if (oddsMove == null || perpMove == null) continue;
 
       const metrics = leadgapMetrics({
@@ -111,7 +145,9 @@ export function eventTitleKey(title: string): string {
   return title
     .toLowerCase()
     .replace(/\$/g, "")
-    .replace(/(\d+(?:\.\d+)?)k\b/g, (_, n) => String(Math.round(Number(n) * 1000)))
+    .replace(/(\d+(?:\.\d+)?)k\b/g, (_, n) =>
+      String(Math.round(Number(n) * 1000)),
+    )
     .replace(/[^a-z0-9]+/g, " ")
     .trim();
 }
@@ -128,11 +164,17 @@ export function uniqueGapRows(rows: GapRow[]): GapRow[] {
   for (const row of byEventSymbol.values()) {
     const key = `${eventTitleKey(row.title) || row.eventId}:${row.symbol}`;
     const prev = byTitleSymbol.get(key);
-    if (!prev || row.score > prev.score || (row.score === prev.score && row.volume > prev.volume)) {
+    if (
+      !prev ||
+      row.score > prev.score ||
+      (row.score === prev.score && row.volume > prev.volume)
+    ) {
       byTitleSymbol.set(key, row);
     }
   }
-  return [...byTitleSymbol.values()].sort((a, b) => b.score - a.score || Math.abs(b.gap) - Math.abs(a.gap));
+  return [...byTitleSymbol.values()].sort(
+    (a, b) => b.score - a.score || Math.abs(b.gap) - Math.abs(a.gap),
+  );
 }
 
 export function residualPath(args: {
@@ -153,7 +195,13 @@ export function residualPath(args: {
     const oddsThen = valueAt(args.odds, windowMs, o.t);
     const markNow = valueAt(args.marks, 0, o.t);
     const markThen = valueAt(args.marks, windowMs, o.t);
-    if (oddsThen == null || markNow == null || markThen == null || markThen === 0) continue;
+    if (
+      oddsThen == null ||
+      markNow == null ||
+      markThen == null ||
+      markThen === 0
+    )
+      continue;
     const expected = (o.v - oddsThen) * args.signedBeta;
     const actual = (markNow - markThen) / markThen;
     out.push({ t: o.t, expected, actual, gap: expected - actual });

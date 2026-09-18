@@ -1,4 +1,8 @@
-import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode } from "react";
+import type {
+  ButtonHTMLAttributes,
+  InputHTMLAttributes,
+  ReactNode,
+} from "react";
 import { polymarketEventUrl } from "@/lib/brand";
 
 export function Panel({
@@ -22,13 +26,17 @@ export function Pill({
     lead: "border-[color-mix(in_srgb,var(--signal)_45%,transparent)] text-[var(--signal)]",
     perp: "border-[var(--line)] text-[var(--perp)]",
     mute: "border-[var(--line)] text-[var(--muted)]",
-    danger: "border-[color-mix(in_srgb,var(--short)_45%,transparent)] text-[var(--short)]",
+    danger:
+      "border-[color-mix(in_srgb,var(--short)_45%,transparent)] text-[var(--short)]",
     warn: "border-[color-mix(in_srgb,var(--warn)_45%,transparent)] text-[var(--warn)]",
     long: "border-[color-mix(in_srgb,var(--long)_45%,transparent)] text-[var(--long)]",
-    short: "border-[color-mix(in_srgb,var(--short)_45%,transparent)] text-[var(--short)]",
+    short:
+      "border-[color-mix(in_srgb,var(--short)_45%,transparent)] text-[var(--short)]",
   };
   return (
-    <span className={`inline-flex items-center border px-1.5 py-px text-[10px] font-medium tracking-wide ${tones[tone]}`}>
+    <span
+      className={`inline-flex items-center border px-1.5 py-px text-[10px] font-medium tracking-wide ${tones[tone]}`}
+    >
       {children}
     </span>
   );
@@ -48,14 +56,19 @@ export function Segmented<T extends string>({
   large?: boolean;
 }) {
   return (
-    <div className="inline-flex items-stretch border border-[var(--line)] bg-[var(--surface)]">
+    <div className="inline-flex max-w-full items-stretch rounded-md border border-[var(--line)] bg-[var(--surface)]">
       {options.map((opt, i) => {
         const active = value === opt.id;
-        const pad = compact ? "px-1.5 py-0.5 text-[10px]" : large ? "px-3 py-1.5 text-[13px]" : "px-2 py-1 text-[11px]";
+        const pad = compact
+          ? "px-2 py-1.5 text-[12px]"
+          : large
+            ? "px-3 py-1.5 text-[13px]"
+            : "px-3 py-2 text-[12px]";
         return (
           <button
             key={opt.id}
             type="button"
+            aria-pressed={active}
             aria-label={opt.hint ? `${opt.label}. ${opt.hint}` : undefined}
             onClick={() => onChange(opt.id)}
             className={`lg-focus group relative border-r border-[var(--line)] last:border-r-0 ${pad} ${
@@ -66,7 +79,11 @@ export function Segmented<T extends string>({
           >
             {opt.label}
             {opt.hint ? (
-              <span className={`lg-tip ${i === options.length - 1 ? "right-0 left-auto" : "left-0"}`}>{opt.hint}</span>
+              <span
+                className={`lg-tip ${i === options.length - 1 ? "right-0 left-auto" : "left-0"}`}
+              >
+                {opt.hint}
+              </span>
             ) : null}
           </button>
         );
@@ -87,7 +104,13 @@ export function PolymarketEventLink({
   const href = polymarketEventUrl(slug);
   if (!href) return null;
   return (
-    <a href={href} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} className={className}>
+    <a
+      href={href}
+      target="_blank"
+      rel="noreferrer"
+      onClick={(e) => e.stopPropagation()}
+      className={className}
+    >
       {children}
     </a>
   );
@@ -97,7 +120,9 @@ export function Empty({ title, body }: { title: string; body: string }) {
   return (
     <Panel className="px-4 py-6 text-center">
       <p className="text-sm font-medium text-[var(--text)]">{title}</p>
-      <p className="mx-auto mt-1 max-w-md text-sm text-[var(--muted)]">{body}</p>
+      <p className="mx-auto mt-1 max-w-md text-sm text-[var(--muted)]">
+        {body}
+      </p>
     </Panel>
   );
 }
@@ -127,7 +152,12 @@ export function Field({
 }
 
 export function TextInput(props: InputHTMLAttributes<HTMLInputElement>) {
-  return <input {...props} className={`lg-input px-2 py-1 ${props.className ?? ""}`} />;
+  return (
+    <input
+      {...props}
+      className={`lg-input px-2 py-1 ${props.className ?? ""}`}
+    />
+  );
 }
 
 export function Btn({
@@ -139,14 +169,16 @@ export function Btn({
   variant?: "ghost" | "signal" | "long" | "short";
   size?: "sm" | "md";
 }) {
-  const sizes = size === "md" ? "px-3 py-1.5 text-[12px]" : "px-2 py-0.5 text-[11px]";
+  const sizes =
+    size === "md" ? "px-3 py-1.5 text-[12px]" : "px-2 py-0.5 text-[11px]";
   const variants = {
     ghost:
       "border border-[var(--line)] bg-[var(--surface)] text-[var(--muted)] hover:bg-[var(--hover)] hover:text-[var(--text)] disabled:opacity-40",
     signal:
       "border border-[color-mix(in_srgb,var(--signal)_50%,var(--line))] text-[var(--signal)] hover:bg-[color-mix(in_srgb,var(--signal)_10%,transparent)] disabled:opacity-40",
     long: "border border-[color-mix(in_srgb,var(--long)_50%,var(--line))] text-[var(--long)] disabled:opacity-40",
-    short: "border border-[color-mix(in_srgb,var(--short)_50%,var(--line))] text-[var(--short)] disabled:opacity-40",
+    short:
+      "border border-[color-mix(in_srgb,var(--short)_50%,var(--line))] text-[var(--short)] disabled:opacity-40",
   };
   return (
     <button
@@ -169,7 +201,11 @@ export function Metric({
   return (
     <div className="px-3 py-2">
       <div className="lg-label">{label}</div>
-      <div className={`num mt-0.5 text-[15px] font-medium leading-none ${tone}`}>{value}</div>
+      <div
+        className={`num mt-0.5 text-[15px] font-medium leading-none ${tone}`}
+      >
+        {value}
+      </div>
     </div>
   );
 }

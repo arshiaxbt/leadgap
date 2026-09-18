@@ -1,16 +1,23 @@
 "use client";
+import Image from "next/image";
 
 import { useEffect, useState } from "react";
 import { shortAddr } from "@/lib/format";
 import type { PublicProfile } from "@/lib/gamma";
-import { PROFILE_IMAGE_HOSTS, safeHttpsUrl, safeXProfileUrl } from "@/lib/safe-url";
+import {
+  PROFILE_IMAGE_HOSTS,
+  safeHttpsUrl,
+  safeXProfileUrl,
+} from "@/lib/safe-url";
 
 function profileHref(profile: PublicProfile): string {
   if (profile.displayUsernamePublic && profile.name) {
     return `https://polymarket.com/@${encodeURIComponent(profile.name)}`;
   }
   const wallet = profile.proxyWallet;
-  return wallet ? `https://polymarket.com/profile/${wallet}` : "https://polymarket.com";
+  return wallet
+    ? `https://polymarket.com/profile/${wallet}`
+    : "https://polymarket.com";
 }
 
 function displayName(profile: PublicProfile, fallback?: string): string {
@@ -28,7 +35,6 @@ export function usePolyProfile(addresses: (string | undefined)[]) {
 
   useEffect(() => {
     if (!key) {
-      setProfile(null);
       return;
     }
     let stop = false;
@@ -47,7 +53,7 @@ export function usePolyProfile(addresses: (string | undefined)[]) {
     };
   }, [key]);
 
-  return profile;
+  return key ? profile : null;
 }
 
 export function PolyProfileChip({
@@ -58,26 +64,47 @@ export function PolyProfileChip({
   fallback?: string;
 }) {
   const profile = usePolyProfile([address]);
-  const label = profile ? displayName(profile, address ?? fallback) : (fallback ?? (address ? shortAddr(address) : "Signed in"));
-  const href = profile ? profileHref(profile) : address ? `https://polymarket.com/profile/${address}` : undefined;
+  const label = profile
+    ? displayName(profile, address ?? fallback)
+    : (fallback ?? (address ? shortAddr(address) : "Signed in"));
+  const href = profile
+    ? profileHref(profile)
+    : address
+      ? `https://polymarket.com/profile/${address}`
+      : undefined;
   const image = safeHttpsUrl(profile?.profileImage, PROFILE_IMAGE_HOSTS);
 
   const inner = (
     <span className="flex items-center gap-1.5">
       {image ? (
-        <img src={image} alt="" width={18} height={18} className="h-[18px] w-[18px] rounded-full object-cover" />
+        <Image
+          unoptimized
+          src={image}
+          alt=""
+          width={18}
+          height={18}
+          className="h-[18px] w-[18px] rounded-full object-cover"
+        />
       ) : (
         <span className="grid h-[18px] w-[18px] place-items-center rounded-full bg-[var(--elevated)] text-[9px] text-[var(--muted)]">
           {(label[0] ?? "?").toUpperCase()}
         </span>
       )}
-      <span className="max-w-[120px] truncate text-[12px] text-[var(--text)]">{label}</span>
+      <span className="max-w-[120px] truncate text-[12px] text-[var(--text)]">
+        {label}
+      </span>
     </span>
   );
 
   if (!href) return inner;
   return (
-    <a href={href} target="_blank" rel="noreferrer" className="hover:opacity-80" title="Polymarket profile">
+    <a
+      href={href}
+      target="_blank"
+      rel="noreferrer"
+      className="hover:opacity-80"
+      title="Polymarket profile"
+    >
       {inner}
     </a>
   );
@@ -110,7 +137,11 @@ export function PolyProfileCard({
 }) {
   const profile = usePolyProfile([polymarketWallet, eoa]);
   const name = profile ? displayName(profile, polymarketWallet ?? eoa) : null;
-  const href = profile ? profileHref(profile) : polymarketWallet ? `https://polymarket.com/profile/${polymarketWallet}` : undefined;
+  const href = profile
+    ? profileHref(profile)
+    : polymarketWallet
+      ? `https://polymarket.com/profile/${polymarketWallet}`
+      : undefined;
   const wallet = profile?.proxyWallet ?? polymarketWallet;
   const image = safeHttpsUrl(profile?.profileImage, PROFILE_IMAGE_HOSTS);
   const xHref = safeXProfileUrl(profile?.xUsername);
@@ -120,7 +151,14 @@ export function PolyProfileCard({
   return (
     <div className="flex flex-wrap items-center gap-3">
       {image ? (
-        <img src={image} alt="" width={40} height={40} className="h-10 w-10 rounded-full object-cover" />
+        <Image
+          unoptimized
+          src={image}
+          alt=""
+          width={40}
+          height={40}
+          className="h-10 w-10 rounded-full object-cover"
+        />
       ) : (
         <span className="grid h-10 w-10 place-items-center rounded-full bg-[var(--elevated)] text-sm text-[var(--muted)]">
           {(name?.[0] ?? "?").toUpperCase()}
@@ -129,13 +167,22 @@ export function PolyProfileCard({
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-2">
           {href && name ? (
-            <a href={href} target="_blank" rel="noreferrer" className="text-sm font-medium text-[var(--text)] hover:underline">
+            <a
+              href={href}
+              target="_blank"
+              rel="noreferrer"
+              className="text-sm font-medium text-[var(--text)] hover:underline"
+            >
               {name}
             </a>
           ) : (
-            <span className="text-sm font-medium text-[var(--text)]">{name ?? "Polymarket account"}</span>
+            <span className="text-sm font-medium text-[var(--text)]">
+              {name ?? "Polymarket account"}
+            </span>
           )}
-          {profile?.verifiedBadge ? <span className="text-[11px] text-[var(--odds)]">Verified</span> : null}
+          {profile?.verifiedBadge ? (
+            <span className="text-[11px] text-[var(--odds)]">Verified</span>
+          ) : null}
           {xHref ? (
             <a
               href={xHref}
@@ -161,7 +208,12 @@ export function PolyProfileCard({
         </div>
       </div>
       {href ? (
-        <a href={href} target="_blank" rel="noreferrer" className="text-[11px] text-[var(--muted)] hover:text-[var(--text)]">
+        <a
+          href={href}
+          target="_blank"
+          rel="noreferrer"
+          className="text-[11px] text-[var(--muted)] hover:text-[var(--text)]"
+        >
           View on Polymarket
         </a>
       ) : null}

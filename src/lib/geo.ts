@@ -28,15 +28,16 @@ const UNVERIFIED_REASON = "Could not verify location.";
 
 export function geoFromRequest(req: Request): GeoDecision {
   const country = (
-    header(req, "cf-ipcountry") ||
-    header(req, "x-vercel-ip-country") ||
-    "XX"
+    (process.env.VERCEL
+      ? header(req, "x-vercel-ip-country")
+      : header(req, "cf-ipcountry")) || "XX"
   ).toUpperCase();
-  const region = (
-    header(req, "cf-region-code") ||
-    header(req, "x-vercel-ip-country-region") ||
-    ""
-  ).toUpperCase() || null;
+  const region =
+    (
+      (process.env.VERCEL
+        ? header(req, "x-vercel-ip-country-region")
+        : header(req, "cf-region-code")) || ""
+    ).toUpperCase() || null;
 
   const geoKey = region && country === "UA" ? `UA-${region}` : country;
   const listed = BLOCKED.has(country) || BLOCKED.has(geoKey);

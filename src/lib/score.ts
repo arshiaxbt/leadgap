@@ -31,23 +31,44 @@ export function leadgapMetrics(args: {
   const oddsAbs = Math.abs(args.oddsMove);
   const perpAbs = Math.abs(actual);
   const leader: GapRow["leader"] =
-    oddsAbs > perpAbs * 1.25 ? "odds" : perpAbs > oddsAbs * 1.25 ? "perp" : "flat";
+    oddsAbs > perpAbs * 1.25
+      ? "odds"
+      : perpAbs > oddsAbs * 1.25
+        ? "perp"
+        : "flat";
 
   const liquidity = Math.min(1, Math.log10(Math.max(args.volume, 10)) / 6);
   const magnitude = Math.min(1, Math.abs(gap) / 0.04);
   const leadWeight = leader === "odds" ? 1 : leader === "flat" ? 0.42 : 0.12;
   const moveWeight = oddsAbs >= 0.008 ? 1 : oddsAbs >= 0.003 ? 0.65 : 0.3;
   const sanity =
-    oddsAbs > 0.25 || Math.abs(expected) > 0.12 ? 0.22 : oddsAbs > 0.12 || Math.abs(expected) > 0.06 ? 0.55 : 1;
+    oddsAbs > 0.25 || Math.abs(expected) > 0.12
+      ? 0.22
+      : oddsAbs > 0.12 || Math.abs(expected) > 0.06
+        ? 0.55
+        : 1;
   const score = Math.round(
     Math.max(
       0,
-      Math.min(100, 100 * magnitude * leadWeight * args.confidence * liquidity * moveWeight * sanity),
+      Math.min(
+        100,
+        100 *
+          magnitude *
+          leadWeight *
+          args.confidence *
+          liquidity *
+          moveWeight *
+          sanity,
+      ),
     ),
   );
 
   const bias: Bias =
-    leader !== "odds" || Math.abs(gap) < 0.002 || score < 12 ? "none" : gap > 0 ? "long" : "short";
+    leader !== "odds" || Math.abs(gap) < 0.002 || score < 12
+      ? "none"
+      : gap > 0
+        ? "long"
+        : "short";
 
   const catchup = Math.abs(expected) < 1e-6 ? null : actual / expected;
 
@@ -71,26 +92,37 @@ export function scoreBreakdown(args: {
   const oddsAbs = Math.abs(args.oddsMove);
   const liquidity = Math.min(1, Math.log10(Math.max(args.volume, 10)) / 6);
   const magnitude = Math.min(1, Math.abs(gap) / 0.04);
-  const leadWeight = args.leader === "odds" ? 1 : args.leader === "flat" ? 0.42 : 0.12;
+  const leadWeight =
+    args.leader === "odds" ? 1 : args.leader === "flat" ? 0.42 : 0.12;
   const moveWeight = oddsAbs >= 0.008 ? 1 : oddsAbs >= 0.003 ? 0.65 : 0.3;
 
   const raw: ScorePart[] = [
     { label: "Odds movement", points: moveWeight },
     { label: "Perp lag", points: magnitude * leadWeight },
     { label: "Volume / liquidity", points: liquidity },
-    { label: "Historical confidence", points: Math.max(0, args.confidence) },
+    { label: "Mapping confidence", points: Math.max(0, args.confidence) },
   ];
   const sum = raw.reduce((s, p) => s + p.points, 0);
   if (sum <= 0 || args.score <= 0) return raw.map((p) => ({ ...p, points: 0 }));
-  const parts = raw.map((p) => ({ label: p.label, points: Math.round((args.score * p.points) / sum) }));
+  const parts = raw.map((p) => ({
+    label: p.label,
+    points: Math.round((args.score * p.points) / sum),
+  }));
   const drift = args.score - parts.reduce((s, p) => s + p.points, 0);
   if (parts[0]) parts[0].points += drift;
   return parts;
 }
 
-export function isActionable(row: Pick<GapRow, "bias" | "score" | "catchup">): boolean {
+export function isActionable(
+  row: Pick<GapRow, "bias" | "score" | "catchup">,
+): boolean {
   if (row.bias === "none" || row.score < 28) return false;
-  if (row.catchup != null && Number.isFinite(row.catchup) && row.catchup >= 0.85) return false;
+  if (
+    row.catchup != null &&
+    Number.isFinite(row.catchup) &&
+    row.catchup >= 0.85
+  )
+    return false;
   return true;
 }
 
@@ -131,7 +163,9 @@ export function catchupCopy(catchup: number | null): string {
   return "Overshot";
 }
 
-export function residualTrend(path: { gap: number }[]): "expanding" | "closing" | "stable" {
+export function residualTrend(
+  path: { gap: number }[],
+): "expanding" | "closing" | "stable" {
   if (path.length < 4) return "stable";
   const recent = path.slice(-6);
   const first = Math.abs(recent[0]!.gap);

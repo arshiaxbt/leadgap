@@ -12,7 +12,9 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "next typegen && tsc --noEmit",
+    "test": "tsx --test tests/unit/*.test.ts",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "@polymarket/client": "^0.6.0",
@@ -34,7 +36,7 @@
     "geist": "^1.7.2",
     "lightweight-charts": "^5.2.1",
     "lucide-react": "^1.31.0",
-    "next": "16.3.0",
+    "next": "^16.3.5",
     "radix-ui": "^1.6.7",
     "react": "19.2.8",
     "react-dom": "19.2.8",
@@ -48,13 +50,19 @@
     "wagmi": "^2.16.9"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.13.0",
+    "@playwright/test": "^1.63.0",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
-    "eslint-config-next": "16.3.0",
+    "eslint-config-next": "^16.3.5",
     "tailwindcss": "^4",
+    "tsx": "^4.23.13",
     "typescript": "^5"
+  },
+  "overrides": {
+    "ws": "^8.21.0"
   }
 }

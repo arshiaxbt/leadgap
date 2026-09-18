@@ -1,6 +1,6 @@
-# Leadgap — Causal Split
+# Leadgap — Analyst workspace
 
-Leadgap is a probability-to-perp workstation. Ranked Polymarket events whose Yes odds moved before the mapped perpetual. The residual is the product. The perp is the trade.
+Leadgap is a probability-to-perp workstation. Ranked comparisons between Polymarket Yes probability changes and mapped perpetual moves. The residual is a heuristic comparison, not proof of causality or a forecast.
 
 ## Voice
 
@@ -14,21 +14,21 @@ Interactive chrome is white at varying opacity. Ice is data (Yes %, odds-led gap
 
 ## Color
 
-| Token | Hex | Role |
-| --- | --- | --- |
-| `--bg` | `#07090C` | ink / page |
-| `--surface` | `#0B0E14` | panel |
-| `--elevated` | `#10141B` | raise |
-| `--line` | `#191E27` | rare hairline |
-| `--text` | `#E4E8EF` | ash |
-| `--muted` | `#79818F` | mute text |
-| `--dim` | `#535B69` | dim text |
-| `--odds` | `#8FC9F2` | Yes %, overlay, odds-led gap |
-| `--odds-deep` | `#4E86AE` | search / control focus |
-| `--mark` | `#8A909B` | perp mark, book prices |
-| `--long` | `#3ECF8E` | buy / pnl+ |
-| `--short` | `#F0564E` | sell / pnl− |
-| `--warn` | `#d4a017` | warnings |
+| Token         | Hex       | Role                         |
+| ------------- | --------- | ---------------------------- |
+| `--bg`        | `#090D12` | ink / page                   |
+| `--surface`   | `#10161E` | panel                        |
+| `--elevated`  | `#18212C` | raise                        |
+| `--line`      | `#26313E` | rare hairline                |
+| `--text`      | `#EDF2F8` | ash                          |
+| `--muted`     | `#A4AFBF` | mute text                    |
+| `--dim`       | `#929FB0` | dim text                     |
+| `--odds`      | `#9ED7FF` | Yes %, overlay, odds-led gap |
+| `--odds-deep` | `#4E86AE` | search / control focus       |
+| `--mark`      | `#B4BDCA` | perp mark, book prices       |
+| `--long`      | `#3ECF8E` | buy / pnl+                   |
+| `--short`     | `#FF8179` | sell / pnl−                  |
+| `--warn`      | `#d4a017` | warnings                     |
 
 `--signal` and `--perp` are aliases of `--odds` and `--mark` so mixed pages keep working during the rebuild.
 
@@ -36,7 +36,7 @@ Focus ring is `--odds` at 40% on controls. Dark only. No light theme.
 
 ## Type
 
-Geist Sans for UI and event titles. Geist Mono for numbers. Scale: 12/13 body, 15/18/22 titles, 11 secondary. Labels are sentence case, not 10px uppercase tracking.
+Geist Sans for UI and event titles. Geist Mono for numbers. Scale: 13–14px body and table copy, 12px secondary labels, 18–24px section headings, 32px workspace headings. Dense chart annotations may use 11px. Labels are sentence case, not 10px uppercase tracking.
 
 ## Shape
 
@@ -48,18 +48,18 @@ GapMark, viewBox 24. Ice stroke leads, stone stroke lags, 16% ice fill in the ba
 
 ## Motion
 
-120ms hover. 80ms row flash on live print. No ping dots. Live = a static 6px ice square + timestamp.
+120ms hover. 80ms row flash on live print. No ping dots. Data status = a static square + update timestamp, with explicit delayed and interrupted states. A live clock alone does not establish feed freshness.
 
 ## Chrome
 
 - Header: GapMark + Leadgap, Signals / Markets / Portfolio / Guide. Trade is not a nav item.
 - Cmd/Ctrl+K searches events and instruments.
-- No marketing sentence on app chrome. 24px status strip: live clock, not financial advice (md+), Created by 0xarshia.eth, GitHub and X logos. Guide footer repeats the credit. Mobile strip sits above the tab bar.
-- < 768: bottom nav Signals, Markets, Trade (when on a symbol), Portfolio.
+- No marketing sentence on app chrome. 24px status strip: live clock, not financial advice (md+), Created by 0xarshia.eth, GitHub and X logos. Guide footer repeats the credit. Mobile strip sits above the tab bar. Workspace content uses a 24px desktop / 16px mobile rhythm.
+- < 768: bottom nav Signals, Markets, Trade (when on a symbol), Portfolio; Guide appears when outside a trading desk.
 
 ## Surfaces
 
-- `/` Signals — 62/38 ranked monitor + inspector
+- `/` Signals — flexible ranked monitor + 360px inspector
 - `/markets` Markets — instrument table
 - `/markets/[symbol]` Trade — chart beside book, blotter under that cluster, EventRail then ticket
 - `/portfolio` Portfolio — equity, positions, fund
@@ -72,4 +72,4 @@ GapMark, viewBox 24. Ice stroke leads, stone stroke lags, 16% ice fill in the ba
 - `DataTable` — sentence-case headers, selected ice inset, 80ms print flash, column-faithful skeleton
 - Buttons: ghost chrome, filled long (`--long`), filled short (`--short`)
 
-Routes, APIs, scoring, Privy, session, and `placeOrder` stay as they are.
+Implementation and behavior contracts: [frontend brief](docs/frontend/BRIEF.md), [quality rules](docs/frontend/FRONTEND_CONTRACT.md). Numerical semantics and verified fixes: [audit](docs/audit/REPORT.md).

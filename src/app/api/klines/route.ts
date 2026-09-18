@@ -5,17 +5,31 @@ import type { KlineInterval } from "@/lib/types";
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
 
-const INTERVALS = new Set<KlineInterval>(["1m", "5m", "15m", "30m", "1h", "4h", "1d"]);
+const INTERVALS = new Set<KlineInterval>([
+  "1m",
+  "5m",
+  "15m",
+  "30m",
+  "1h",
+  "4h",
+  "1d",
+]);
 
 export async function GET(req: Request) {
   const url = new URL(req.url);
   const id = Number(url.searchParams.get("instrumentId"));
   const interval = (url.searchParams.get("interval") ?? "5m") as KlineInterval;
-  if (!Number.isFinite(id) || id <= 0) {
-    return NextResponse.json({ error: "instrumentId required" }, { status: 400 });
+  if (!Number.isSafeInteger(id) || id <= 0) {
+    return NextResponse.json(
+      { error: "instrumentId required" },
+      { status: 400 },
+    );
   }
   try {
-    const candles = await fetchCandles(id, INTERVALS.has(interval) ? interval : "5m");
+    const candles = await fetchCandles(
+      id,
+      INTERVALS.has(interval) ? interval : "5m",
+    );
     return NextResponse.json({ candles });
   } catch {
     return NextResponse.json({ error: "upstream failed" }, { status: 502 });

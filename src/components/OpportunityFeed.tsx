@@ -1,8 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { ArrowDownUp, ArrowRight, Search } from "lucide-react";
 import {
   DataTable,
   DataTableBody,
@@ -13,11 +13,13 @@ import {
   DataTableRow,
   DataTableSkeleton,
 } from "@/components/DataTable";
+import { FeedStatus } from "@/components/FeedStatus";
+import { WorkspaceHeading } from "@/components/WorkspaceHeading";
 import { GapMeter } from "@/components/GapMeter";
 import { MenuSelect } from "@/components/MenuSelect";
 import { OddsFigure } from "@/components/OddsFigure";
-import { SetupInspector, setupHref } from "@/components/SetupInspector";
-import { LiveDot, Segmented, TextInput } from "@/components/ui";
+import { SetupInspector } from "@/components/SetupInspector";
+import { Segmented, TextInput } from "@/components/ui";
 import {
   Sheet,
   SheetContent,
@@ -25,455 +27,371 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { eventTitleKey, GAP_WINDOWS } from "@/lib/divergence";
-import { fmtFunding, signedClass } from "@/lib/format";
+import { GAP_WINDOWS } from "@/lib/divergence";
+import { fmtPct } from "@/lib/format";
 import { biasCopy, isActionable } from "@/lib/score";
 import { perpName } from "@/lib/signal";
-import { trackEvent } from "@/lib/track";
-import type { GapRow, GapWindow, PerpsTicker } from "@/lib/types";
+import type { GapRow, GapWindow } from "@/lib/types";
 import { useGapsFeed } from "@/lib/useGapsFeed";
 import { cn } from "@/lib/utils";
 
 type Filter = "actionable" | "odds" | "all";
-type Sort = "score" | "gap" | "fresh";
-
-const XL = "(min-width: 1280px)";
-
-function matchesFilter(row: GapRow, filter: Filter): boolean {
-  switch (filter) {
-    case "actionable":
-      return isActionable(row);
-    case "odds":
-      return row.leader === "odds" && !isActionable(row);
-    case "all":
-      return true;
-    default: {
-      const _never: never = filter;
-      return _never;
-    }
-  }
-}
-
-function sortRows(rows: GapRow[], sort: Sort): GapRow[] {
-  const copy = [...rows];
-  switch (sort) {
-    case "score":
-      return copy.sort((a, b) => b.score - a.score || Math.abs(b.gap) - Math.abs(a.gap));
-    case "gap":
-      return copy.sort((a, b) => Math.abs(b.gap) - Math.abs(a.gap) || b.score - a.score);
-    case "fresh":
-      return copy.sort((a, b) => Math.abs(b.oddsMove) - Math.abs(a.oddsMove) || b.score - a.score);
-    default: {
-      const _never: never = sort;
-      return _never;
-    }
-  }
-}
-
-function rowKey(row: GapRow): string {
-  return `${row.eventId}-${row.symbol}`;
-}
-
-function focusSetup(key: string) {
-  const desktop = document.getElementById(`setup-${key}`);
-  const mobile = document.getElementById(`setup-m-${key}`);
-  const el =
-    desktop && desktop.getClientRects().length > 0 ? desktop : (mobile ?? desktop);
-  el?.focus({ preventScroll: true });
-  el?.scrollIntoView({ block: "nearest" });
-}
-
-function biasClass(bias: GapRow["bias"]): string {
-  switch (bias) {
-    case "long":
-      return "text-[var(--long)]";
-    case "short":
-      return "text-[var(--short)]";
-    case "none":
-      return "text-[var(--dim)]";
-    default: {
-      const _never: never = bias;
-      return _never;
-    }
-  }
-}
-
-function expectedActual(row: GapRow): { expected: number; actual: number } {
-  return {
-    expected: row.expected ?? row.oddsMove * row.signedBeta,
-    actual: row.actual ?? row.perpMove,
-  };
-}
-
-function isTypingTarget(el: EventTarget | null): boolean {
-  if (!(el instanceof HTMLElement)) return false;
-  if (el.isContentEditable) return true;
-  const tag = el.tagName;
-  if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return true;
-  if (el.closest("[role='dialog']") || el.closest("[cmdk-input-wrapper]")) return true;
-  return false;
-}
-
-function useXl(): boolean {
-  const [xl, setXl] = useState(false);
-  useEffect(() => {
-    const mq = window.matchMedia(XL);
-    const on = () => setXl(mq.matches);
-    on();
-    mq.addEventListener("change", on);
-    return () => mq.removeEventListener("change", on);
-  }, []);
-  return xl;
-}
-
-function PerpCell({
-  row,
-  tickers,
-}: {
-  row: GapRow;
-  tickers: Record<string, PerpsTicker>;
-}) {
-  const funding = tickers[row.symbol]?.fundingRate;
-  return (
-    <div>
-      <div className="text-[var(--mark)]">{perpName(row.symbol)}</div>
-      {funding == null ? null : (
-        <div className={cn("num text-[10px]", signedClass(funding))}>{fmtFunding(funding)}</div>
-      )}
-    </div>
-  );
-}
+const keyOf = (row: GapRow) => `${row.eventId}-${row.symbol}`;
 
 export function OpportunityFeed() {
-  const router = useRouter();
-  const xl = useXl();
   const [gapWindow, setGapWindow] = useState<GapWindow>("4h");
   const [filter, setFilter] = useState<Filter>("actionable");
-  const [sort, setSort] = useState<Sort>("score");
+  const [sort, setSort] = useState("score");
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<string | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
-  const [flashes, setFlashes] = useState<Set<string>>(new Set());
-  const prevPrints = useRef<Map<string, { gap: number; score: number }>>(new Map());
-  const { gaps, summary, events, tickers, asOf, error, loading } = useGapsFeed(gapWindow);
-
-  const shown = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    const filtered = gaps.filter((row) => matchesFilter(row, filter)).filter((row) => {
-      if (!q) return true;
-      const hay = `${row.title} ${row.question} ${row.symbol}`.toLowerCase();
-      return hay.includes(q);
-    });
-    return sortRows(filtered, sort);
-  }, [filter, gaps, query, sort]);
-
+  const { gaps, summary, events, asOf, error, loading, retry } =
+    useGapsFeed(gapWindow);
+  const shown = useMemo(
+    () =>
+      gaps
+        .filter((row) => {
+          if (filter === "actionable" && !isActionable(row)) return false;
+          if (
+            filter === "odds" &&
+            !(row.leader === "odds" && !isActionable(row))
+          )
+            return false;
+          return `${row.title} ${row.question} ${row.symbol}`
+            .toLowerCase()
+            .includes(query.trim().toLowerCase());
+        })
+        .sort((a, b) =>
+          sort === "gap"
+            ? Math.abs(b.gap) - Math.abs(a.gap)
+            : sort === "move"
+              ? Math.abs(b.oddsMove) - Math.abs(a.oddsMove)
+              : b.score - a.score,
+        ),
+    [gaps, filter, query, sort],
+  );
   const table = shown.slice(0, 80);
-  const active = table.find((row) => rowKey(row) === selected) ?? table[0];
-
-  useEffect(() => {
-    const first = shown[0];
-    if (!first) return;
-    const firstKey = rowKey(first);
-    setSelected((cur) => (cur && shown.some((row) => rowKey(row) === cur) ? cur : firstKey));
-  }, [shown]);
-
-  useEffect(() => {
-    if (xl) setSheetOpen(false);
-  }, [xl]);
-
-  useEffect(() => {
-    const next = new Set<string>();
-    for (const row of gaps) {
-      const key = rowKey(row);
-      const prev = prevPrints.current.get(key);
-      if (prev && (prev.gap !== row.gap || prev.score !== row.score)) next.add(key);
-    }
-    prevPrints.current = new Map(gaps.map((row) => [rowKey(row), { gap: row.gap, score: row.score }]));
-    if (next.size === 0) return;
-    setFlashes(next);
-    const id = globalThis.setTimeout(() => setFlashes(new Set()), 80);
-    return () => globalThis.clearTimeout(id);
-  }, [gaps]);
-
-  const linked = useMemo(() => {
-    if (shown.length >= 3) return [];
-    const out: typeof events = [];
-    const seen = new Set<string>();
-    for (const event of events) {
-      if (!event.perps[0]?.symbol) continue;
-      const key = eventTitleKey(event.title) || event.id;
-      if (seen.has(key)) continue;
-      seen.add(key);
-      out.push(event);
-      if (out.length >= 6) break;
-    }
-    return out;
-  }, [events, shown.length]);
-
-  const openTrade = useCallback(
-    (row: GapRow) => {
-      trackEvent("view_gap", { symbol: row.symbol, eventId: row.eventId, score: row.score });
-      router.push(setupHref(row));
-    },
-    [router],
-  );
-
-  const selectRow = useCallback(
-    (key: string, openSheet: boolean) => {
-      setSelected(key);
-      if (openSheet && !xl) setSheetOpen(true);
-    },
-    [xl],
-  );
-
-  useEffect(() => {
-    function onKey(event: KeyboardEvent) {
-      if (isTypingTarget(event.target)) return;
-      if (event.metaKey || event.ctrlKey || event.altKey) return;
-      if (!table.length) return;
-      const keys = table.map(rowKey);
-      const cur = selected && keys.includes(selected) ? selected : keys[0]!;
-      const idx = keys.indexOf(cur);
-
-      if (event.key === "j" || event.key === "ArrowDown") {
-        event.preventDefault();
-        const next = keys[Math.min(idx + 1, keys.length - 1)]!;
-        setSelected(next);
-        focusSetup(next);
-        return;
-      }
-      if (event.key === "k" || event.key === "ArrowUp") {
-        event.preventDefault();
-        const next = keys[Math.max(idx - 1, 0)]!;
-        setSelected(next);
-        focusSetup(next);
-        return;
-      }
-      if (event.key === "Enter") {
-        const row = table.find((r) => rowKey(r) === cur);
-        if (!row) return;
-        event.preventDefault();
-        openTrade(row);
-      }
-    }
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [openTrade, selected, table]);
-
-  const emptyCopy = query.trim()
-    ? "No matching setups. Clear the search or switch to All."
-    : filter === "all"
-      ? "No divergence in this window. Mapped events below still open a desk."
-      : "No matching setups. Switch to Watching or All.";
-
+  const active = table.find((row) => keyOf(row) === selected) ?? table[0];
+  function select(row: GapRow) {
+    setSelected(keyOf(row));
+    if (!window.matchMedia("(min-width: 1280px)").matches) setSheetOpen(true);
+  }
+  function rowKeyDown(e: React.KeyboardEvent, index: number) {
+    if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
+    e.preventDefault();
+    const next =
+      table[
+        Math.max(
+          0,
+          Math.min(table.length - 1, index + (e.key === "ArrowDown" ? 1 : -1)),
+        )
+      ];
+    if (!next) return;
+    setSelected(keyOf(next));
+    const prefix = window.matchMedia("(min-width: 1280px)").matches
+      ? "signal-"
+      : "signal-mobile-";
+    document.getElementById(`${prefix}${keyOf(next)}`)?.focus();
+  }
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="lg-toolbar flex-wrap gap-x-2 gap-y-1">
-        <LiveDot label={asOf ? new Date(asOf).toLocaleTimeString() : "Live"} />
-        <Segmented
-          compact
-          options={GAP_WINDOWS.map((id) => ({ id, label: id }))}
-          value={gapWindow}
-          onChange={setGapWindow}
-        />
+      <WorkspaceHeading
+        title="Signals"
+        description="Follow the event. Measure what the market has priced in."
+      >
+        <FeedStatus asOf={asOf} error={error} loading={loading} retry={retry} />
+        <Link
+          href="/about"
+          className="lg-focus hidden items-center gap-2 text-[13px] text-[var(--muted)] hover:text-[var(--text)] lg:inline-flex"
+        >
+          How to read a signal <ArrowRight size={14} />
+        </Link>
+      </WorkspaceHeading>
+      <dl className="workspace-summary">
+        <div>
+          <dt>Tradeable signals</dt>
+          <dd className="num text-[var(--odds)]">
+            {loading ? "—" : summary.actionable}
+          </dd>
+        </div>
+        <div>
+          <dt>Watching</dt>
+          <dd className="num">{loading ? "—" : summary.oddsFirst}</dd>
+        </div>
+        <div>
+          <dt>Mapped events</dt>
+          <dd className="num">{events.length || "—"}</dd>
+        </div>
+        <div className="hidden sm:block">
+          <dt>Lookback</dt>
+          <dd className="num">
+            {gapWindow} <small>comparison window</small>
+          </dd>
+        </div>
+      </dl>
+      <div className="lg-toolbar flex-wrap gap-y-3">
         <Segmented
           options={[
-            {
-              id: "actionable",
-              label: `Tradeable ${summary.actionable}`,
-              hint: "Odds moved first and the perp has not fully followed.",
-            },
-            {
-              id: "odds",
-              label: `Watching ${summary.oddsFirst}`,
-              hint: "Odds are leading, but the gap or confidence is not yet strong enough to act.",
-            },
-            {
-              id: "all",
-              label: `All ${gaps.length}`,
-              hint: "Every mapped print in this window, including perp-led and in-line.",
-            },
+            { id: "actionable", label: "Tradeable" },
+            { id: "odds", label: "Watching" },
+            { id: "all", label: "All signals" },
           ]}
           value={filter}
           onChange={setFilter}
         />
-        <MenuSelect
-          ariaLabel="Sort"
-          className="py-0.5 text-[12px]"
-          value={sort}
-          onChange={setSort}
-          options={[
-            { id: "score", label: "Score" },
-            { id: "gap", label: "Gap" },
-            { id: "fresh", label: "Fresh" },
-          ]}
-        />
-        <div className="w-36">
+        <div className="ml-auto flex items-center gap-2">
+          <span className="text-xs text-[var(--muted)]">Window</span>
+          <MenuSelect
+            ariaLabel="Comparison window"
+            value={gapWindow}
+            onChange={setGapWindow}
+            options={GAP_WINDOWS.map((id) => ({ id, label: id }))}
+          />
+        </div>
+        <div className="relative w-full sm:w-48">
+          <Search
+            size={14}
+            className="pointer-events-none absolute top-3 left-2.5 text-[var(--muted)]"
+          />
           <TextInput
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Event or perp"
+            placeholder="Search signals"
             aria-label="Filter event or perp"
+            className="pl-8"
+          />
+        </div>
+        <div className="flex items-center gap-1">
+          <ArrowDownUp size={14} className="text-[var(--muted)]" />
+          <MenuSelect
+            ariaLabel="Sort signals"
+            value={sort}
+            onChange={setSort}
+            options={[
+              { id: "score", label: "Score" },
+              { id: "gap", label: "Largest gap" },
+              { id: "move", label: "Odds move" },
+            ]}
           />
         </div>
       </div>
-
-      {error ? <p className="px-3 py-1 text-[12px] text-[var(--warn)]">{error}</p> : null}
-
-      <div className="flex min-h-0 flex-1 flex-col xl:grid xl:grid-cols-[minmax(0,1.62fr)_minmax(280px,0.38fr)]">
-        <div className="flex min-h-0 flex-1 flex-col overflow-hidden border-b border-[var(--line)] xl:border-r xl:border-b-0">
+      {error ? (
+        <p className="workspace-error" role="alert">
+          {error}{" "}
+          <button onClick={retry} className="ml-2 underline">
+            Retry
+          </button>
+        </p>
+      ) : null}
+      <div className="signals-grid min-h-0 flex-1 flex-col">
+        <section
+          aria-label="Signal results"
+          className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden xl:border-r xl:border-[var(--line)]"
+        >
+          <div className="flex shrink-0 items-center justify-between px-6 py-3 text-xs text-[var(--muted)]">
+            <span>
+              {loading
+                ? "Loading signals…"
+                : `${shown.length} signal${shown.length === 1 ? "" : "s"}${shown.length > 80 ? " · showing the top 80" : ""}`}
+            </span>
+            <span className="hidden sm:inline">
+              Ranked by{" "}
+              {sort === "score"
+                ? "model score"
+                : sort === "gap"
+                  ? "remaining gap"
+                  : "odds movement"}
+            </span>
+          </div>
           {loading ? (
-            <DataTableSkeleton columns={5} rows={12} columnWidths={[70, 16, 18, 14, 12]} />
-          ) : table.length === 0 ? (
+            <DataTableSkeleton columns={5} rows={8} />
+          ) : !table.length ? (
             <DataTableEmpty>
-              <p>{emptyCopy}</p>
-              {query.trim() ? (
-                <button
-                  type="button"
-                  className="lg-focus mt-2 text-[var(--text)] underline underline-offset-2"
-                  onClick={() => setQuery("")}
-                >
-                  Clear search
-                </button>
-              ) : filter !== "all" ? (
-                <button
-                  type="button"
-                  className="lg-focus mt-2 text-[var(--text)] underline underline-offset-2"
-                  onClick={() => setFilter("all")}
-                >
-                  Show all
-                </button>
-              ) : null}
+              <ArrowDownUp size={24} className="mb-4 text-[var(--muted)]" />
+              <h2 className="mb-2 text-lg text-[var(--text)]">
+                {error
+                  ? "Waiting for market data"
+                  : query
+                    ? "No matching signals"
+                    : "No signals in this view"}
+              </h2>
+              <p className="max-w-sm leading-6">
+                {error
+                  ? "Retry the feed to load current signals."
+                  : "Try another window or view all signals to see more event-to-market comparisons."}
+              </p>
+              <button
+                className="lg-focus mt-5 rounded-md border border-[var(--line-strong)] px-4 py-2 text-[var(--text)]"
+                onClick={() => {
+                  setQuery("");
+                  setFilter("all");
+                  if (error) retry();
+                }}
+              >
+                {error ? "Retry feed" : "Show all signals"}
+              </button>
+              <Link href="/markets" className="mt-4 hover:underline">
+                Browse markets →
+              </Link>
             </DataTableEmpty>
           ) : (
             <>
               <ul
                 className="min-h-0 flex-1 overflow-auto xl:hidden"
-                role="listbox"
-                aria-label="Setups"
-                aria-activedescendant={active ? `setup-m-${rowKey(active)}` : undefined}
+                aria-label="Signals"
               >
-                {table.map((row) => {
-                  const key = rowKey(row);
-                  const on = active ? rowKey(active) === key : false;
-                  const { expected, actual } = expectedActual(row);
-                  return (
-                    <li
-                      key={key}
-                      id={`setup-m-${key}`}
-                      role="option"
-                      aria-selected={on}
-                      tabIndex={on ? 0 : -1}
-                      onClick={() => selectRow(key, true)}
-                      className={cn(
-                        "cursor-pointer border-b border-[var(--line)] px-3 py-2.5 outline-none",
-                        "focus-visible:ring-2 focus-visible:ring-[color-mix(in_srgb,var(--odds)_40%,transparent)] focus-visible:ring-inset",
-                        on ? "bg-[var(--elevated)] shadow-[inset_2px_0_0_var(--odds)]" : "hover:bg-[var(--hover)]",
-                        flashes.has(key) && "lg-print-flash",
-                      )}
+                {table.map((row, i) => (
+                  <li
+                    key={keyOf(row)}
+                    className="border-b border-[var(--line)]"
+                  >
+                    <button
+                      id={`signal-mobile-${keyOf(row)}`}
+                      onKeyDown={(e) => rowKeyDown(e, i)}
+                      onClick={() => select(row)}
+                      className="lg-focus w-full px-4 py-4 text-left hover:bg-[var(--hover)]"
                     >
-                      <p className="truncate text-[14px] leading-5 text-[var(--text)]">{row.title}</p>
-                      <div className="mt-1.5 flex items-center gap-3">
-                        <OddsFigure yes={row.yesPrice} delta={row.oddsMove} size="sm" />
-                        <GapMeter dense expected={expected} actual={actual} />
-                        <div className="ml-auto text-right">
-                          <PerpCell row={row} tickers={tickers} />
-                        </div>
-                        <span className={cn("shrink-0 text-[12px]", biasClass(row.bias))}>
-                          {biasCopy(row.bias)}
+                      <div className="mb-2 flex items-center justify-between text-xs">
+                        <span className="text-[var(--muted)]">
+                          {perpName(row.symbol)}
+                        </span>
+                        <span className="num text-[var(--odds)]">
+                          Score {row.score}
                         </span>
                       </div>
-                    </li>
-                  );
-                })}
+                      <p className="text-[14px] leading-6">{row.title}</p>
+                      <div className="mt-3 flex items-center justify-between gap-3">
+                        <OddsFigure
+                          yes={row.yesPrice}
+                          delta={row.oddsMove}
+                          size="sm"
+                        />
+                        <span className="num text-[var(--odds)]">
+                          {fmtPct(row.gap)} gap
+                        </span>
+                        <ArrowRight size={16} />
+                      </div>
+                    </button>
+                  </li>
+                ))}
               </ul>
               <DataTable
+                className="signal-table table-fixed"
                 containerClassName="hidden min-h-0 flex-1 xl:block"
-                role="listbox"
-                aria-label="Setups"
-                aria-activedescendant={active ? `setup-${rowKey(active)}` : undefined}
+                aria-label="Signals"
               >
+                <colgroup>
+                  <col style={{ width: "43%" }} />
+                  <col style={{ width: "16%" }} />
+                  <col style={{ width: "17%" }} />
+                  <col style={{ width: "14%" }} />
+                  <col style={{ width: "10%" }} />
+                </colgroup>
                 <DataTableHeader>
                   <tr>
-                    <DataTableHead className="px-3">Event</DataTableHead>
-                    <DataTableHead>Yes</DataTableHead>
-                    <DataTableHead>Gap</DataTableHead>
-                    <DataTableHead>Perp</DataTableHead>
-                    <DataTableHead>Side</DataTableHead>
+                    <DataTableHead className="pl-6">
+                      Event / market
+                    </DataTableHead>
+                    <DataTableHead>Yes probability</DataTableHead>
+                    <DataTableHead>Remaining gap</DataTableHead>
+                    <DataTableHead>Direction</DataTableHead>
+                    <DataTableHead align="right" className="pr-6">
+                      Score
+                    </DataTableHead>
                   </tr>
                 </DataTableHeader>
                 <DataTableBody>
-                  {table.map((row) => {
-                    const key = rowKey(row);
-                    const on = active ? rowKey(active) === key : false;
-                    const { expected, actual } = expectedActual(row);
-                    return (
-                      <DataTableRow
-                        key={key}
-                        id={`setup-${key}`}
-                        role="option"
-                        aria-selected={on}
-                        selected={on}
-                        flash={flashes.has(key)}
-                        interactive
-                        tabIndex={on ? 0 : -1}
-                        onClick={() => selectRow(key, false)}
-                      >
-                        <DataTableCell className="max-w-0 px-3">
-                          <p className="truncate text-[14px] leading-5 text-[var(--text)]">{row.title}</p>
-                        </DataTableCell>
-                        <DataTableCell>
-                          <OddsFigure yes={row.yesPrice} delta={row.oddsMove} size="sm" />
-                        </DataTableCell>
-                        <DataTableCell>
-                          <GapMeter dense expected={expected} actual={actual} />
-                        </DataTableCell>
-                        <DataTableCell>
-                          <PerpCell row={row} tickers={tickers} />
-                        </DataTableCell>
-                        <DataTableCell>
-                          <span className={biasClass(row.bias)}>{biasCopy(row.bias)}</span>
-                        </DataTableCell>
-                      </DataTableRow>
-                    );
-                  })}
+                  {table.map((row, i) => (
+                    <DataTableRow key={keyOf(row)} selected={active === row}>
+                      <DataTableCell className="pl-6 pr-4">
+                        <button
+                          id={`signal-${keyOf(row)}`}
+                          onKeyDown={(e) => rowKeyDown(e, i)}
+                          onClick={() => select(row)}
+                          aria-pressed={active === row}
+                          className="lg-focus w-full text-left"
+                        >
+                          <span className="mb-1.5 block text-[12px] text-[var(--muted)]">
+                            {perpName(row.symbol)}
+                          </span>
+                          <span className="line-clamp-2 text-[14px] leading-6">
+                            {row.title}
+                          </span>
+                        </button>
+                      </DataTableCell>
+                      <DataTableCell>
+                        <OddsFigure
+                          yes={row.yesPrice}
+                          delta={row.oddsMove}
+                          size="sm"
+                        />
+                      </DataTableCell>
+                      <DataTableCell>
+                        <span className="num mb-2 block text-[var(--odds)]">
+                          {fmtPct(row.gap)}
+                        </span>
+                        <GapMeter
+                          dense
+                          expected={row.expected}
+                          actual={row.actual}
+                        />
+                      </DataTableCell>
+                      <DataTableCell>
+                        <span
+                          className={
+                            row.bias === "long"
+                              ? "text-[var(--long)]"
+                              : row.bias === "short"
+                                ? "text-[var(--short)]"
+                                : "text-[var(--muted)]"
+                          }
+                        >
+                          {biasCopy(row.bias)}
+                        </span>
+                      </DataTableCell>
+                      <DataTableCell numeric className="pr-6">
+                        <span
+                          className={cn(
+                            "text-base",
+                            isActionable(row) && "text-[var(--odds)]",
+                          )}
+                        >
+                          {row.score}
+                        </span>
+                      </DataTableCell>
+                    </DataTableRow>
+                  ))}
                 </DataTableBody>
               </DataTable>
             </>
           )}
-          {linked.length > 0 ? (
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-[var(--line)] px-3 py-2">
-              <span className="text-[11px] text-[var(--dim)]">Mapped</span>
-              {linked.map((event) => (
-                <Link
-                  key={event.id}
-                  href={`/markets/${event.perps[0]!.symbol}?event=${event.id}`}
-                  className="text-[12px] text-[var(--muted)] hover:text-[var(--text)]"
-                >
-                  {event.title}
-                </Link>
-              ))}
-            </div>
-          ) : null}
-        </div>
-
-        <aside className="hidden min-h-0 overflow-auto bg-[var(--surface)] xl:block">
+        </section>
+        <aside
+          className="inspector hidden min-h-0 overflow-auto xl:block"
+          aria-label="Signal inspector"
+        >
           {active ? (
             <SetupInspector row={active} />
-          ) : loading ? null : (
-            <p className="px-4 py-10 text-[13px] text-[var(--muted)]">Select a setup.</p>
+          ) : (
+            <div className="p-6">
+              <h2 className="text-base">Signal details</h2>
+              <p className="mt-3 text-sm leading-6 text-[var(--muted)]">
+                Select a signal to compare event odds with the related market.
+              </p>
+            </div>
           )}
         </aside>
       </div>
-
       <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
         <SheetContent
           side="bottom"
-          className="max-h-[85vh] gap-0 overflow-y-auto rounded-t-lg bg-[var(--surface)] p-0 pb-[env(safe-area-inset-bottom)]"
+          className="max-h-[88dvh] gap-0 overflow-y-auto rounded-t-xl bg-[var(--surface)] p-0 pb-[env(safe-area-inset-bottom)]"
         >
           <SheetHeader className="sr-only">
-            <SheetTitle>{active?.title ?? "Setup"}</SheetTitle>
-            <SheetDescription>Setup inspector</SheetDescription>
+            <SheetTitle>Signal details</SheetTitle>
+            <SheetDescription>
+              Compare the selected event with its mapped market.
+            </SheetDescription>
           </SheetHeader>
           {active ? <SetupInspector row={active} /> : null}
         </SheetContent>

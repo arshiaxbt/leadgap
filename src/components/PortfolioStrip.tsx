@@ -2,7 +2,14 @@
 
 import { usePrivy } from "@privy-io/react-auth";
 import { useAccount, useWalletClient } from "wagmi";
-import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import { polygon } from "viem/chains";
 import { PerpsAccessAlert } from "@/components/PerpsAccessAlert";
 import { notifyErr } from "@/lib/notify";
@@ -50,7 +57,9 @@ function PortfolioStripSession({ children }: { children: ReactNode }) {
   const { address, isConnected } = useAccount();
   const { data: walletClient } = useWalletClient({ chainId: polygon.id });
   const walletClientRef = useRef(walletClient);
-  walletClientRef.current = walletClient;
+  useEffect(() => {
+    walletClientRef.current = walletClient;
+  }, [walletClient]);
   const signerReady = Boolean(walletClient?.account?.address);
   const [retry, setRetry] = useState(0);
   const [busy, setBusy] = useState(false);
@@ -63,15 +72,22 @@ function PortfolioStripSession({ children }: { children: ReactNode }) {
     probed.current = false;
   }, [address]);
 
-  async function probeAddresses(eoa: string, signer?: string): Promise<string[]> {
+  async function probeAddresses(
+    eoa: string,
+    signer?: string,
+  ): Promise<string[]> {
     const candidates = [eoa, signer].filter(Boolean) as string[];
     try {
       const params = new URLSearchParams();
       params.append("address", eoa);
-      const profile = await fetch(`/api/profile?${params}`).then((r) => (r.ok ? r.json() : null));
+      const profile = await fetch(`/api/profile?${params}`).then((r) =>
+        r.ok ? r.json() : null,
+      );
       const proxy =
         profile && typeof profile === "object" && "proxyWallet" in profile
-          ? String((profile as { proxyWallet?: string | null }).proxyWallet ?? "")
+          ? String(
+              (profile as { proxyWallet?: string | null }).proxyWallet ?? "",
+            )
           : "";
       if (proxy) candidates.push(proxy);
     } catch {
@@ -95,23 +111,29 @@ function PortfolioStripSession({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!ready || !authenticated || !isConnected || !address) {
-      setState({});
-      return;
+      const reset = setTimeout(() => setState({}), 0);
+      return () => clearTimeout(reset);
     }
     const wc = walletClientRef.current;
     if (!wc?.account?.address) return;
     let stop = false;
-    if (!probed.current) setBusy(true);
+    const loading = setTimeout(() => {
+      if (!stop && !probed.current) setBusy(true);
+    }, 0);
     (async () => {
       try {
-        const lookup = await lookupPerpsAccount(await probeAddresses(address, wc.account?.address));
+        const lookup = await lookupPerpsAccount(
+          await probeAddresses(address, wc.account?.address),
+        );
         if (stop) return;
         const { resumePerpsSession } = await import("@/lib/perpsSession");
         const opened = await resumePerpsSession(wc);
         if (stop) return;
         if (opened) {
           const { session, client } = opened;
-          const wallet = client.account.wallet ? String(client.account.wallet) : "";
+          const wallet = client.account.wallet
+            ? String(client.account.wallet)
+            : "";
           if (wallet) {
             const sessionLookup = await lookupPerpsAccount([wallet, address]);
             if (stop) return;
@@ -159,6 +181,7 @@ function PortfolioStripSession({ children }: { children: ReactNode }) {
     })();
     return () => {
       stop = true;
+      clearTimeout(loading);
     };
   }, [address, authenticated, isConnected, ready, retry, signerReady]);
 
@@ -174,7 +197,9 @@ function PortfolioStripSession({ children }: { children: ReactNode }) {
     if (!wc?.account?.address || !eoa) return;
     setBusy(true);
     try {
-      const lookup = await lookupPerpsAccount(await probeAddresses(eoa, wc.account.address));
+      const lookup = await lookupPerpsAccount(
+        await probeAddresses(eoa, wc.account.address),
+      );
       if (lookup.status === "missing") {
         setState(markInvite());
         return;
@@ -223,13 +248,15 @@ export function PortfolioStrip() {
   const { busy, state, approvePerps } = ctx;
   const showNote = Boolean(state.note && !state.access);
   const showHref = Boolean(state.href && !state.access);
-  if (!state.funded && !state.needsSignature && !showNote && !showHref) return null;
+  if (!state.funded && !state.needsSignature && !showNote && !showHref)
+    return null;
 
   return (
     <div className="flex min-w-0 items-center gap-2 text-[11px]">
       {state.funded ? (
         <span className="text-[var(--muted)]">
-          Eq <span className="num text-[var(--text)]">{fmtUsd(state.equity)}</span>
+          Eq{" "}
+          <span className="num text-[var(--text)]">{fmtUsd(state.equity)}</span>
         </span>
       ) : null}
       {state.needsSignature ? (
@@ -243,12 +270,20 @@ export function PortfolioStrip() {
         </button>
       ) : null}
       {showNote ? (
-        <span className="hidden max-w-[160px] truncate text-[var(--warn)] sm:inline" title={state.note}>
+        <span
+          className="hidden max-w-[160px] truncate text-[var(--warn)] sm:inline"
+          title={state.note}
+        >
           {state.note}
         </span>
       ) : null}
       {showHref ? (
-        <a href={PERPS_INVITE_URL} target="_blank" rel="noreferrer" className="text-[var(--signal)] hover:underline">
+        <a
+          href={PERPS_INVITE_URL}
+          target="_blank"
+          rel="noreferrer"
+          className="text-[var(--signal)] hover:underline"
+        >
           {PERPS_INVITE_LABEL}
         </a>
       ) : null}

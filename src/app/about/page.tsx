@@ -3,6 +3,7 @@ import Link from "next/link";
 import { ArrowRight, ArrowUpRight } from "lucide-react";
 import { GapMeter } from "@/components/GapMeter";
 import { SocialLinks } from "@/components/SocialLinks";
+import { SupportLeadgap } from "@/components/SupportLeadgap";
 import { PERPS_INVITE_LABEL, PERPS_INVITE_URL } from "@/lib/brand";
 
 export const metadata: Metadata = {
@@ -147,6 +148,7 @@ export default function AboutPage() {
             </p>
           </div>
         </section>
+        <SupportLeadgap />
         <footer className="mt-8 flex flex-wrap items-center justify-between gap-5 border-t border-[var(--line)] pt-6">
           <Link href="/markets" className="lg-focus text-sm">
             Browse all markets →

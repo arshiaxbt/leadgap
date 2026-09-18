@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
+import { useSearchParams, type ReadonlyURLSearchParams } from "next/navigation";
 import { ArrowDownUp, ArrowRight, Search } from "lucide-react";
 import {
   DataTable,
@@ -27,7 +28,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { GAP_WINDOWS } from "@/lib/divergence";
+import { GAP_WINDOWS, WINDOW_MS } from "@/lib/divergence";
 import { fmtPct } from "@/lib/format";
 import { biasCopy, isActionable } from "@/lib/score";
 import { perpName } from "@/lib/signal";
@@ -39,13 +40,29 @@ type Filter = "actionable" | "odds" | "all";
 const keyOf = (row: GapRow) => `${row.eventId}-${row.symbol}`;
 
 export function OpportunityFeed() {
-  const [gapWindow, setGapWindow] = useState<GapWindow>("4h");
-  const [filter, setFilter] = useState<Filter>("actionable");
+  const params = useSearchParams();
+  return <SignalWorkspace key={params.toString()} params={params} />;
+}
+function SignalWorkspace({ params }: { params: ReadonlyURLSearchParams }) {
+  const requestedWindow = params.get("window") as GapWindow;
+  const requestedFilter = params.get("filter") as Filter;
+  const [gapWindow, setGapWindow] = useState<GapWindow>(
+    GAP_WINDOWS.includes(requestedWindow) ? requestedWindow : "4h",
+  );
+  const [filter, setFilter] = useState<Filter>(
+    ["all", "actionable", "odds"].includes(requestedFilter)
+      ? requestedFilter
+      : "actionable",
+  );
   const [sort, setSort] = useState("score");
-  const [query, setQuery] = useState("");
-  const [selected, setSelected] = useState<string | null>(null);
+  const [query, setQuery] = useState(params.get("symbol") ?? "");
+  const [selected, setSelected] = useState<string | null>(
+    params.get("event") && params.get("symbol")
+      ? `${params.get("event")}-${params.get("symbol")}`
+      : null,
+  );
   const [sheetOpen, setSheetOpen] = useState(false);
-  const { gaps, summary, events, asOf, error, loading, retry } =
+  const { gaps, summary, events, asOf, error, loading, retry, coverage } =
     useGapsFeed(gapWindow);
   const shown = useMemo(
     () =>
@@ -175,6 +192,15 @@ export function OpportunityFeed() {
           />
         </div>
       </div>
+      {coverage && asOf - coverage.startedAt < WINDOW_MS[gapWindow] ? (
+        <p
+          className="border-b border-[var(--line)] px-6 py-3 text-xs text-[var(--muted)]"
+          role="status"
+        >
+          Collecting a full {gapWindow} comparison. Shorter windows become
+          available first.
+        </p>
+      ) : null}
       {error ? (
         <p className="workspace-error" role="alert">
           {error}{" "}
@@ -235,11 +261,8 @@ export function OpportunityFeed() {
               </Link>
             </DataTableEmpty>
           ) : (
-            <>
-              <ul
-                className="min-h-0 flex-1 overflow-auto xl:hidden"
-                aria-label="Signals"
-              >
+            <div className="min-h-0 overflow-auto">
+              <ul className="xl:hidden" aria-label="Signals">
                 {table.map((row, i) => (
                   <li
                     key={keyOf(row)}
@@ -277,7 +300,7 @@ export function OpportunityFeed() {
               </ul>
               <DataTable
                 className="signal-table table-fixed"
-                containerClassName="hidden min-h-0 flex-1 xl:block"
+                containerClassName="hidden xl:block"
                 aria-label="Signals"
               >
                 <colgroup>
@@ -363,7 +386,29 @@ export function OpportunityFeed() {
                   ))}
                 </DataTableBody>
               </DataTable>
-            </>
+              <div
+                className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--line)] px-6 py-3 text-xs text-[var(--muted)]"
+                data-testid="results-footer"
+              >
+                <span>
+                  {shown.length > 80
+                    ? "Top 80 results shown."
+                    : "End of results."}{" "}
+                  Only fresh, comparable observations appear.
+                </span>
+                {filter !== "all" || query ? (
+                  <button
+                    className="lg-focus underline"
+                    onClick={() => {
+                      setFilter("all");
+                      setQuery("");
+                    }}
+                  >
+                    Clear filters
+                  </button>
+                ) : null}
+              </div>
+            </div>
           )}
         </section>
         <aside
@@ -385,7 +430,7 @@ export function OpportunityFeed() {
       <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
         <SheetContent
           side="bottom"
-          className="max-h-[88dvh] gap-0 overflow-y-auto rounded-t-xl bg-[var(--surface)] p-0 pb-[env(safe-area-inset-bottom)]"
+          className="h-[88dvh] max-h-[88dvh] gap-0 overflow-hidden rounded-t-xl bg-[var(--surface)] p-0 pb-[env(safe-area-inset-bottom)]"
         >
           <SheetHeader className="sr-only">
             <SheetTitle>Signal details</SheetTitle>

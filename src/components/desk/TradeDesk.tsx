@@ -1,4 +1,5 @@
 "use client";
+import { usePerpsStream } from "@/lib/usePerpsStream";
 import Link from "next/link";
 
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
@@ -96,6 +97,25 @@ function readInterval(symbol: string): KlineInterval {
   return "5m";
 }
 
+// The panel library defaults to the browser's localStorage during render.
+// Supply storage explicitly so SSR and privacy-restricted browsers both work.
+const layoutStorage = {
+  getItem(key: string) {
+    try {
+      return window.localStorage.getItem(key);
+    } catch {
+      return null;
+    }
+  },
+  setItem(key: string, value: string) {
+    try {
+      window.localStorage.setItem(key, value);
+    } catch {
+      /* Layout persistence is optional. */
+    }
+  },
+};
+
 export function TradeDesk({ symbol }: { symbol: string }) {
   const search = useSearchParams();
   const eventParam = search.get("event");
@@ -113,19 +133,22 @@ export function TradeDesk({ symbol }: { symbol: string }) {
   >();
   const [preview, setPreview] = useState<TicketPreview | null>(null);
   const [tab, setTab] = useState<DeskTab>("chart");
-  const [railCollapsed, setRailCollapsed] = useState(false);
+  const [railCollapsed, setRailCollapsed] = useState(true);
   const wide = useSyncExternalStore(subscribeXl, xlMatches, () => false);
   const cols = useDefaultLayout({
-    id: "leadgap-desk-h3",
+    storage: layoutStorage,
+    id: "leadgap-desk-h4",
     panelIds: ["cluster", "side"],
     onlySaveAfterUserInteractions: true,
   });
   const rows = useDefaultLayout({
+    storage: layoutStorage,
     id: "leadgap-desk-v2",
     panelIds: ["chartbook", "blotter"],
     onlySaveAfterUserInteractions: true,
   });
   const chartBook = useDefaultLayout({
+    storage: layoutStorage,
     id: "leadgap-desk-cb",
     panelIds: ["chart", "book"],
     onlySaveAfterUserInteractions: true,
@@ -173,6 +196,8 @@ export function TradeDesk({ symbol }: { symbol: string }) {
   }, [symbol]);
 
   const instrumentId = data?.instrument.instrumentId;
+  const stream = usePerpsStream(instrumentId);
+  const streamLive = stream?.status === "live";
 
   useEffect(() => {
     if (!instrumentId) return;
@@ -213,12 +238,12 @@ export function TradeDesk({ symbol }: { symbol: string }) {
       }
     }
     loadBook();
-    const id = setInterval(loadBook, 2500);
+    const id = setInterval(loadBook, streamLive ? 30_000 : 2500);
     return () => {
       stop = true;
       clearInterval(id);
     };
-  }, [instrumentId]);
+  }, [instrumentId, streamLive]);
 
   const selectedOdds = useMemo(() => {
     const live = eventId && data ? data.oddsHistory[eventId] : undefined;
@@ -305,7 +330,7 @@ export function TradeDesk({ symbol }: { symbol: string }) {
 
   const {
     instrument,
-    ticker,
+    ticker: snapshotTicker,
     events,
     news,
     gaps,
@@ -315,6 +340,33 @@ export function TradeDesk({ symbol }: { symbol: string }) {
     windows,
     tape,
   } = data;
+  const ticker =
+    stream?.ticker && stream.ticker.timestamp > (snapshotTicker?.timestamp ?? 0)
+      ? {
+          ...snapshotTicker,
+          ...stream.ticker,
+          symbol: instrument.symbol,
+          change1h: snapshotTicker?.change1h ?? null,
+        }
+      : snapshotTicker;
+  const liveBook =
+    stream?.book && stream.book.timestamp > (book?.timestamp ?? 0)
+      ? stream.book
+      : book;
+  const streamStatus = stream ? (
+    <p
+      role="status"
+      className="shrink-0 border-b border-[var(--line)] px-4 py-1 text-xs text-[var(--muted)]"
+    >
+      {stream.status === "live"
+        ? "Streaming market data"
+        : stream.status === "delayed"
+          ? "Stream delayed · polling active"
+          : stream.status === "reconnecting"
+            ? "Reconnecting · polling active"
+            : "Connecting stream · polling active"}
+    </p>
+  ) : null;
   const selectedGap = eventId
     ? gaps.find((g) => g.eventId === eventId)
     : gaps[0];
@@ -366,7 +418,7 @@ export function TradeDesk({ symbol }: { symbol: string }) {
   );
   const bookPanel = (
     <OrderBookPanel
-      book={book}
+      book={liveBook}
       decimals={instrument.priceDecimals}
       onPrice={(p) => {
         setClickPrice(p.toFixed(instrument.priceDecimals));
@@ -404,8 +456,9 @@ export function TradeDesk({ symbol }: { symbol: string }) {
           </p>
         ) : null}
         {tickerStrip}
+        {streamStatus}
         <Group
-          id="leadgap-desk-h3"
+          id="leadgap-desk-h4"
           orientation="horizontal"
           className="min-h-0 flex-1"
           defaultLayout={cols.defaultLayout}
@@ -454,7 +507,7 @@ export function TradeDesk({ symbol }: { symbol: string }) {
               <Separator className="desk-handle" />
               <Panel
                 id="blotter"
-                defaultSize={140}
+                defaultSize={100}
                 minSize={72}
                 maxSize={280}
                 groupResizeBehavior="preserve-pixel-size"
@@ -467,8 +520,8 @@ export function TradeDesk({ symbol }: { symbol: string }) {
           <Separator className="desk-handle" />
           <Panel
             id="side"
-            defaultSize={600}
-            minSize={560}
+            defaultSize={railCollapsed ? 376 : 584}
+            minSize={railCollapsed ? 360 : 584}
             maxSize={760}
             groupResizeBehavior="preserve-pixel-size"
             className="min-h-0 overflow-hidden"
@@ -508,6 +561,7 @@ export function TradeDesk({ symbol }: { symbol: string }) {
         </p>
       ) : null}
       {tickerStrip}
+      {streamStatus}
       <div className="flex shrink-0 gap-1 overflow-x-auto border-b border-[var(--line)] px-2">
         {tabs.map((item) => (
           <button

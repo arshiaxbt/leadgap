@@ -1,4 +1,6 @@
 "use client";
+import { ResearchControls } from "@/components/ResearchControls";
+import { SignalHistory } from "@/components/SignalHistory";
 import Link from "next/link";
 import { ArrowRight, ArrowUpRight } from "lucide-react";
 import { GapMeter } from "@/components/GapMeter";
@@ -23,12 +25,13 @@ export function SetupInspector({
   const expected = row.expected ?? row.oddsMove * row.signedBeta;
   const actual = row.actual ?? row.perpMove;
   return (
-    <div className={cn("flex min-h-full flex-col", className)}>
+    <div className={cn("flex h-full min-h-0 flex-col", className)}>
       <div className="inspector-heading">
         <span>Signal details</span>
         <span className="num pr-6 xl:pr-0">{row.window} window</span>
       </div>
-      <div className="inspector-body">
+      <div className="inspector-body min-h-0 flex-1 overflow-auto">
+        <ResearchControls row={row} />
         <div>
           <p className="mb-3 text-xs text-[var(--muted)]">
             {perpName(row.symbol)} <span aria-hidden> / </span>{" "}
@@ -98,8 +101,9 @@ export function SetupInspector({
             Confidence describes the mapping, not a probability of profit.
           </p>
         </details>
+        <SignalHistory row={row} />
       </div>
-      <div className="sticky bottom-0 mt-auto border-t border-[var(--line)] bg-[var(--surface)] p-6">
+      <div className="shrink-0 border-t border-[var(--line)] bg-[var(--surface)] p-4">
         <Link
           href={setupHref(row)}
           onClick={() =>

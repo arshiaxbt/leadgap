@@ -1,9 +1,16 @@
-import { test, expect } from "@playwright/test";
+import { test, expect, type Page } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 import { mockFeeds } from "./fixtures";
 
+const browserErrors = new WeakMap<Page, string[]>();
 test.beforeEach(async ({ page }) => {
+  const errors: string[] = [];
+  browserErrors.set(page, errors);
+  page.on("pageerror", (e) => errors.push(e.message));
   await mockFeeds(page);
+});
+test.afterEach(async ({ page }) => {
+  expect(browserErrors.get(page)).toEqual([]);
 });
 for (const width of [375, 768, 1024, 1440]) {
   test(`signals workflow and accessibility at ${width}px`, async ({ page }) => {
@@ -155,4 +162,131 @@ test("chart controls and reduced motion", async ({ page }) => {
       .locator("body")
       .evaluate((el) => getComputedStyle(el).animationName),
   ).toBe("none");
+});
+
+test("referral disclosure, copy and event attribution", async ({
+  page,
+  context,
+}) => {
+  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+  await page.goto("/about#support");
+  await expect(
+    page.getByRole("heading", { name: "Support Leadgap" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: "Open Polymarket", exact: true }),
+  ).toHaveAttribute("href", "https://polymarket.com/?via=arshia");
+  await page.getByRole("button", { name: "Copy referral link" }).click();
+  await expect(page.getByText("Referral link copied.")).toBeVisible();
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(
+    "https://polymarket.com/?via=arshia",
+  );
+  await page.goto("/");
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await expect(
+    page.getByRole("link", { name: "View event on Polymarket" }),
+  ).toHaveAttribute("href", /\/event\/fixture-event-0\?via=arshia/);
+});
+test("compact results and order review at wide and short viewport sizes", async ({
+  page,
+}) => {
+  for (const viewport of [
+    { width: 1920, height: 1080 },
+    { width: 1440, height: 720 },
+    { width: 375, height: 667 },
+  ]) {
+    await page.setViewportSize(viewport);
+    await page.goto("/?window=1h&filter=all&symbol=BTC-USD&event=1");
+    await expect(
+      page.getByRole("combobox", { name: "Comparison window" }),
+    ).toHaveValue("1h");
+    await expect(
+      page.getByRole("textbox", { name: "Filter event or perp" }),
+    ).toHaveValue("BTC-USD");
+    const footer = page.getByTestId("results-footer");
+    await expect(footer).toBeVisible();
+    const row = page.locator(
+      viewport.width >= 1280 ? "#signal-1-BTC-USD" : "#signal-mobile-1-BTC-USD",
+    );
+    const rb = await row.boundingBox(),
+      fb = await footer.boundingBox();
+    expect(fb!.y - rb!.y - rb!.height).toBeLessThan(40);
+    await page.screenshot({
+      path: `test-results/compact-${viewport.width}-${viewport.height}.png`,
+    });
+    await page.goto("/markets/BTC-USD");
+    if (viewport.width < 1280)
+      await page.getByRole("button", { name: "Trade", exact: true }).click();
+    await page.getByRole("button", { name: "Market", exact: true }).click();
+    await page
+      .getByRole("button", { name: "Review order", exact: true })
+      .click();
+    const dialog = page.getByRole("dialog");
+    await expect(
+      dialog.getByRole("heading", { name: "Review BTC order" }),
+    ).toBeVisible();
+    await expect(
+      dialog.getByText("Market · immediate or cancel"),
+    ).toBeVisible();
+    await expect(
+      dialog.getByText("Determined by venue; excluded from margin estimate"),
+    ).toBeVisible();
+    const audit = await new AxeBuilder({ page })
+      .withTags(["wcag2a", "wcag2aa", "wcag21aa"])
+      .analyze();
+    expect(audit.violations.map((v) => v.id)).toEqual([]);
+    await page.screenshot({
+      path: `test-results/review-${viewport.width}-${viewport.height}.png`,
+    });
+    await page.keyboard.press("Escape");
+    await expect(dialog).not.toBeVisible();
+  }
+});
+
+test("signal history explains unavailable data and renders compatible observations", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.route("**/api/history?**", (r) =>
+    r.fulfill({
+      json: {
+        batches: Array.from({ length: 6 }, (_, i) => {
+          const t = Date.now() - (6 - i) * 60_000;
+          return {
+            t,
+            modelVersion: "fixture-model",
+            links: { "1": { "BTC-USD": 1 } },
+            marks: { "BTC-USD": [t, 98000 + i * 10] },
+            odds: { "1": [t, 0.6 + i * 0.01, "100"] },
+          };
+        }),
+      },
+    }),
+  );
+  await page.goto("/");
+  await page.getByText("Signal history", { exact: true }).click();
+  await expect(
+    page.getByRole("img", { name: "Residual over the available history" }),
+  ).toBeVisible();
+  await expect(
+    page.getByText("Model fixture-", { exact: false }),
+  ).toBeVisible();
+  const audit = await new AxeBuilder({ page })
+    .withTags(["wcag2a", "wcag2aa", "wcag21aa"])
+    .analyze();
+  expect(audit.violations.map((v) => v.id)).toEqual([]);
+  await page
+    .getByRole("img", { name: "Residual over the available history" })
+    .scrollIntoViewIfNeeded();
+  await page.screenshot({ path: "test-results/signal-history.png" });
+  await page.route("**/api/history?**", (r) =>
+    r.fulfill({ status: 503, json: { error: "History unavailable" } }),
+  );
+  await page.reload();
+  await page.getByText("Signal history", { exact: true }).click();
+  await expect(
+    page.getByText("Market data is unavailable. Please try again.", {
+      exact: false,
+    }),
+  ).toBeVisible({ timeout: 15000 });
 });

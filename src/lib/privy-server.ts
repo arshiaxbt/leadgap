@@ -1,4 +1,4 @@
-import { PrivyClient } from "@privy-io/server-auth";
+import { PrivyClient } from "@privy-io/node";
 import { APP_ORIGIN } from "@/lib/brand";
 
 const ALLOWED_METHODS = new Set(["GET", "POST", "PUT", "DELETE", "PATCH"]);
@@ -65,7 +65,7 @@ function privyClient(): PrivyClient | null {
   const appId = privyAppId();
   const secret = process.env.PRIVY_APP_SECRET?.trim();
   if (!appId || !secret) return null;
-  if (!client) client = new PrivyClient(appId, secret);
+  if (!client) client = new PrivyClient({ appId, appSecret: secret });
   return client;
 }
 
@@ -73,6 +73,14 @@ export function allowedBuilderOrigin(req: Request): boolean {
   const origin = req.headers.get("origin")?.trim();
   if (!origin) return false;
   if (origin === APP_ORIGIN) return true;
+  if (process.env.NETLIFY)
+    return [
+      process.env.URL,
+      process.env.DEPLOY_URL,
+      process.env.DEPLOY_PRIME_URL,
+    ]
+      .filter(Boolean)
+      .includes(origin);
   try {
     const host = new URL(origin).hostname;
     if (process.env.VERCEL_ENV === "preview") {
@@ -126,9 +134,9 @@ export async function verifyPrivyBearer(
   const token = header.startsWith("Bearer ") ? header.slice(7).trim() : "";
   if (!token) return null;
   try {
-    const claims = await privy.verifyAuthToken(token);
-    if (!claims.userId) return null;
-    return { userId: claims.userId };
+    const claims = await privy.utils().auth().verifyAccessToken(token);
+    if (!claims.user_id) return null;
+    return { userId: claims.user_id };
   } catch {
     return null;
   }

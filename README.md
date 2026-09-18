@@ -52,3 +52,13 @@ History currently lives in process memory and local JSON (`/tmp` on Vercel). It 
 - [Completed plan](PLAN.md), [audit](docs/audit/REPORT.md), [validation](docs/audit/VALIDATION.md), [recommendations](docs/audit/RECOMMENDATIONS.md).
 - [Design system](DESIGN.md), [product brief](docs/frontend/BRIEF.md), [frontend quality rules](docs/frontend/FRONTEND_CONTRACT.md).
 - [Figma direction board](https://www.figma.com/design/zM6zNkiZI7nDwZGRQg6CC5).
+
+
+### Roadmap infrastructure and release gates
+
+The shared data service lives in `workers/data`; Netlify configuration is in
+`netlify.toml`. Watchlists, in-app alerts, signal history, telemetry and market
+streaming have independent flags. See [the rollout runbook](docs/operations/ROADMAP-ROLLOUT.md)
+for provider setup, private environment variables, validation, the 72-hour soak,
+owner account checks and rollback. Local build/test success does not imply that
+production migration or real-money execution has been verified.

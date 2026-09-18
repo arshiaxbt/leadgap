@@ -20,10 +20,14 @@ export type GapsFeed = {
   tickers: Record<string, PerpsTicker>;
   asOf: number;
   error: string | null;
+  coverage?: { startedAt: number; cadenceMs: number };
   loading: boolean;
   retry: () => void;
 };
-type GapPayload = Pick<GapsFeed, "gaps" | "summary" | "asOf" | "error">;
+type GapPayload = Pick<
+  GapsFeed,
+  "gaps" | "summary" | "asOf" | "error" | "coverage"
+>;
 const EMPTY_SUMMARY = { oddsFirst: 0, actionable: 0, topScore: 0 };
 
 export function useGapsFeed(window: GapWindow): GapsFeed {
@@ -46,6 +50,7 @@ export function useGapsFeed(window: GapWindow): GapsFeed {
   });
   return {
     gaps: gaps.data?.gaps ?? [],
+    coverage: gaps.data?.coverage,
     summary: gaps.data?.summary ?? EMPTY_SUMMARY,
     events: events.data?.events ?? [],
     tickers: markets.tickers,

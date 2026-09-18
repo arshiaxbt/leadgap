@@ -141,12 +141,16 @@ function LoggedOutPanel({
 }) {
   const insecure = mount === "insecure";
   return (
-    <div className="flex min-h-0 flex-1 overflow-auto px-4 py-10 md:px-12 md:py-16">
-      <div className="m-auto w-full max-w-2xl rounded-xl border border-[var(--line)] bg-[var(--surface)] p-6 sm:p-12">
-        <Wallet size={28} className="mb-8 text-[var(--odds)]" />
-        <h1 className="text-3xl font-medium tracking-tight text-[var(--text)]">
-          Your positions, in perspective.
-        </h1>
+    <div className="flex min-h-0 flex-1 flex-col overflow-auto">
+      <WorkspaceHeading
+        title="Portfolio"
+        description="Balances, positions, and your event exposure."
+      />
+      <div className="mx-4 mb-6 max-w-3xl rounded-lg border border-[var(--line)] bg-[var(--surface)] p-6 md:mx-6">
+        <Wallet size={28} className="mb-4 text-[var(--odds)]" />
+        <h2 className="text-2xl font-medium tracking-tight text-[var(--text)]">
+          Connect your trading account
+        </h2>
         <p className="mt-2 text-[13px] leading-5 text-[var(--muted)]">
           Connect your trading account to review equity, manage open positions,
           and see which events your portfolio is exposed to.
@@ -428,9 +432,8 @@ function PortfolioDeskSession() {
     setBusy(true);
     try {
       await assertCanTrade();
-      const { OrderSide, PerpsTimeInForce } = await import(
-        "@polymarket/client"
-      );
+      const { OrderSide, PerpsTimeInForce } =
+        await import("@polymarket/client");
       const { openCachedPerpsSession } = await import("@/lib/perpsSession");
       const { session } = await openCachedPerpsSession(wc);
       const long = row.size > 0;

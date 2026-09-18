@@ -1,13 +1,33 @@
 export const APP_NAME = "Leadgap";
-export const APP_TAGLINE = "When Polymarket event probabilities move before the perp.";
+export const APP_TAGLINE =
+  "When Polymarket event probabilities move before the perp.";
 export const APP_ACCENT = "#8FC9F2";
 export const APP_LOGO = "/leadgap-logo.svg";
 export const APP_LOGO_RASTER = "/leadgap-logo.png";
 export const APP_OG = "/og.png";
 export const POLYMARKET_ORIGIN = "https://polymarket.com";
-export const PERPS_WAITLIST_URL = `${POLYMARKET_ORIGIN}/perps`;
+export const REFERRAL_CODE = "arshia";
+/** Website links only: never call this for SDK/API/authentication URLs. */
+export function polymarketReferralUrl(destination: string): string {
+  const url = new URL(destination, POLYMARKET_ORIGIN);
+  if (
+    url.protocol !== "https:" ||
+    !["polymarket.com", "www.polymarket.com"].includes(url.hostname) ||
+    url.username ||
+    url.password
+  )
+    return destination;
+  url.searchParams.set("via", REFERRAL_CODE);
+  return url.toString();
+}
+export const POLYMARKET_REFERRAL_URL = polymarketReferralUrl(POLYMARKET_ORIGIN);
+export const PERPS_WAITLIST_URL = polymarketReferralUrl(
+  `${POLYMARKET_ORIGIN}/perps`,
+);
 export const PERPS_INVITE_CODE = "00cas6it";
-export const PERPS_INVITE_URL = `${POLYMARKET_ORIGIN}/perps?c=${PERPS_INVITE_CODE}`;
+export const PERPS_INVITE_URL = polymarketReferralUrl(
+  `${POLYMARKET_ORIGIN}/perps?c=${PERPS_INVITE_CODE}`,
+);
 export const PERPS_INVITE_LABEL = PERPS_INVITE_URL.replace(/^https:\/\//, "");
 export const APP_ORIGIN = "https://www.leadgap.xyz";
 export const APP_GITHUB = "https://github.com/arshiaxbt/leadgap";
@@ -16,5 +36,7 @@ export const APP_BUILDER = "0xarshia.eth";
 
 export function polymarketEventUrl(slug?: string | null): string | null {
   if (!slug) return null;
-  return `${POLYMARKET_ORIGIN}/event/${encodeURIComponent(slug)}`;
+  return polymarketReferralUrl(
+    `${POLYMARKET_ORIGIN}/event/${encodeURIComponent(slug)}`,
+  );
 }

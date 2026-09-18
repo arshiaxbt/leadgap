@@ -7,7 +7,11 @@ export const maxDuration = 60;
 function cronAuthorized(req: Request): boolean {
   const secret = process.env.CRON_SECRET?.trim();
   const bearer = req.headers.get("authorization") === `Bearer ${secret}`;
-  if (process.env.VERCEL) {
+  if (
+    process.env.VERCEL ||
+    process.env.NETLIFY ||
+    process.env.NODE_ENV === "production"
+  ) {
     if (!secret) return false;
     return bearer;
   }

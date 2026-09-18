@@ -2,6 +2,8 @@ const windows = new Map<string, number[]>();
 let lastSweep = 0;
 
 export function clientIp(req: Request): string {
+  if (process.env.NETLIFY)
+    return req.headers.get("x-nf-client-connection-ip")?.trim() || "unknown";
   const forwarded = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim();
   return forwarded || req.headers.get("x-real-ip")?.trim() || "unknown";
 }

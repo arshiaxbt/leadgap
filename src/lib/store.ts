@@ -1,3 +1,5 @@
+import type { ResearchSnapshot } from "./research";
+import { durableEnabled, researchSnapshot } from "./data-service";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import {
@@ -44,10 +46,14 @@ const MAP_MS = 3 * 60_000;
 const KLINE_MS = 4 * 60_000;
 const NEWS_MS = 5 * 60_000;
 const HISTORY_MS = 48 * 60 * 60_000;
-const DATA_DIR = process.env.VERCEL ? "/tmp" : join(process.cwd(), ".data");
+const DATA_DIR =
+  process.env.VERCEL || process.env.NETLIFY
+    ? "/tmp"
+    : join(process.cwd(), ".data");
 const DATA_PATH = join(DATA_DIR, "store.json");
 
 type Store = {
+  shared?: ResearchSnapshot;
   instruments: PerpsInstrument[];
   tickers: Record<string, PerpsTicker>;
   events: ResolvedEvent[];
@@ -408,6 +414,20 @@ async function ingestOnce() {
 }
 
 export async function ensureFresh(): Promise<Store> {
+  if (durableEnabled()) {
+    const remote = await researchSnapshot();
+    return {
+      ...emptyStore(),
+      shared: remote,
+      instruments: remote.instruments,
+      tickers: remote.tickers,
+      events: remote.events,
+      markHistory: remote.markHistory,
+      oddsHistory: remote.oddsHistory,
+      lastIngest: remote.asOf,
+      error: remote.error,
+    };
+  }
   loadPersisted();
   const s = store();
   if (Date.now() - s.lastIngest < INGEST_MS && s.instruments.length) return s;
@@ -422,7 +442,7 @@ export async function ensureFresh(): Promise<Store> {
 
 export function startIngestLoop() {
   // Serverless isolates don't keep a background timer. Cron hits GET /api/ingest instead.
-  if (process.env.VERCEL) return;
+  if (process.env.VERCEL || process.env.NETLIFY || durableEnabled()) return;
   if (g.__polyLoop) return;
   g.__polyLoop = true;
   loadPersisted();
@@ -449,6 +469,13 @@ export async function getMarkets() {
     eventCounts,
     error: s.error,
     asOf: s.lastIngest,
+    ...(s.shared
+      ? {
+          dataSource: "shared",
+          modelVersion: s.shared.modelVersion,
+          coverage: s.shared.coverage,
+        }
+      : { dataSource: "local" }),
   };
 }
 
@@ -460,18 +487,27 @@ export async function getGaps(window: GapWindow): Promise<{
   summary: { oddsFirst: number; actionable: number; topScore: number };
 }> {
   const s = await ensureFresh();
-  const gaps = uniqueGapRows(
-    computeGaps({
-      events: s.events,
-      tickers: s.tickers,
-      oddsHistory: s.oddsHistory,
-      markHistory: s.markHistory,
-      window,
-    }),
-  );
+  const gaps = s.shared
+    ? s.shared.windows[window]
+    : uniqueGapRows(
+        computeGaps({
+          events: s.events,
+          tickers: s.tickers,
+          oddsHistory: s.oddsHistory,
+          markHistory: s.markHistory,
+          window,
+        }),
+      );
   return {
     gaps,
     asOf: s.lastIngest,
+    ...(s.shared
+      ? {
+          dataSource: "shared",
+          modelVersion: s.shared.modelVersion,
+          coverage: s.shared.coverage,
+        }
+      : { dataSource: "local" }),
     error: s.error,
     polling: true,
     summary: {
@@ -489,6 +525,13 @@ export async function getEvents() {
     events: uniqueEvents(s.events),
     tickers: s.tickers,
     asOf: s.lastIngest,
+    ...(s.shared
+      ? {
+          dataSource: "shared",
+          modelVersion: s.shared.modelVersion,
+          coverage: s.shared.coverage,
+        }
+      : { dataSource: "local" }),
     error: s.error,
   };
 }
@@ -514,6 +557,13 @@ export async function getEvent(id: string) {
     news,
     instruments: s.instruments,
     asOf: s.lastIngest,
+    ...(s.shared
+      ? {
+          dataSource: "shared",
+          modelVersion: s.shared.modelVersion,
+          coverage: s.shared.coverage,
+        }
+      : { dataSource: "local" }),
   };
 }
 
@@ -525,28 +575,37 @@ export async function getAsset(symbol: string) {
   const events = uniqueEvents(
     s.events.filter((e) => e.perps.some((p) => p.symbol === symbol)),
   );
-  const news = s.news.filter((n) => n.symbols.includes(symbol));
+  const news = durableEnabled()
+    ? (await getNews({ symbol })).news
+    : s.news.filter((n) => n.symbols.includes(symbol));
   const mapping = mapBySymbol().get(symbol) ?? null;
-  const gaps = uniqueGapRows(
-    computeGaps({
-      events,
-      tickers: s.tickers,
-      oddsHistory: s.oddsHistory,
-      markHistory: s.markHistory,
-      window: "15m",
-    }),
+  const gaps = (
+    s.shared
+      ? s.shared.windows["15m"]
+      : uniqueGapRows(
+          computeGaps({
+            events,
+            tickers: s.tickers,
+            oddsHistory: s.oddsHistory,
+            markHistory: s.markHistory,
+            window: "15m",
+          }),
+        )
   ).filter((row) => row.symbol === symbol);
   const windows = Object.fromEntries(
     GAP_WINDOWS.map((window) => [
       window,
-      uniqueGapRows(
-        computeGaps({
-          events,
-          tickers: s.tickers,
-          oddsHistory: s.oddsHistory,
-          markHistory: s.markHistory,
-          window,
-        }),
+      (s.shared
+        ? s.shared.windows[window]
+        : uniqueGapRows(
+            computeGaps({
+              events,
+              tickers: s.tickers,
+              oddsHistory: s.oddsHistory,
+              markHistory: s.markHistory,
+              window,
+            }),
+          )
       ).filter((row) => row.symbol === symbol),
     ]),
   ) as Record<GapWindow, GapRow[]>;
@@ -567,11 +626,40 @@ export async function getAsset(symbol: string) {
     tape,
     instruments: s.instruments,
     asOf: s.lastIngest,
+    ...(s.shared
+      ? {
+          dataSource: "shared",
+          modelVersion: s.shared.modelVersion,
+          coverage: s.shared.coverage,
+        }
+      : { dataSource: "local" }),
   };
 }
 
+const sharedNews: {
+  items: Store["news"];
+  at: number;
+  pending?: Promise<void>;
+} = { items: [], at: 0 };
 export async function getNews(filter?: { symbol?: string; eventId?: string }) {
   const s = await ensureFresh();
+  if (durableEnabled()) {
+    if (Date.now() - sharedNews.at > 300_000 && !sharedNews.pending)
+      sharedNews.pending = fetchNews(s.events)
+        .then((items) => {
+          sharedNews.items = items;
+          sharedNews.at = Date.now();
+        })
+        .catch(() => {
+          sharedNews.at = Date.now();
+        })
+        .finally(() => {
+          sharedNews.pending = undefined;
+        });
+    await sharedNews.pending;
+    s.news = sharedNews.items;
+    s.lastNews = sharedNews.at;
+  }
   let items = s.news;
   if (filter?.symbol)
     items = items.filter((n) => n.symbols.includes(filter.symbol!));
@@ -587,6 +675,13 @@ export async function getSnapshot() {
     eventCount: s.events.length,
     newsCount: s.news.length,
     asOf: s.lastIngest,
+    ...(s.shared
+      ? {
+          dataSource: "shared",
+          modelVersion: s.shared.modelVersion,
+          coverage: s.shared.coverage,
+        }
+      : { dataSource: "local" }),
     error: s.error,
   };
 }

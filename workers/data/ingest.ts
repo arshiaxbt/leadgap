@@ -7,6 +7,7 @@ import {
 } from "../../src/lib/mapping";
 import {
   bestMarket,
+  fetchGammaEvent,
   parseTokenIds,
   parseYesPrice,
   searchGammaEvents,
@@ -144,7 +145,7 @@ export async function collect(env: Env, now = Date.now()) {
     catalog.cursor = (catalog.cursor + 1) % queries.length;
     // Rotate one query per minute; parsing discovery payloads dominates CPU.
     // Bound the catalog while every mapped event still refreshes each minute.
-    const events = Object.values(catalog.events)
+    let events = Object.values(catalog.events)
       .filter((e) => now - e.seen < 4 * 3600_000)
       .sort((a, b) => b.event.volume - a.event.volume)
       .slice(0, 60)
@@ -167,6 +168,23 @@ export async function collect(env: Env, now = Date.now()) {
       } catch {
         oddsError = true;
       }
+    }
+    // A settled market disappears from CLOB before the discovery cache expires.
+    // Confirm closure before evicting it; missing prices alone are not proof.
+    // Bound these extra lookups even during a widespread upstream outage.
+    if (!oddsError) {
+      const missing = events.filter((e) => mids[e.yesTokenId!] == null).slice(0, 5);
+      const closed = new Set<string>();
+      await Promise.allSettled(missing.map(async (event) => {
+        const current = await fetchGammaEvent(event.id);
+        const market = current?.markets?.find(
+          (m) => parseTokenIds(m).yes === event.yesTokenId,
+        );
+        if (current?.closed === true || market?.closed === true)
+          closed.add(event.id);
+      }));
+      for (const id of closed) delete catalog.events[id];
+      events = events.filter((event) => !closed.has(event.id));
     }
     const modelBytes = new TextEncoder().encode(
       JSON.stringify([

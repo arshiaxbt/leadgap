@@ -45,7 +45,7 @@ Browser tests intercept API reads with deterministic fixtures. They do not submi
 - `/about`: product guide; `/guide` redirects here.
 - Public data routes read Gamma/CLOB/Perps sources through the ingestion store. Trading uses Privy, wagmi and delegated Polymarket sessions.
 
-History currently lives in process memory and local JSON (`/tmp` on Vercel). It is not shared across instances; use the roadmap before treating this as a durable signal archive.
+Production history uses shared Cloudflare D1 with `ENABLE_DURABLE_DATA=true`. Local development can use process memory and JSON files; these are not a durable production archive.
 
 ## Audit and design
 

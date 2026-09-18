@@ -259,6 +259,8 @@ test("remote collector survives restart, rejects duplicate minute writes and exp
     };
   const original = globalThis.fetch;
   let time = now;
+  let missingOdds = false;
+  let closedMarket = false;
   globalThis.fetch = async (input, init) => {
     const url = String(input);
     if (url === "https://data.test/internal/database")
@@ -283,7 +285,10 @@ test("remote collector survives restart, rejects duplicate minute writes and exp
         },
       ]);
     if (url.includes("/public-search")) return Response.json({ events: [] });
-    if (url.includes("/midpoints")) return Response.json({ "100": "0.65" });
+    if (url.includes("/midpoints"))
+      return Response.json(missingOdds ? {} : { "100": "0.65" });
+    if (url.includes("/events/1"))
+      return Response.json({ id: "1", closed: closedMarket });
     throw new Error(`Unexpected fetch ${url}`);
   };
   try {
@@ -331,6 +336,26 @@ test("remote collector survives restart, rejects duplicate minute writes and exp
     const stale = await (await handle(request("/snapshot"), env)).json();
     assert.equal(stale.windows["1m"].length, 0);
     assert.match(stale.error, /delayed/);
+
+    missingOdds = true;
+    time = now + 121_000;
+    await collect(collectorEnv, time);
+    const partial = JSON.parse((await db.prepare("SELECT value FROM meta WHERE key='latest'")
+      .first<{ value: string }>())!.value) as ResearchSnapshot;
+    assert.equal(partial.events.length, 1, "an unconfirmed missing quote must not evict a market");
+    assert.match(partial.error!, /odds/);
+
+    closedMarket = true;
+    time = now + 181_000;
+    await collect(collectorEnv, time);
+    const settled = JSON.parse((await db.prepare("SELECT value FROM meta WHERE key='latest'")
+      .first<{ value: string }>())!.value) as ResearchSnapshot;
+    assert.equal(settled.events.length, 0);
+    assert.notEqual(settled.modelVersion, partial.modelVersion);
+    assert.equal(settled.error, "Discovering mapped events.");
+    const catalog = JSON.parse((await db.prepare("SELECT value FROM meta WHERE key='catalog'")
+      .first<{ value: string }>())!.value);
+    assert.deepEqual(catalog.events, {});
   } finally {
     globalThis.fetch = original;
     close();

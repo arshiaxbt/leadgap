@@ -2,7 +2,7 @@ import type { Database, Result, Statement } from "../../workers/data/db";
 
 type Query = { sql: string; params: unknown[] };
 
-/** Private, allowlisted D1 bridge for the Netlify collector. */
+/** Private, allowlisted D1 bridge for the Node.js collector. */
 export function collectorDatabase(origin: string, secret: string): Database {
   async function execute(queries: Query[]): Promise<Result[]> {
     const response = await fetch(new URL("/internal/database", origin), {

@@ -78,6 +78,9 @@ export const gaps: GapRow[] = events.map((e, i) => ({
 }));
 export async function mockFeeds(page: Page) {
   await page.route("**/api/**", async (route) => {
+    // Only replace Leadgap feeds; Privy also serves its SDK config under /api/.
+    if (new URL(route.request().url()).origin !== new URL(page.url()).origin)
+      return route.continue();
     const url = new URL(route.request().url()),
       now = Date.now();
     const tickers: Record<string, PerpsTicker> = Object.fromEntries(

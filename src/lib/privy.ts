@@ -43,5 +43,8 @@ export function getPrivyConfig(): PrivyClientConfig {
 }
 
 export function privyAppId(): string | undefined {
-  return process.env.NEXT_PUBLIC_PRIVY_APP_ID?.trim() || undefined;
+  const value = process.env.NEXT_PUBLIC_PRIVY_APP_ID?.trim();
+  // Privy throws during provider rendering for IDs of any other length.
+  // In particular, Vercel exports sensitive values as "[SENSITIVE]".
+  return value?.length === 25 ? value : undefined;
 }

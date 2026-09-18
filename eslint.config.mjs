@@ -14,6 +14,7 @@ const eslintConfig = defineConfig([
     "test-results/**",
     "playwright-report/**",
     ".vercel/**",
+    ".netlify/**",
     "next-env.d.ts",
   ]),
 ]);

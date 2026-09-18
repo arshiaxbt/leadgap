@@ -17,9 +17,23 @@ Implemented: compact spacing and sparse-results footer; referral links/disclosur
 
 Screenshots use deterministic public-market fixtures: [wide signals](roadmap-screenshots/compact-1920-1080.png), [short desktop](roadmap-screenshots/compact-1440-720.png), [mobile review](roadmap-screenshots/review-375-667.png), [history](roadmap-screenshots/signal-history.png).
 
+## Remote rollout update
+
+Netlify MCP and CLI now authenticate to the AGS Free team. The new `leadgap` site is linked locally; `.netlify/state.json` and generated bundles remain ignored. The draft preview is [roadmap--leadgap.netlify.app](https://roadmap--leadgap.netlify.app). No production domain changed.
+
+Initial remote HTTP checks returned the app and 89 live instruments successfully. The geo edge function returned trusted country/subdivision data and ignored spoofed country headers. Public-data responses currently identify their source as `local`: this preview does not yet have shared persistence.
+
+Vercel's environment export returned `[SENSITIVE]` placeholders, including for public values. Importing those placeholders exposed a Privy initialization crash in remote browser checks. The public app ID was recovered from the existing production site's public JavaScript; builder configuration came from the checked-in public defaults. Netlify's public configuration is corrected, and malformed app IDs now prevent the auth provider from mounting instead of crashing public pages. A regression test covers the placeholder. No private Vercel credentials were transferred.
+
+The runtime configuration instructions now require Netlify API/CLI/UI variables: `netlify.toml` alone cannot set server function flags. ESLint excludes generated `.netlify` bundles. The browser feed fixture now intercepts only Leadgap's origin; its former broad `/api/**` matcher incorrectly replaced Privy's public SDK configuration when auth was enabled.
+
+The corrected [immutable preview](https://6aad31bb475017a8e071cf1a--leadgap.netlify.app) builds successfully with public auth configured. All 24 unit checks, ESLint and TypeScript pass. A live browser check renders the email/Google/wallet login modal without uncaught page errors; Privy's analytics endpoint returns 403 on this preview origin. Account login and signing remain untested.
+
+All ten applicable browser scenarios pass against that immutable deployment with real public auth configuration and deterministic Leadgap market fixtures. This includes axe, 375–1920 px/short viewports, compact result spacing, referral copy/attribution, order review and error states. History remains disabled on the preview, so its eleventh scenario is covered by the earlier local feature-enabled run only.
+
 ## Not yet verified
 
-Netlify and Wrangler both report **not authenticated** in this workspace. No Netlify site or Cloudflare database was provisioned, no production domain changed, and no production soak was started. `workers/data/wrangler.jsonc` deliberately contains a placeholder D1 ID and disabled ingestion. Research/streaming/telemetry default off.
+Cloudflare MCP can list Workers and D1 in the owner account, but subscription/billing access returns an authentication error. Wrangler CLI is not authenticated. Workers Free plan confirmation is pending before provisioning under the free-tier-only requirement. No Cloudflare database/collector or production soak was started. `workers/data/wrangler.jsonc` retains its placeholder D1 ID and disabled ingestion. Research/streaming/telemetry default off.
 
 The 72-hour freshness/usage gate, production CPU/D1/Netlify quota measurements, real-history calibration and owner-controlled private trading/account checks remain outstanding. Saved-research persistence is tested at the authenticated service boundary; real Privy login on two devices remains an owner check. No funds, real orders or signatures were used for validation.
 

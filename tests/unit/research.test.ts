@@ -5,6 +5,7 @@ import worker, { handle } from "../../workers/data/index";
 import { writeMeta } from "../../workers/data/db";
 import { evaluateRules } from "../../workers/data/rules";
 import { collect, prune } from "../../workers/data/ingest";
+import { collectorDatabase } from "../../src/lib/collector-database";
 import {
   evaluateAlert,
   WINDOWS,
@@ -245,13 +246,23 @@ test("retention preserves recent minute data and older five-minute checkpoints",
     close();
   }
 });
-test("collector survives restart, rejects duplicate minute writes and expires stale snapshots", async () => {
+test("remote collector survives restart, rejects duplicate minute writes and expires stale snapshots", async () => {
   const { db, close } = database(),
-    env = { DB: db, DATA_SERVICE_SECRET: "test-secret" };
+    env = {
+      DB: db,
+      DATA_SERVICE_SECRET: "test-secret",
+      COLLECTOR_SECRET: "collector-secret",
+    },
+    collectorEnv = {
+      ...env,
+      DB: collectorDatabase("https://data.test", "collector-secret"),
+    };
   const original = globalThis.fetch;
   let time = now;
-  globalThis.fetch = async (input) => {
+  globalThis.fetch = async (input, init) => {
     const url = String(input);
+    if (url === "https://data.test/internal/database")
+      return handle(new Request(input, init), env);
     if (url.includes("/instruments"))
       return Response.json([
         {
@@ -280,16 +291,28 @@ test("collector survives restart, rejects duplicate minute writes and expires st
       cursor: 0,
       events: { "1": { seen: now, event: events[0] } },
     });
-    await collect(env, time);
-    assert.deepEqual(await collect(env, time + 1000), {
+    const forbidden = new Request("https://data.test/internal/database", {
+      method: "POST",
+      headers: { authorization: "Bearer collector-secret" },
+      body: JSON.stringify({
+        queries: [{ sql: "DROP TABLE snapshots", params: [] }],
+      }),
+    });
+    assert.equal((await handle(forbidden, env)).status, 400);
+    assert.equal(
+      (await handle(request("/internal/database", "POST"), env)).status,
+      401,
+    );
+    await collect(collectorEnv, time);
+    assert.deepEqual(await collect(collectorEnv, time + 1000), {
       skipped: "already-collected",
     });
     time += 58_000; // Same scheduled minute still cannot duplicate.
-    assert.deepEqual(await collect(env, time), {
+    assert.deepEqual(await collect(collectorEnv, time), {
       skipped: "already-collected",
     });
     time = now + 61_000;
-    await collect({ ...env }, time);
+    await collect({ ...collectorEnv }, time);
     const latest = await db
       .prepare("SELECT value FROM meta WHERE key='latest'")
       .first<{ value: string }>();

@@ -23,7 +23,7 @@ import {
   type ResearchSnapshot,
 } from "../../src/lib/research";
 import type { ResolvedEvent, Snapshot, PerpsTicker } from "../../src/lib/types";
-import { readMeta, writeMeta, type Env } from "./db";
+import { writeMeta, type Env } from "./db";
 import { evaluateRules } from "./rules";
 type Catalog = {
   revision?: number;
@@ -33,14 +33,31 @@ type Catalog = {
 export async function collect(env: Env, now = Date.now()) {
   const owner = crypto.randomUUID();
   const db = env.DB;
-  const acquired = await db
-    .prepare(
-      "INSERT INTO leases(key,owner,expires) VALUES('ingest',?,?) ON CONFLICT(key) DO UPDATE SET owner=excluded.owner,expires=excluded.expires WHERE leases.expires < ?",
-    )
-    .bind(owner, now + 55_000, now)
-    .run();
+  const slot = Math.floor(now / 60_000) * 60_000;
+  // One D1 round trip for the lease and startup reads. Each separate binding
+  // request has CPU overhead that matters on Workers Free.
+  const [acquired, metadata, existing, earliest] = await db.batch([
+    db
+      .prepare(
+        "INSERT INTO leases(key,owner,expires) VALUES('ingest',?,?) ON CONFLICT(key) DO UPDATE SET owner=excluded.owner,expires=excluded.expires WHERE leases.expires < ?",
+      )
+      .bind(owner, now + 55_000, now),
+    db.prepare(
+      "SELECT key,value FROM meta WHERE key IN ('health','latest','instrumentsAt','catalog')",
+    ),
+    db.prepare("SELECT t FROM snapshots WHERE t=?").bind(slot),
+    db.prepare("SELECT MIN(t) AS t FROM snapshots"),
+  ]);
   if (!acquired.meta.changes) return { skipped: "lease" };
-  const health = await readMeta<{ size: number; asOf?: number }>(db, "health");
+  const values = new Map(
+    metadata.results.map((r) => [String(r.key), String(r.value)]),
+  );
+  const meta = <T>(key: string): T | null => {
+    const value = values.get(key);
+    return value ? (JSON.parse(value) as T) : null;
+  };
+  const health = meta<{ size: number; asOf?: number }>("health");
+  let released = false;
   try {
     if ((health?.size ?? 0) > 350_000_000) {
       const results = await prune(env, now);
@@ -52,19 +69,14 @@ export async function collect(env: Env, now = Date.now()) {
       });
       return { skipped: "storage-budget" };
     }
-    const slot = Math.floor(now / 60_000) * 60_000;
-    if (
-      await db.prepare("SELECT t FROM snapshots WHERE t=?").bind(slot).first()
-    )
-      return { skipped: "already-collected" };
-    const previous = await readMeta<ResearchSnapshot>(db, "latest");
+    if (existing.results.length) return { skipped: "already-collected" };
+    const previous = meta<ResearchSnapshot>("latest");
     const instruments =
-      !previous ||
-      now - ((await readMeta<number>(db, "instrumentsAt")) ?? 0) > 3600_000
+      !previous || now - (meta<number>("instrumentsAt") ?? 0) > 3600_000
         ? await fetchInstruments()
         : previous.instruments;
     const rawTickers = await fetchTickers();
-    let catalog = (await readMeta<Catalog>(db, "catalog")) ?? {
+    let catalog = meta<Catalog>("catalog") ?? {
       cursor: 0,
       events: {},
     };
@@ -73,7 +85,7 @@ export async function collect(env: Env, now = Date.now()) {
     catalog.revision = MAP_REVISION;
     const queries = allGammaQueries();
     const discovery = await Promise.allSettled(
-      Array.from({ length: 4 }, (_, i) => {
+      Array.from({ length: 1 }, (_, i) => {
         const q = queries[(catalog.cursor + i) % queries.length];
         return searchGammaEvents(q.query, 3).then((events) => ({ q, events }));
       }),
@@ -129,12 +141,13 @@ export async function collect(env: Env, now = Date.now()) {
         };
       }
     }
-    catalog.cursor = (catalog.cursor + 4) % queries.length;
-    // Bound discovery to the highest-volume 120 live candidates and expire old hits.
+    catalog.cursor = (catalog.cursor + 1) % queries.length;
+    // Rotate one query per minute; parsing discovery payloads dominates CPU.
+    // Bound the catalog while every mapped event still refreshes each minute.
     const events = Object.values(catalog.events)
       .filter((e) => now - e.seen < 4 * 3600_000)
       .sort((a, b) => b.event.volume - a.event.volume)
-      .slice(0, 120)
+      .slice(0, 60)
       .map((e) => e.event);
     catalog.events = Object.fromEntries(
       events.map((e) => [e.id, catalog.events[e.id]]),
@@ -259,9 +272,7 @@ export async function collect(env: Env, now = Date.now()) {
         ),
       ]),
     ) as ResearchSnapshot["windows"];
-    const first = await db
-      .prepare("SELECT MIN(t) AS t FROM snapshots")
-      .first<{ t: number | null }>();
+    const firstAt = earliest.results[0]?.t;
     const snapshot: ResearchSnapshot = {
       asOf: now,
       modelVersion,
@@ -278,7 +289,10 @@ export async function collect(env: Env, now = Date.now()) {
           : !events.length
             ? "Discovering mapped events."
             : null,
-      coverage: { startedAt: first?.t ?? now, cadenceMs: 60_000 },
+      coverage: {
+        startedAt: typeof firstAt === "number" ? firstAt : now,
+        cadenceMs: 60_000,
+      },
     };
     const writes = await db.batch([
       db
@@ -314,13 +328,24 @@ export async function collect(env: Env, now = Date.now()) {
           "INSERT INTO meta(key,value) VALUES('latest',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
         )
         .bind(JSON.stringify(snapshot)),
+      db
+        .prepare(
+          "INSERT INTO meta(key,value) VALUES('catalog',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+        )
+        .bind(JSON.stringify(catalog)),
+      ...(instruments !== previous?.instruments
+        ? [
+            db
+              .prepare(
+                "INSERT INTO meta(key,value) VALUES('instrumentsAt',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+              )
+              .bind(JSON.stringify(now)),
+          ]
+        : []),
     ]);
-    await writeMeta(db, "catalog", catalog);
-    if (instruments !== previous?.instruments)
-      await writeMeta(db, "instrumentsAt", now);
     await evaluateRules(env, snapshot, now);
     if (Math.floor(now / 60_000) % 60 === 0) await prune(env, now);
-    await writeMeta(db, "health", {
+    const nextHealth = {
       status: snapshot.error ? "degraded" : "healthy",
       asOf: now,
       attemptedAt: now,
@@ -329,7 +354,18 @@ export async function collect(env: Env, now = Date.now()) {
       instruments: instruments.length,
       discoveryCursor: catalog.cursor,
       discoveryQueries: queries.length,
-    });
+    };
+    await db.batch([
+      db
+        .prepare(
+          "INSERT INTO meta(key,value) VALUES('health',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+        )
+        .bind(JSON.stringify(nextHealth)),
+      db
+        .prepare("DELETE FROM leases WHERE key='ingest' AND owner=?")
+        .bind(owner),
+    ]);
+    released = true;
     return { asOf: now };
   } catch (error) {
     await writeMeta(db, "health", {
@@ -343,10 +379,11 @@ export async function collect(env: Env, now = Date.now()) {
     });
     throw error;
   } finally {
-    await db
-      .prepare("DELETE FROM leases WHERE key='ingest' AND owner=?")
-      .bind(owner)
-      .run();
+    if (!released)
+      await db
+        .prepare("DELETE FROM leases WHERE key='ingest' AND owner=?")
+        .bind(owner)
+        .run();
   }
 }
 export async function prune(env: Env, now: number) {

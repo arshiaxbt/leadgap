@@ -1,0 +1,11 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "lib": ["ES2023"],
+    "types": [],
+    "incremental": false,
+    "plugins": []
+  },
+  "include": ["worker-configuration.d.ts", "bindings-check.ts"],
+  "exclude": ["../../node_modules"]
+}

@@ -31,5 +31,9 @@
     ".next/dev/types/**/*.ts",
     "**/*.mts"
   ],
-  "exclude": ["node_modules"]
+  "exclude": [
+    "node_modules",
+    "workers/data/worker-configuration.d.ts",
+    "workers/data/bindings-check.ts"
+  ]
 }

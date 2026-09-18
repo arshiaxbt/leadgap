@@ -1,18 +1,27 @@
 {
   "$schema": "../../node_modules/wrangler/config-schema.json",
   "name": "leadgap-data",
+  "account_id": "1a69a630c48d035334a6d9e7e42c92f1",
   "main": "index.ts",
   "compatibility_date": "2026-09-18",
   "workers_dev": true,
   "triggers": { "crons": ["* * * * *"] },
-  "vars": { "INGEST_ENABLED": "false" },
+  "vars": {
+    "INGEST_ENABLED": "true",
+    "COLLECTOR_URL": "https://roadmap--leadgap.netlify.app/.netlify/functions/collect",
+  },
+  "secrets": { "required": ["DATA_SERVICE_SECRET", "COLLECTOR_SECRET"] },
   "d1_databases": [
     {
       "binding": "DB",
       "database_name": "leadgap-data",
-      "database_id": "00000000-0000-0000-0000-000000000000",
+      "database_id": "a48564f0-511b-4718-9738-e146fde2d2f9",
       "migrations_dir": "migrations",
     },
   ],
-  "observability": { "enabled": true },
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 0.1,
+    "traces": { "enabled": true, "head_sampling_rate": 0.1 },
+  },
 }

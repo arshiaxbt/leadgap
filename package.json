@@ -12,7 +12,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "typecheck": "next typegen && tsc --noEmit",
+    "typecheck": "next typegen && tsc --noEmit && npm run worker:typecheck",
+    "worker:typecheck": "wrangler types workers/data/worker-configuration.d.ts --config workers/data/wrangler.jsonc --env-interface WorkerEnv --strict-vars=false && tsc -p workers/data/tsconfig.json",
     "test": "tsx --test tests/unit/*.test.ts",
     "test:e2e": "playwright test",
     "worker:check": "wrangler deploy --dry-run --config workers/data/wrangler.jsonc",
@@ -57,6 +58,7 @@
   "devDependencies": {
     "@axe-core/playwright": "^4.13.0",
     "@netlify/edge-functions": "^4.0.0",
+    "@netlify/functions": "^6.0.0",
     "@netlify/plugin-nextjs": "^5.16.0",
     "@playwright/test": "^1.63.0",
     "@tailwindcss/postcss": "^4",

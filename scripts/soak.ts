@@ -15,10 +15,13 @@ async function main() {
   const hours = Number(process.argv[2] ?? 72);
   if (!Number.isFinite(hours) || hours <= 0 || hours > 168)
     throw new Error("Choose up to 168 hours.");
-  await mkdir("artifacts/soak", { recursive: true });
-  const file = "artifacts/soak/samples.jsonl",
-    end = Date.now() + hours * 3600_000;
-  do {
+  const startedAt = Date.now(),
+    directory = `artifacts/soak/${new Date(startedAt).toISOString().replaceAll(":", "-")}`,
+    file = `${directory}/samples.jsonl`,
+    end = startedAt + hours * 3600_000;
+  await mkdir(directory, { recursive: true });
+  console.log("Soak output:", directory);
+  while (true) {
     let sample: Sample = {
       t: Date.now(),
       ok: false,
@@ -45,8 +48,11 @@ async function main() {
     } catch {}
     await appendFile(file, JSON.stringify(sample) + "\n");
     console.log(new Date(sample.t).toISOString(), sample.status, sample.age);
-    if (Date.now() < end) await sleep(60_000);
-  } while (Date.now() < end);
+    // Include a final sample at/after the deadline, rather than ending up to
+    // one minute short and incorrectly failing the 72-hour duration gate.
+    if (sample.t >= end) break;
+    await sleep(Math.max(0, Math.min(60_000, end - Date.now())));
+  }
   const samples = (await readFile(file, "utf8"))
     .trim()
     .split("\n")
@@ -70,7 +76,7 @@ async function main() {
       "Required: verify CPU, D1 reads/writes and Netlify credits in provider dashboards.",
   };
   await writeFile(
-    "artifacts/soak/report.json",
+    `${directory}/report.json`,
     JSON.stringify(report, null, 2) + "\n",
   );
   console.log(report);

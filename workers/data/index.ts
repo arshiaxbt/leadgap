@@ -2,7 +2,7 @@ import {
   readRequestText,
   RequestBodyTooLarge,
 } from "../../src/lib/request-body";
-import { collect } from "./ingest";
+import { INGEST_SQL } from "./ingest-sql";
 import { readMeta, type Env } from "./db";
 import {
   freshResearchSnapshot,
@@ -14,19 +14,56 @@ import {
 const json = (data: unknown, status = 200) =>
   Response.json(data, { status, headers: { "cache-control": "no-store" } });
 export async function handle(request: Request, env: Env): Promise<Response> {
+  const url = new URL(request.url),
+    path = url.pathname;
+  if (path === "/internal/database") {
+    if (
+      !env.COLLECTOR_SECRET ||
+      request.headers.get("authorization") !== `Bearer ${env.COLLECTOR_SECRET}`
+    )
+      return json({ error: "Unauthorized" }, 401);
+    if (request.method !== "POST")
+      return json({ error: "Method not allowed" }, 405);
+    const body = JSON.parse(await readRequestText(request, 524_288)) as {
+      queries?: { sql: string; params: unknown[] }[];
+    };
+    if (
+      !body ||
+      !Array.isArray(body.queries) ||
+      !body.queries.length ||
+      body.queries.length > 32 ||
+      body.queries.some(
+        (q) =>
+          !q ||
+          !INGEST_SQL.has(q.sql) ||
+          !Array.isArray(q.params) ||
+          q.params.length > 32 ||
+          q.params.some(
+            (p) =>
+              p !== null &&
+              typeof p !== "string" &&
+              (typeof p !== "number" || !Number.isFinite(p)),
+          ),
+      )
+    )
+      return json({ error: "Invalid collector operation" }, 400);
+    return json(
+      await env.DB.batch(
+        body.queries.map((q) => env.DB.prepare(q.sql).bind(...q.params)),
+      ),
+    );
+  }
   if (
     !env.DATA_SERVICE_SECRET ||
     request.headers.get("authorization") !== `Bearer ${env.DATA_SERVICE_SECRET}`
   )
     return json({ error: "Unauthorized" }, 401);
-  const url = new URL(request.url),
-    path = url.pathname;
   if (request.method === "GET" && path === "/health")
     return json((await readMeta(env.DB, "health")) ?? { status: "warming" });
   if (request.method === "POST" && path === "/collect") {
     if (env.INGEST_ENABLED !== "true")
       return json({ error: "Ingestion disabled" }, 503);
-    return json(await collect(env));
+    return triggerCollection(env);
   }
   if (request.method === "GET" && path === "/snapshot") {
     const snapshot = await readMeta<ResearchSnapshot>(env.DB, "latest");
@@ -206,7 +243,11 @@ export async function handle(request: Request, env: Env): Promise<Response> {
 const worker = {
   async fetch(request: Request, env: Env) {
     try {
-      if (Number(request.headers.get("content-length") ?? 0) > 16_384)
+      const limit =
+        new URL(request.url).pathname === "/internal/database"
+          ? 524_288
+          : 16_384;
+      if (Number(request.headers.get("content-length") ?? 0) > limit)
         return json({ error: "Request too large" }, 413);
       return await handle(request, env);
     } catch (error) {
@@ -222,8 +263,20 @@ const worker = {
     }
   },
   async scheduled(_event: unknown, env: Env) {
-    if (env.INGEST_ENABLED === "true") await collect(env);
+    if (env.INGEST_ENABLED === "true") await triggerCollection(env);
   },
 };
 
 export default worker;
+
+async function triggerCollection(env: Env): Promise<Response> {
+  if (!env.COLLECTOR_URL || !env.COLLECTOR_SECRET)
+    throw new Error("Collector is not configured");
+  const response = await fetch(env.COLLECTOR_URL, {
+    method: "POST",
+    headers: { authorization: `Bearer ${env.COLLECTOR_SECRET}` },
+    signal: AbortSignal.timeout(45_000),
+  });
+  if (!response.ok) throw new Error(`Collector failed (${response.status})`);
+  return response;
+}

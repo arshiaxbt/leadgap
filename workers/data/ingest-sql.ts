@@ -1,0 +1,25 @@
+// Exact collector queries accepted by the private D1 gateway.
+// Keep this list in sync with ingest.ts, rules.ts and db.ts.
+export const INGEST_SQL = new Set([
+  "SELECT value FROM meta WHERE key=?",
+  "INSERT INTO meta(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+  "INSERT INTO leases(key,owner,expires) VALUES('ingest',?,?) ON CONFLICT(key) DO UPDATE SET owner=excluded.owner,expires=excluded.expires WHERE leases.expires < ?",
+  "SELECT key,value FROM meta WHERE key IN ('health','latest','instrumentsAt','catalog')",
+  "SELECT t FROM snapshots WHERE t=?",
+  "SELECT MIN(t) AS t FROM snapshots",
+  "SELECT payload FROM snapshots WHERE t>=? AND t<=? ORDER BY ABS(t-?) LIMIT 1",
+  "INSERT OR IGNORE INTO snapshots(t,model,payload) VALUES(?,?,?)",
+  "INSERT OR IGNORE INTO mappings(id,created,payload) VALUES(?,?,?)",
+  "INSERT INTO meta(key,value) VALUES('latest',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+  "INSERT INTO meta(key,value) VALUES('catalog',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+  "INSERT INTO meta(key,value) VALUES('instrumentsAt',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+  "INSERT INTO meta(key,value) VALUES('health',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+  "DELETE FROM leases WHERE key='ingest' AND owner=?",
+  "DELETE FROM snapshots WHERE t IN (SELECT t FROM snapshots WHERE t<? OR (t<? AND t%300000<>0) LIMIT 2000)",
+  "DELETE FROM notifications WHERE created<?",
+  "DELETE FROM mappings WHERE created<? AND id NOT IN (SELECT model FROM snapshots)",
+  "DELETE FROM telemetry WHERE day<?",
+  "SELECT i.owner,i.id,i.payload,COALESCE(s.matched,0) matched,COALESCE(s.last_fired,0) last_fired FROM account_items i LEFT JOIN alert_state s ON s.owner=i.owner AND s.id=i.id WHERE i.kind='rules'",
+  "INSERT INTO alert_state(owner,id,matched,last_fired) SELECT json_extract(value,'$.owner'),json_extract(value,'$.id'),json_extract(value,'$.matched'),json_extract(value,'$.lastFired') FROM json_each(?) WHERE true ON CONFLICT(owner,id) DO UPDATE SET matched=excluded.matched,last_fired=excluded.last_fired",
+  "INSERT OR IGNORE INTO notifications(id,owner,rule_id,created,payload) SELECT json_extract(value,'$.id'),json_extract(value,'$.owner'),json_extract(value,'$.ruleId'),json_extract(value,'$.created'),json_extract(value,'$.payload') FROM json_each(?)",
+]);

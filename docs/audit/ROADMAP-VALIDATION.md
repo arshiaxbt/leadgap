@@ -21,7 +21,7 @@ Screenshots use deterministic public-market fixtures: [wide signals](roadmap-scr
 
 Netlify MCP and CLI now authenticate to the AGS Free team. The new `leadgap` site is linked locally; `.netlify/state.json` and generated bundles remain ignored. The draft preview is [roadmap--leadgap.netlify.app](https://roadmap--leadgap.netlify.app). No production domain changed.
 
-Initial remote HTTP checks returned the app and 89 live instruments successfully. The geo edge function returned trusted country/subdivision data and ignored spoofed country headers. Public-data responses currently identify their source as `local`: this preview does not yet have shared persistence.
+Initial remote HTTP checks returned the app and 89 live instruments successfully. The geo edge function returned trusted country/subdivision data and ignored spoofed country headers. The initial preview used local data; the current preview returns `dataSource: shared` and reads the provisioned D1 service.
 
 Vercel's environment export returned `[SENSITIVE]` placeholders, including for public values. Importing those placeholders exposed a Privy initialization crash in remote browser checks. The public app ID was recovered from the existing production site's public JavaScript; builder configuration came from the checked-in public defaults. Netlify's public configuration is corrected, and malformed app IDs now prevent the auth provider from mounting instead of crashing public pages. A regression test covers the placeholder. No private Vercel credentials were transferred.
 
@@ -31,9 +31,20 @@ The corrected [immutable preview](https://6aad31bb475017a8e071cf1a--leadgap.netl
 
 All ten applicable browser scenarios pass against that immutable deployment with real public auth configuration and deterministic Leadgap market fixtures. This includes axe, 375–1920 px/short viewports, compact result spacing, referral copy/attribution, order review and error states. History remains disabled on the preview, so its eleventh scenario is covered by the earlier local feature-enabled run only.
 
+## Shared data deployment evidence
+
+- [Current deployment](https://6aad380f1e08e175a09753cc--leadgap.netlify.app): dedicated Netlify collector plus Next.js app and trusted geo edge function. Server configuration includes both deploy-preview and branch-deploy contexts because the CLI alias uses branch-deploy at runtime. No production secrets or domain changes were required.
+- Direct Worker collection used 26–47 ms CPU initially and 18–30 ms after batching, exceeding the 10 ms Free allowance. Collection/scoring now runs in Netlify; Cloudflare retains scheduling, authenticated data access and D1. One measured complete collection took about 2.3 seconds end-to-end.
+- Cloudflare GraphQL reports the revised cron at about **0.52 ms CPU** and initial storage/health requests below **5.3 ms**, with no reported invocation errors in the sampled post-change interval. These are startup measurements, not proof of sustained quota headroom at a full catalog or growing history.
+- Remote checks passed for unauthenticated rejection, disabled collection, minute-slot deduplication, cross-owner read/delete isolation, stale snapshot suppression, recovery, collector-credential separation and SQL allowlist rejection. Temporary owner-test rows were removed.
+- Two independent gateway processes returned the same `asOf`, mapping version and coverage. Netlify market/gap endpoints report shared data; its authenticated health endpoint matches the Worker.
+- All 24 unit/database checks, isolated generated Worker binding types, app TypeScript, lint and bundled workerd/D1 integration pass. The restart/idempotency test now exercises collection across the private HTTP storage bridge. Three focused remote browser scenarios rechecked mobile accessibility, referrals and wide/short order review after enabling shared data.
+- Unattended cron collections are advancing the D1 snapshots. The **72-hour soak started September 18 at 13:11:55 UTC**, expected to finish September 21 at 13:11:55 UTC. The first three samples are fresh and healthy. Logs and the eventual report are in the ignored artifact paths recorded in the rollout runbook.
+- The soak runner now takes a final sample at the deadline and uses a unique directory for each run, preventing a valid run from failing because its last sample was a minute short or mixed with a previous run. A short smoke run confirmed final-sample/report behavior; it correctly failed the 72-hour duration requirement.
+
 ## Not yet verified
 
-Cloudflare MCP can list Workers and D1 in the owner account, but subscription/billing access returns an authentication error. Wrangler CLI is not authenticated. Workers Free plan confirmation is pending before provisioning under the free-tier-only requirement. No Cloudflare database/collector or production soak was started. `workers/data/wrangler.jsonc` retains its placeholder D1 ID and disabled ingestion. Research/streaming/telemetry default off.
+The owner confirmed Workers Free. Cloudflare MCP provisioned `leadgap-data` and applied its D1 schema; the checked-in binding now contains the real database ID. A minute cron triggers the authenticated Netlify collector. Research/history/streaming/telemetry remain off on the preview. Billing access and Wrangler CLI authentication remain unavailable, but resource deployment and analytics work through MCP.
 
 The 72-hour freshness/usage gate, production CPU/D1/Netlify quota measurements, real-history calibration and owner-controlled private trading/account checks remain outstanding. Saved-research persistence is tested at the authenticated service boundary; real Privy login on two devices remains an owner check. No funds, real orders or signatures were used for validation.
 

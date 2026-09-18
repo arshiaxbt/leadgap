@@ -55,6 +55,7 @@ next-env.d.ts
 
 # Provider local state
 .netlify/
+workers/data/worker-configuration.d.ts
 .wrangler/
 .dev.vars*
 workers/data/.wrangler/

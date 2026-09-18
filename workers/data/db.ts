@@ -21,6 +21,8 @@ export type Env = {
   DB: Database;
   DATA_SERVICE_SECRET: string;
   INGEST_ENABLED?: string;
+  COLLECTOR_URL?: string;
+  COLLECTOR_SECRET?: string;
 };
 export async function readMeta<T>(
   db: Database,

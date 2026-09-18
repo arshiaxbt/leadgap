@@ -31,12 +31,37 @@ async function main() {
         d1Databases: ["DB"],
         bindings: {
           DATA_SERVICE_SECRET: "test-secret",
+          COLLECTOR_SECRET: "collector-secret",
           INGEST_ENABLED: "false",
         },
       }),
     );
     const db = await mf.getD1Database("DB");
     await db.exec(await readFile("workers/data/migrations/0001.sql", "utf8"));
+    const storage = (secret: string, sql: string) =>
+      mf!.dispatchFetch("http://worker/internal/database", {
+        method: "POST",
+        headers: { authorization: `Bearer ${secret}` },
+        body: JSON.stringify({ queries: [{ sql, params: [] }] }),
+      });
+    assert.equal(
+      (await storage("test-secret", "SELECT MIN(t) AS t FROM snapshots"))
+        .status,
+      401,
+    );
+    assert.equal(
+      (await storage("collector-secret", "DROP TABLE snapshots")).status,
+      400,
+    );
+    const storageRead = await storage(
+      "collector-secret",
+      "SELECT MIN(t) AS t FROM snapshots",
+    );
+    assert.equal(storageRead.status, 200);
+    assert.deepEqual(
+      ((await storageRead.json()) as { results: unknown[] }[])[0].results,
+      [{ t: null }],
+    );
     assert.equal((await mf.dispatchFetch("http://worker/health")).status, 401);
     const headers = {
       authorization: "Bearer test-secret",

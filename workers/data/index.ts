@@ -113,6 +113,7 @@ export async function handle(request: Request, env: Env): Promise<Response> {
     const row = await env.DB.prepare("SELECT value FROM meta WHERE key=?")
       .bind("latest").first<{ value: string }>();
     if (!row) return json({ error: "History is warming up" }, 503);
+    if (url.searchParams.get("encoding") === "stored") return rawJson(row.value);
     const gzip = snapshotGzip(row.value);
     const compressedInit = {
       encodeBody: "manual" as const,

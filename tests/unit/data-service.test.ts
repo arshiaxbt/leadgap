@@ -1,3 +1,4 @@
+import { gzipSync } from "node:zlib";
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { researchSnapshot } from "../../src/lib/data-service";
@@ -12,12 +13,15 @@ test("raw snapshot reads still remove stale data on the Vercel boundary", async 
   process.env.DATA_SERVICE_URL = "https://data.test";
   process.env.DATA_SERVICE_SECRET = "test-secret";
   Date.now = () => now;
+  let reads = 0;
   globalThis.fetch = async (url) => {
-    assert.equal(String(url), "https://data.test/snapshot/raw");
-    return Response.json({ asOf, error: null,
+    assert.equal(String(url), "https://data.test/snapshot/raw?encoding=stored");
+    const snapshot = { asOf, error: null,
       windows: Object.fromEntries(WINDOWS.map((w) => [w, [{ ...gaps[0], window: w }]])),
       tickers: { "BTC-USD": { timestamp: asOf } }, oddsHistory: { "1": [{ t: asOf }] },
-    });
+    };
+    if (++reads === 1) return Response.json(snapshot);
+    return Response.json({ _leadgapEncoding: "gzip-base64-v1", data: gzipSync(JSON.stringify(snapshot)).toString("base64") });
   };
   try {
     assert.equal((await researchSnapshot()).windows["1h"].length, 1);

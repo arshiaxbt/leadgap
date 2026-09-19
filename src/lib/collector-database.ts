@@ -1,4 +1,5 @@
-import { gzipSync, gunzipSync } from "node:zlib";
+import { gzipSync } from "node:zlib";
+import { decodeStoredSnapshot } from "./snapshot-storage";
 import { SNAPSHOT_ENCODING } from "../../workers/data/snapshot-codec";
 import { PAYLOAD_MAX_BYTES, PAYLOAD_WRITES, STARTUP_SQL } from "../../workers/data/payloads";
 import type { Database, Result, Statement } from "../../workers/data/db";
@@ -83,10 +84,7 @@ export function collectorDatabase(origin: string, secret: string): Database {
         url.searchParams.set("encoding", "gzip");
         const rows = await payload(url) as { key: string; value: unknown }[];
         results.push({ results: rows.map((r) => {
-          const stored = r.value as { _leadgapEncoding?: string; data?: string } | null;
-          const value = r.key === "latest" && stored?._leadgapEncoding === SNAPSHOT_ENCODING && typeof stored.data === "string"
-            ? gunzipSync(Buffer.from(stored.data, "base64"), { maxOutputLength: PAYLOAD_MAX_BYTES }).toString("utf8")
-            : JSON.stringify(r.value);
+          const value = JSON.stringify(r.key === "latest" ? decodeStoredSnapshot(r.value) : r.value);
           return { key: r.key, value };
         }), meta: {} });
       } else {

@@ -174,6 +174,8 @@ async function main() {
     assert.ok(Object.values(filtered.windows).every((rows) => rows.length === 0));
     const compressed = JSON.stringify({ _leadgapEncoding: "gzip-base64-v1", data: gzipSync(JSON.stringify(stale)).toString("base64") });
     assert.equal((await raw("latest", compressed)).status, 200);
+    const storedResponse = await mf.dispatchFetch("http://worker/snapshot/raw?encoding=stored", { headers: read });
+    assert.deepEqual(await storedResponse.json(), JSON.parse(compressed));
     const compressedResponse = await mf.dispatchFetch("http://worker/snapshot/raw", { headers: read });
     const compressedBytes = Buffer.from(await compressedResponse.arrayBuffer());
     // Miniflare/HTTP clients may inflate Content-Encoding before exposing bytes.

@@ -6,7 +6,12 @@ const PREFIX = `{"_leadgapEncoding":"${SNAPSHOT_ENCODING}"`;
 export function snapshotGzip(value: string): Uint8Array<ArrayBuffer> | null {
   if (!value.startsWith(PREFIX)) return null;
   const encoded = JSON.parse(value) as { data: string };
-  return Uint8Array.from(atob(encoded.data), (c) => c.charCodeAt(0));
+  // Uint8Array.from(string, callback) iterates/allocates per character. A
+  // single indexed copy keeps this hot read path below the Free CPU budget.
+  const decoded = atob(encoded.data);
+  const bytes = new Uint8Array(decoded.length);
+  for (let i = 0; i < decoded.length; i++) bytes[i] = decoded.charCodeAt(i);
+  return bytes;
 }
 
 /** Compatibility reads only: current Vercel clients inflate outside the Worker. */

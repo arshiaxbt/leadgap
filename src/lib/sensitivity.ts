@@ -174,10 +174,10 @@ export function thresholdTerms(
   const unit = match[4] ? (SCALE[match[4].toLowerCase()] ?? 1) : 1;
   let strike = raw * unit;
   if (PER_THOUSAND.has(symbol)) strike *= 1000;
-  if (!(strike > 0) || !(mark && mark > 0)) return null;
+  if (!(strike > 0) || !(mark && mark > 0)) return negative ? "ambiguous" : null;
   const ratio = strike / mark;
   // A strike far from the mark is some other quantity (market cap, index points of another asset…).
-  if (ratio <= 0.25 || ratio >= 4) return null;
+  if (ratio <= 0.25 || ratio >= 4) return negative ? "ambiguous" : null;
   const down = /^[<≤]$/.test(verb) || new RegExp(`^(?:${DOWN})$`, "i").test(verb);
   const lowMarker = /\((?:low)\)/i.test(q);
   const highMarker = /\((?:high)\)/i.test(q);
@@ -193,7 +193,7 @@ export function thresholdTerms(
 
 const HAVENS = new Set(["GOLD-USD", "SILVER-USD"]);
 const MACRO_DATA = /\b(cpi|inflation|unemployment|jobless|payrolls?|nfp|gdp|pce|ppi|retail sales)\b/i;
-const NEGATION = /\b(no|not|avoid|avert|without|never|won't|doesn't|isn't)\b/i;
+const NEGATION = /\b(no|not|avoid|avert|without|never|won't|doesn't|isn't|can't|cannot|couldn't|wouldn't|shouldn't|didn't|hasn't|haven't|aren't|wasn't|weren't|neither|nor|except)\b/i;
 const HOLD = /\b(no change|pause|hold|unchanged|skip)\b/i;
 // Plural "reserves" only: "Federal Reserve" and "Bitcoin Reserve" questions stay signable.
 const QUANTITY = /\b(reserves|inventor(?:y|ies)|stockpiles?)\b/i;

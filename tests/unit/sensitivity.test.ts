@@ -457,7 +457,14 @@ test("ambiguous price conditions cannot fall through to a named or cluster model
     "Will Bitcoin reach $100,000 if Ethereum rallies?",
     "Will Bitcoin avoid reaching $100,000?",
     "Will Bitcoin not touch $100,000?",
+    "Bitcoin cannot reach $100,000?",
+    "Bitcoin couldn’t reach $100,000?",
     "Will Bitcoin hit (HIGH) $100,000 (LOW)?",
   ]) for (const mappingKind of ["named", "cluster"] as const)
     assert.deepEqual(linkModel({ question, symbol: "BTC-USD", baseBeta: 1, mappingKind, mark: 90000, endsAt: now + 90 * DAY, now }), { kind: "drop" }, question);
+});
+
+test("a negative threshold with no usable mark cannot become an affirmative linear model", () => {
+  for (const mark of [undefined, 0, 100])
+    assert.deepEqual(linkModel({ question: "Will Bitcoin not reach $100,000 by December 31?", symbol: "BTC-USD", baseBeta: 1, mappingKind: "named", mark, endsAt: now + 90 * DAY, now }), { kind: "drop" });
 });

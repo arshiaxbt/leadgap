@@ -23,7 +23,12 @@ import {
   type HistoryBatch,
   type ResearchSnapshot,
 } from "../../src/lib/research";
-import type { ResolvedEvent, Snapshot, PerpsTicker } from "../../src/lib/types";
+import type {
+  GapRow,
+  PerpsTicker,
+  ResolvedEvent,
+  Snapshot,
+} from "../../src/lib/types";
 import { writeMeta, type Env } from "./db";
 import { evaluateRules } from "./rules";
 type Catalog = {
@@ -287,7 +292,7 @@ export async function collect(env: Env, now = Date.now()) {
             window,
             now,
           }),
-        ),
+        ).map(compactRow),
       ]),
     ) as ResearchSnapshot["windows"];
     const firstAt = earliest.results[0]?.t;
@@ -312,6 +317,8 @@ export async function collect(env: Env, now = Date.now()) {
         cadenceMs: 60_000,
       },
     };
+    // Keep every gateway request small: skip the unchanged mapping archive
+    // row and write the published snapshot last, after what it depends on.
     const writes = await db.batch([
       db
         .prepare(
@@ -322,30 +329,29 @@ export async function collect(env: Env, now = Date.now()) {
           modelVersion,
           JSON.stringify(batch),
         ),
-      db
-        .prepare(
-          "INSERT OR IGNORE INTO mappings(id,created,payload) VALUES(?,?,?)",
-        )
-        .bind(
-          modelVersion,
-          now,
-          JSON.stringify({
-            mappingRevision: MAP_REVISION,
-            scoreVersion: SCORE_MODEL_VERSION,
-            events: events.map((e) => ({
-              id: e.id,
-              title: e.title,
-              volume: e.volume,
-              yesTokenId: e.yesTokenId,
-              perps: e.perps,
-            })),
-          }),
-        ),
-      db
-        .prepare(
-          "INSERT INTO meta(key,value) VALUES('latest',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
-        )
-        .bind(JSON.stringify(snapshot)),
+      ...(modelVersion !== previous?.modelVersion
+        ? [
+            db
+              .prepare(
+                "INSERT OR IGNORE INTO mappings(id,created,payload) VALUES(?,?,?)",
+              )
+              .bind(
+                modelVersion,
+                now,
+                JSON.stringify({
+                  mappingRevision: MAP_REVISION,
+                  scoreVersion: SCORE_MODEL_VERSION,
+                  events: events.map((e) => ({
+                    id: e.id,
+                    title: e.title,
+                    volume: e.volume,
+                    yesTokenId: e.yesTokenId,
+                    perps: e.perps,
+                  })),
+                }),
+              ),
+          ]
+        : []),
       db
         .prepare(
           "INSERT INTO meta(key,value) VALUES('catalog',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
@@ -360,6 +366,11 @@ export async function collect(env: Env, now = Date.now()) {
               .bind(JSON.stringify(now)),
           ]
         : []),
+      db
+        .prepare(
+          "INSERT INTO meta(key,value) VALUES('latest',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+        )
+        .bind(JSON.stringify(snapshot)),
     ]);
     await evaluateRules(env, snapshot, now);
     if (Math.floor(now / 60_000) % 60 === 0) await prune(env, now);
@@ -419,4 +430,22 @@ export async function prune(env: Env, now: number) {
       new Date(now - 30 * 86400_000).toISOString().slice(0, 10),
     ),
   ]);
+}
+
+/** Six significant digits keeps every published value while trimming the stored payload. */
+function sig(value: number): number {
+  return Number.isFinite(value) ? Number(value.toPrecision(6)) : value;
+}
+
+export function compactRow(row: GapRow): GapRow {
+  return {
+    ...row,
+    oddsMove: sig(row.oddsMove),
+    perpMove: sig(row.perpMove),
+    signedBeta: sig(row.signedBeta),
+    gap: sig(row.gap),
+    expected: sig(row.expected),
+    actual: sig(row.actual),
+    catchup: row.catchup == null ? null : sig(row.catchup),
+  };
 }

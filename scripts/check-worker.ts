@@ -121,6 +121,15 @@ async function main() {
         `${method} ${path} must reject the read key`,
       );
     assert.equal((await storage("read-secret", "SELECT 1")).status, 401);
+    // Bodies between the old 512 KB cap and 1.5 MB reach the handler; larger ones do not.
+    const sized = (bytes: number) =>
+      mf!.dispatchFetch("http://worker/internal/database", {
+        method: "POST",
+        headers: { authorization: "Bearer collector-secret" },
+        body: "x".repeat(bytes),
+      });
+    assert.equal((await sized(700_000)).status, 400);
+    assert.equal((await sized(1_700_000)).status, 413);
     assert.equal(
       (
         await mf.dispatchFetch("http://worker/health", {

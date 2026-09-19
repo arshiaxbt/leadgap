@@ -109,10 +109,15 @@ export type Threshold = {
 const UP = "above|over|higher than|greater than|at least|exceed(?:s|ing)?|reach(?:es)?|hit(?:s)?|tops?|surpass(?:es)?|break(?:s)? above|climb(?:s)? to|rise(?:s)? to";
 const DOWN = "below|under|lower than|less than|dip(?:s)? (?:to|below)|fall(?:s)? (?:to|below)|drop(?:s)? (?:to|below)|crash(?:es)? (?:to|below)|sink(?:s)? (?:to|below)|plunge(?:s)? (?:to|below)";
 const PRICE = String.raw`\$?\s?(\d[\d,]*(?:\.\d+)?)\s*(k|m|b|bn|thousand|million|billion)?\b`;
-const THRESHOLD = new RegExp(`\\b(${UP}|${DOWN})\\s+(?:of\\s+|the\\s+)?${PRICE}`, "i");
+// A word ("above", "hit", "dip to") or a comparison sign ("close at <$6,000"),
+// optionally followed by Polymarket's "(HIGH)"/"(LOW)" tag, then the strike.
+const THRESHOLD = new RegExp(
+  `(?:\\b(${UP}|${DOWN})\\s+|([<>≤≥])=?\\s*)(?:\\((?:high|low)\\)\\s+)?(?:of\\s+|the\\s+)?${PRICE}`,
+  "i",
+);
 const TOUCH_VERB = /^(reach|hit|top|surpass|break|climb|rise|dip|fall|drop|crash|sink|plunge)/i;
 const BY_PERIOD = /\b(by|before|in (?:20\d\d|january|february|march|april|may|june|july|august|september|october|november|december)|during|this (?:week|month|quarter|year)|any ?time|at any (?:time|point)|ever)\b/i;
-const NOT_PRICE = /\b(market cap|mcap|fdv|valuation|revenue|earnings|eps|deliver(?:y|ies)|inflows?|outflows?|volume|tvl|supply|holders?|subscribers?|users?|price target|dominance|funding rate|hashrate|etf)\b/i;
+const NOT_PRICE = /\b(market cap|mcap|fdv|valuation|revenue|earnings|eps|deliver(?:y|ies)|inflows?|outflows?|volume|tvl|supply|holders?|subscribers?|users?|price target|dominance|funding rate|hashrate|etf|reserves|inventor(?:y|ies)|stockpiles?|buybacks?)\b/i;
 const RANGE = new RegExp(`\\bbetween\\s+${PRICE}\\s+and\\s+${PRICE}|\\$?\\d[\\d,.]*\\s*[kmb]?\\s*[-–]\\s*\\$?\\d[\\d,.]*\\s*[kmb]?\\b`, "i");
 
 const SCALE: Record<string, number> = {
@@ -148,16 +153,16 @@ export function thresholdTerms(
   const match = THRESHOLD.exec(q);
   if (!match) return RANGE.test(q) && /\$|\bprice\b/i.test(q) ? "range" : null;
   if (/\bbetween\b/i.test(q)) return "range";
-  const verb = match[1]!.toLowerCase();
-  const raw = Number(match[2]!.replace(/,/g, ""));
-  const unit = match[3] ? (SCALE[match[3].toLowerCase()] ?? 1) : 1;
+  const verb = (match[1] ?? match[2]!).toLowerCase();
+  const raw = Number(match[3]!.replace(/,/g, ""));
+  const unit = match[4] ? (SCALE[match[4].toLowerCase()] ?? 1) : 1;
   let strike = raw * unit;
   if (PER_THOUSAND.has(symbol)) strike *= 1000;
   if (!(strike > 0) || !(mark && mark > 0)) return null;
   const ratio = strike / mark;
   // A strike far from the mark is some other quantity (market cap, index points of another asset…).
   if (ratio <= 0.25 || ratio >= 4) return null;
-  const down = new RegExp(`^(?:${DOWN})$`, "i").test(verb);
+  const down = /^[<≤]$/.test(verb) || new RegExp(`^(?:${DOWN})$`, "i").test(verb);
   const lowMarker = /\((?:low)\)/i.test(q);
   const highMarker = /\((?:high)\)/i.test(q);
   const direction: 1 | -1 = lowMarker ? -1 : highMarker ? 1 : down ? -1 : 1;
@@ -173,6 +178,8 @@ const HAVENS = new Set(["GOLD-USD", "SILVER-USD"]);
 const MACRO_DATA = /\b(cpi|inflation|unemployment|jobless|payrolls?|nfp|gdp|pce|ppi|retail sales)\b/i;
 const NEGATION = /\b(no|not|avoid|avert|without|never|won't|doesn't|isn't)\b/i;
 const HOLD = /\b(no change|pause|hold|unchanged|skip)\b/i;
+// Plural "reserves" only: "Federal Reserve" and "Bitcoin Reserve" questions stay signable.
+const QUANTITY = /\b(reserves|inventor(?:y|ies)|stockpiles?)\b/i;
 const HIKE = /\b(hike|hikes|raise rates|rate increase)\b/i;
 const DOWNTURN = /\b(recession|crash|collapse|default|bankrupt(?:cy)?|downturn|bear market|depression)\b/i;
 const IDIOSYNCRATIC = /\b(margin call(?:ed)?|delist(?:ed|ing)?|charged|indicted|arrested|banned|ban|sued|hacked|exploit(?:ed)?|liquidat(?:ed|ion)|insolven(?:t|cy)|halt(?:ed)?|sell(?:s)? (?:its |their )?(?:bitcoin|btc)|lower (?:guidance|forecast))\b/i;
@@ -193,7 +200,8 @@ export function eventDirection(question: string, symbol: string): 1 | -1 | null 
     if (nameStrength(before, symbol) > 0) return 1;
   }
   if (NEGATION.test(q) || HOLD.test(q)) return null;
-  if (MACRO_DATA.test(q)) return null;
+  // Data prints and quantities (inventories, reserves): "fall" is not the perp's price falling.
+  if (MACRO_DATA.test(q) || QUANTITY.test(q)) return null;
   if (IDIOSYNCRATIC.test(q)) return -1;
   if (HIKE.test(q)) return -1;
   if (DOWNTURN.test(q)) return HAVENS.has(symbol) ? 1 : -1;

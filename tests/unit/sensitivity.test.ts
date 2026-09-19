@@ -64,6 +64,30 @@ test("threshold questions are recognised with strike, kind and direction", () =>
 });
 
 test("non-price thresholds and far strikes are not priced as options", () => {
+  // Polymarket's "(HIGH)"/"(LOW)" tag can sit between the verb and the strike.
+  assert.deepEqual(thresholdTerms("Will WTI Crude Oil (WTI) hit (HIGH) $110 in September?", 95.36, "WTIOIL-USD"), {
+    kind: "touch",
+    direction: 1,
+    strike: 110,
+  });
+  assert.deepEqual(thresholdTerms("Will Gold (XAUUSD) hit (LOW) $4,000 in September?", 4_376.8, "GOLD-USD"), {
+    kind: "touch",
+    direction: -1,
+    strike: 4_000,
+  });
+  // Comparison signs: "<" reads as below, ">" as above.
+  assert.deepEqual(thresholdTerms("Will S&P 500 (SPX) close at <$6,000 in December?", 7_654.6, "SP500-USD"), {
+    kind: "touch",
+    direction: -1,
+    strike: 6_000,
+  });
+  assert.deepEqual(thresholdTerms("Will Bitcoin close at >$90,000 on September 30?", 82_000, "BTC-USD"), {
+    kind: "digital",
+    direction: 1,
+    strike: 90_000,
+  });
+  // Quantities are not the perp's price.
+  assert.equal(thresholdTerms("Will US crude oil reserves fall to 280M by September 25, 2026?", 95.36, "WTIOIL-USD"), null);
   assert.equal(thresholdTerms("Will Nvidia's market cap be above $5T by December?", 180, "NVDA-USD"), null);
   assert.equal(thresholdTerms("Will Tesla deliveries be above 400k in Q3?", 250, "TSLA-USD"), null);
   // WTI strike mapped to GOLD through the oil cluster: not GOLD's price.
@@ -181,6 +205,10 @@ test("question wording signs the relationship or declines to guess", () => {
   assert.equal(eventDirection("Will there be no change in Fed rates in September?", "SP500-USD"), null);
   assert.equal(eventDirection("Will the US avoid a recession in 2026?", "SP500-USD"), null);
   assert.equal(eventDirection("Will CPI be above 3% in August?", "SP500-USD"), null);
+  // "Fall" in a quantity question is not the perp's price falling; the Fed is still signable.
+  assert.equal(eventDirection("Will US crude oil reserves fall to 280M by September 25, 2026?", "WTIOIL-USD"), null);
+  assert.equal(eventDirection("Will the Federal Reserve cut rates in October?", "SP500-USD"), 1);
+  assert.equal(eventDirection("Will the US create a Strategic Bitcoin Reserve?", "BTC-USD"), 1);
   // Word boundaries: "bank" is not "ban".
   assert.equal(eventDirection("Will the bank of Japan cut rates?", "SP500-USD"), 1);
   const cluster = linkModel({

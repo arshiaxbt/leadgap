@@ -23,6 +23,7 @@ import { isActionable } from "./score";
 import {
   bestMarket,
   fetchOddsHistory,
+  parseEndsAt,
   fetchYesMid,
   parseTokenIds,
   parseYesPrice,
@@ -235,11 +236,13 @@ async function resolveEvents(): Promise<ResolvedEvent[]> {
           yesPrice,
           liquidityScore: Math.min(1, Math.log10(Math.max(volume, 10)) / 6),
           perps: [],
+          endsAt: parseEndsAt(market, raw),
         };
         byId.set(event.id, event);
       } else {
         event.yesPrice = yesPrice;
         event.volume = Math.max(event.volume, volume);
+        event.endsAt ??= parseEndsAt(market, raw);
       }
 
       const hay = `${event.title} ${event.question}`;
@@ -507,6 +510,7 @@ export async function getGaps(window: GapWindow): Promise<{
       oddsHistory: s.oddsHistory,
       markHistory: s.markHistory,
       window,
+      events: s.events,
       now,
     }),
     asOf: s.lastIngest,
@@ -581,6 +585,7 @@ export async function getEvent(id: string) {
           oddsHistory: s.oddsHistory,
           markHistory: s.markHistory,
           window,
+          events: s.events,
           now,
           points: 24,
         }),
@@ -645,6 +650,7 @@ export async function getAsset(symbol: string) {
           oddsHistory: s.oddsHistory,
           markHistory: s.markHistory,
           window,
+          events,
           now,
           points: 48,
         },

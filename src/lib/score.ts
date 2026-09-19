@@ -1,5 +1,5 @@
 /** Increment when scoring coefficients or formula change. */
-export const SCORE_MODEL_VERSION = "heuristic-v1";
+export const SCORE_MODEL_VERSION = "heuristic-v2";
 import type { GapRow } from "./types";
 
 export type Bias = "long" | "short" | "none";
@@ -16,7 +16,10 @@ export type LeadgapMetrics = {
 
 /** The multiplicative factors behind a score, each in 0–1. */
 export type ScoreFactors = {
-  /** |gap| relative to a 4% residual, capped at 1. */
+  /**
+   * |gap| relative to a 4% residual, capped at 1. Threshold-market rows
+   * instead measure the gap against two of the perp's typical window moves.
+   */
   magnitude: number;
   /** 1 when odds led, 0.42 when in line, 0.12 when the perp led. */
   lead: number;
@@ -30,27 +33,40 @@ export type ScoreFactors = {
   sanity: number;
 };
 
-export function scoreFactors(args: {
+export type ScoreInputs = {
   oddsMove: number;
   perpMove: number;
   signedBeta: number;
   confidence: number;
   volume: number;
-}): ScoreFactors & {
+  /** The implied perp move when it is not simply oddsMove × signedBeta. */
+  expected?: number;
+  /** Threshold rows: the perp's typical move over the window (see sensitivity.gapScale). */
+  scale?: number;
+};
+
+/** Gaps smaller than this are noise: 0.2% for mapped rows, 5% of the window's typical move for threshold rows. */
+export function biasCutoff(scale?: number): number {
+  return scale ? 0.05 * scale : 0.002;
+}
+
+export function scoreFactors(args: ScoreInputs): ScoreFactors & {
   expected: number;
   actual: number;
   gap: number;
   leader: GapRow["leader"];
 } {
-  const expected = args.oddsMove * args.signedBeta;
+  const expected = args.expected ?? args.oddsMove * args.signedBeta;
   const actual = args.perpMove;
   const gap = expected - actual;
   const oddsAbs = Math.abs(args.oddsMove);
   const perpAbs = Math.abs(actual);
+  // Compare like with like: the move the odds imply against the move the perp made.
+  const impliedAbs = Math.abs(expected);
   const leader: GapRow["leader"] =
-    oddsAbs > perpAbs * 1.25
+    impliedAbs > perpAbs * 1.25
       ? "odds"
-      : perpAbs > oddsAbs * 1.25
+      : perpAbs > impliedAbs * 1.25
         ? "perp"
         : "flat";
   return {
@@ -58,7 +74,10 @@ export function scoreFactors(args: {
     actual,
     gap,
     leader,
-    magnitude: Math.min(1, Math.abs(gap) / 0.04),
+    magnitude: Math.min(
+      1,
+      Math.abs(gap) / (args.scale ? 2 * args.scale : 0.04),
+    ),
     lead: leader === "odds" ? 1 : leader === "flat" ? 0.42 : 0.12,
     confidence: args.confidence,
     liquidity: Math.min(1, Math.log10(Math.max(args.volume, 10)) / 6),
@@ -78,13 +97,7 @@ export function scoreFactors(args: {
  * scaled by odds-first leadership, mapping confidence, and event liquidity.
  * Perp-first prints are down-weighted — that is not this product's edge.
  */
-export function leadgapMetrics(args: {
-  oddsMove: number;
-  perpMove: number;
-  signedBeta: number;
-  confidence: number;
-  volume: number;
-}): LeadgapMetrics {
+export function leadgapMetrics(args: ScoreInputs): LeadgapMetrics {
   const f = scoreFactors(args);
   const { expected, actual, gap, leader } = f;
   const score = Math.round(
@@ -104,7 +117,7 @@ export function leadgapMetrics(args: {
   );
 
   const bias: Bias =
-    leader !== "odds" || Math.abs(gap) < 0.002 || score < 12
+    leader !== "odds" || Math.abs(gap) < biasCutoff(args.scale) || score < 12
       ? "none"
       : gap > 0
         ? "long"
@@ -118,20 +131,17 @@ export function leadgapMetrics(args: {
 export type ScorePart = { label: string; points: number };
 
 /** Split the published score into additive parts from the same factors. Does not change the score. */
-export function scoreBreakdown(args: {
-  oddsMove: number;
-  perpMove: number;
-  signedBeta: number;
-  confidence: number;
-  volume: number;
-  score: number;
-  leader: GapRow["leader"];
-}): ScorePart[] {
-  const expected = args.oddsMove * args.signedBeta;
+export function scoreBreakdown(
+  args: ScoreInputs & { score: number; leader: GapRow["leader"] },
+): ScorePart[] {
+  const expected = args.expected ?? args.oddsMove * args.signedBeta;
   const gap = expected - args.perpMove;
   const oddsAbs = Math.abs(args.oddsMove);
   const liquidity = Math.min(1, Math.log10(Math.max(args.volume, 10)) / 6);
-  const magnitude = Math.min(1, Math.abs(gap) / 0.04);
+  const magnitude = Math.min(
+    1,
+    Math.abs(gap) / (args.scale ? 2 * args.scale : 0.04),
+  );
   const leadWeight =
     args.leader === "odds" ? 1 : args.leader === "flat" ? 0.42 : 0.12;
   const moveWeight = oddsAbs >= 0.008 ? 1 : oddsAbs >= 0.003 ? 0.65 : 0.3;

@@ -5,13 +5,14 @@ import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { FeedStamp } from "@/components/signal/FeedStamp";
 import { WorkspaceHeading } from "@/components/WorkspaceHeading";
-import { GAP_WINDOWS } from "@/lib/divergence";
+import { GAP_WINDOWS, WINDOW_MS } from "@/lib/divergence";
 import {
   SCORE_MODEL_VERSION,
   isActionable,
   scoreFactors,
   type ScoreFactors,
 } from "@/lib/score";
+import { rowScale } from "@/lib/sensitivity";
 import type { GapWindow } from "@/lib/types";
 import { feedError, gapsQuery } from "@/lib/useGapsFeed";
 import { useHydrated } from "@/lib/useHydrated";
@@ -21,12 +22,12 @@ const FACTORS: { key: keyof ScoreFactors; label: string; rule: string }[] = [
   {
     key: "magnitude",
     label: "Perp lag (residual magnitude)",
-    rule: "Remaining gap as a share of 4%, capped at 1.",
+    rule: "Threshold markets: the gap against two of the perp’s typical moves over the window. Other links: the gap as a share of 4%. Capped at 1.",
   },
   {
     key: "lead",
     label: "Odds-first leadership",
-    rule: "1 when odds moved more, 0.42 in line, 0.12 when the perp led.",
+    rule: "1 when the odds-implied move beats the perp’s by 25%, 0.42 in line, 0.12 when the perp led.",
   },
   {
     key: "confidence",
@@ -82,7 +83,9 @@ export function ModelView() {
         .map((r) => Math.max(0, r.catchup!)),
     );
     const factors = FACTORS.map((f) => {
-      const values = rows.map((r) => scoreFactors(r)[f.key]);
+      const values = rows.map(
+        (r) => scoreFactors({ ...r, scale: rowScale(r, WINDOW_MS) })[f.key],
+      );
       return {
         ...f,
         avg: values.length ? values.reduce((a, b) => a + b, 0) / values.length : null,
@@ -203,6 +206,33 @@ export function ModelView() {
             </p>
           </section>
         </div>
+
+        <section className="mt-6 grid gap-4 border-t border-line pt-5 md:grid-cols-[220px_minmax(0,1fr)] md:gap-8">
+          <h2 className="text-[15px] font-medium">How odds become a move</h2>
+          <div className="flex flex-col gap-2.5 text-[13px] leading-[1.6] text-subtle">
+            <p>
+              <span className="text-text">Price-threshold markets</span> —
+              “above $X on a date”, “reach $X by a date” — are options on the
+              perp itself. With the strike fixed, a change in Yes probability
+              maps to the price move that would explain it, given time to
+              expiry and an assumed volatility (for a digital,{" "}
+              <span className="num">ln S = ln K + σ√τ·Φ⁻¹(p)</span>). Odds that
+              drift as expiry nears are not read as price moves.
+            </p>
+            <p>
+              <span className="text-text">Other events</span> keep the
+              mapping’s heuristic sensitivity, with its sign flipped when the
+              question is bad news for the perp (recessions, delistings, “dip
+              to”). Ambiguous wording — negations, macro data prints — is left
+              out rather than guessed.
+            </p>
+            <p className="text-[12px] text-dim">
+              Model v2 (September 2026). Threshold signals now score far lower
+              than under v1, which read a 6-point odds move as a 6% price move;
+              alert rules saved on those markets may stop firing.
+            </p>
+          </div>
+        </section>
 
         <section className="mt-6 grid gap-4 border-t border-line pt-5 md:grid-cols-[220px_minmax(0,1fr)] md:gap-8">
           <h2 className="text-[15px] font-medium">Known limitations</h2>

@@ -42,7 +42,11 @@ type EventPayload = {
   asOf: number;
 };
 
-function shortReason(link: LinkedPerp): string {
+function shortReason(link: LinkedPerp, row?: GapRow): string {
+  if (row?.betaSource === "threshold")
+    return `Priced from the strike and expiry · sensitivity ${row.signedBeta >= 0 ? "+" : ""}${row.signedBeta.toFixed(2)} per unit of Yes.`;
+  if (row?.betaSource === "direction")
+    return `Signed beta ${row.signedBeta.toFixed(2)} · the question is bearish for ${perpName(link.symbol)}.`;
   const beta = `Signed beta ${link.signedBeta >= 0 ? "+" : ""}${link.signedBeta.toFixed(2)}`;
   return link.mappingKind === "named"
     ? `${beta} · the event names ${perpName(link.symbol)} directly.`
@@ -191,7 +195,7 @@ export function EventView({ eventId }: { eventId: string }) {
                   ) : null}
                 </div>
                 <p className="mt-2 text-[12px] leading-[1.5] text-subtle">
-                  {shortReason(link)}
+                  {shortReason(link, row)}
                 </p>
                 {row ? (
                   <RowTrace

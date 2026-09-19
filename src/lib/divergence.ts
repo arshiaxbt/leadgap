@@ -1,5 +1,13 @@
 import { CONFIDENCE_FLOOR, isClearMapping, mappingKindOf } from "./mapping";
 import { leadgapMetrics } from "./score";
+import {
+  betaSourceOf,
+  gapScale,
+  impliedMove,
+  linkModel,
+  localBeta,
+  modelForRow,
+} from "./sensitivity";
 import type {
   GapRow,
   GapWindow,
@@ -93,14 +101,33 @@ export function computeGaps(args: {
         valueAt(args.markHistory[link.symbol], age, now),
         ticker.markPrice,
       );
-      if (oddsMove == null || perpMove == null) continue;
+      if (oddsMove == null || oddsThen == null || perpMove == null) continue;
 
+      const model = linkModel({
+        question: event.question || event.title,
+        symbol: link.symbol,
+        baseBeta: link.signedBeta,
+        mappingKind: mappingKindOf(link),
+        mark: ticker.markPrice,
+        endsAt: event.endsAt,
+        now,
+      });
+      if (model.kind === "drop") continue;
+      const expected = impliedMove(model, oddsThen, oddsNow, now - age, now);
+      // Keep row.oddsMove × row.signedBeta ≈ row.expected for every consumer.
+      const signedBeta =
+        Math.abs(oddsMove) >= 0.002
+          ? expected / oddsMove
+          : localBeta(model, oddsNow, now);
       const metrics = leadgapMetrics({
         oddsMove,
         perpMove,
-        signedBeta: link.signedBeta,
+        signedBeta,
         confidence: link.confidence,
         volume: event.volume,
+        expected,
+        scale:
+          model.kind === "threshold" ? gapScale(link.symbol, age) : undefined,
       });
 
       rows.push({
@@ -112,7 +139,8 @@ export function computeGaps(args: {
         window: args.window,
         oddsMove,
         perpMove,
-        signedBeta: link.signedBeta,
+        signedBeta,
+        betaSource: betaSourceOf(model),
         gap: metrics.gap,
         score: metrics.score,
         confidence: link.confidence,
@@ -180,13 +208,25 @@ export function uniqueGapRows(rows: GapRow[]): GapRow[] {
   );
 }
 
+/** Implied perp return between two odds observations taken at two times. */
+export type ImpliedFn = (
+  pThen: number,
+  pNow: number,
+  tThen: number,
+  tNow: number,
+) => number;
+
 export function residualPath(args: {
   odds: Snapshot[];
   marks: Snapshot[];
   signedBeta: number;
+  /** Overrides the linear odds × beta model, e.g. for threshold markets. */
+  implied?: ImpliedFn;
   windowMs?: number;
   now?: number;
 }): ResidualPoint[] {
+  const implied: ImpliedFn =
+    args.implied ?? ((pThen, pNow) => (pNow - pThen) * args.signedBeta);
   const now = args.now ?? Date.now();
   const windowMs = args.windowMs ?? WINDOW_MS["15m"];
   const odds = args.odds.filter((p) => now - p.t <= 3 * 60 * 60_000);
@@ -205,7 +245,7 @@ export function residualPath(args: {
       markThen === 0
     )
       continue;
-    const expected = (o.v - oddsThen) * args.signedBeta;
+    const expected = implied(oddsThen, o.v, o.t - windowMs, o.t);
     const actual = (markNow - markThen) / markThen;
     out.push({ t: o.t, expected, actual, gap: expected - actual });
   }
@@ -215,7 +255,7 @@ export function residualPath(args: {
     const markNow = valueAt(args.marks, 0, last.t);
     const markThen = valueAt(args.marks, windowMs, last.t);
     if (oddsThen != null && markNow != null && markThen && markThen !== 0) {
-      const expected = (last.v - oddsThen) * args.signedBeta;
+      const expected = implied(oddsThen, last.v, last.t - windowMs, last.t);
       const actual = (markNow - markThen) / markThen;
       out.push({ t: last.t, expected, actual, gap: expected - actual });
     }
@@ -261,6 +301,7 @@ export function gapTrace(args: {
   odds: Snapshot[] | undefined;
   marks: Snapshot[] | undefined;
   signedBeta: number;
+  implied?: ImpliedFn;
   windowMs: number;
   expected: number;
   actual: number;
@@ -292,7 +333,13 @@ export function gapTrace(args: {
     const t = start + (i / (n - 1)) * args.windowMs;
     const o = valueAtOrBefore(odds, t) ?? oddsStart;
     const m = valueAtOrBefore(marks, t) ?? markStart;
-    implied.push(round((o - oddsStart) * args.signedBeta));
+    implied.push(
+      round(
+        args.implied
+          ? args.implied(oddsStart, o, start, t)
+          : (o - oddsStart) * args.signedBeta,
+      ),
+    );
     observed.push(round(m / markStart - 1));
   }
   return { implied, observed };
@@ -305,15 +352,27 @@ export function withTraces<T extends GapRow>(
     oddsHistory: Record<string, Snapshot[]>;
     markHistory: Record<string, Snapshot[]>;
     window: GapWindow;
+    /** Events the rows came from, so threshold rows trace with their own model. */
+    events?: ResolvedEvent[];
     now?: number;
     points?: number;
   },
 ): (T & { trace?: GapTrace })[] {
+  const byId = new Map((args.events ?? []).map((e) => [e.id, e]));
   return rows.map((row) => {
+    const model =
+      row.betaSource === "threshold"
+        ? modelForRow(row, byId.get(row.eventId))
+        : null;
     const trace = gapTrace({
       odds: args.oddsHistory[row.eventId],
       marks: args.markHistory[row.symbol],
       signedBeta: row.signedBeta,
+      implied:
+        model?.kind === "threshold"
+          ? (pThen, pNow, tThen, tNow) =>
+              impliedMove(model, pThen, pNow, tThen, tNow)
+          : undefined,
       windowMs: WINDOW_MS[args.window],
       expected: row.expected ?? row.oddsMove * row.signedBeta,
       actual: row.actual ?? row.perpMove,

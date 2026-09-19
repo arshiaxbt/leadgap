@@ -4,6 +4,7 @@ export type GammaSearchEvent = {
   title: string;
   closed?: boolean;
   active?: boolean;
+  endDate?: string;
   markets?: GammaMarket[];
 };
 
@@ -11,6 +12,7 @@ export type GammaMarket = {
   question?: string;
   closed?: boolean;
   active?: boolean;
+  endDate?: string;
   volume?: string | number;
   liquidity?: string | number;
   clobTokenIds?: string | string[];
@@ -187,4 +189,17 @@ export async function fetchOddsHistory(
     .filter(
       (row) => Number.isFinite(row.t) && Number.isFinite(row.v) && row.v > 0,
     );
+}
+
+/** Resolution time of a market, falling back to its event's end date. */
+export function parseEndsAt(
+  market: Pick<GammaMarket, "endDate"> | null | undefined,
+  event?: Pick<GammaSearchEvent, "endDate"> | null,
+): number | null {
+  for (const raw of [market?.endDate, event?.endDate]) {
+    if (!raw) continue;
+    const t = Date.parse(raw);
+    if (Number.isFinite(t)) return t;
+  }
+  return null;
 }

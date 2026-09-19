@@ -77,6 +77,8 @@ export type ResolvedEvent = {
   yesPrice: number;
   liquidityScore: number;
   perps: LinkedPerp[];
+  /** When the selected market resolves (ms). Needed to price threshold markets. */
+  endsAt?: number | null;
 };
 
 export type GapWindow = "1m" | "5m" | "15m" | "30m" | "1h" | "4h" | "12h" | "1d";
@@ -106,6 +108,12 @@ export type GapRow = {
   volume: number;
   /** Optional cumulative implied/observed path across the window, for display. */
   trace?: { implied: number[]; observed: number[] };
+  /**
+   * Where the sensitivity came from: a price-threshold market priced from its
+   * strike and expiry, a mapping beta with its sign corrected for bearish
+   * wording, or the mapping beta as is. Missing on rows scored before v2.
+   */
+  betaSource?: "threshold" | "direction" | "mapping";
 };
 
 export type GapTapePoint = {

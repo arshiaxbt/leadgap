@@ -25,6 +25,12 @@ import {
 import { deskHref, eventHref } from "@/lib/links";
 import { isActionable, scoreBreakdown } from "@/lib/score";
 import {
+  betaExplanation,
+  impliedMove,
+  modelForRow,
+  rowScale,
+} from "@/lib/sensitivity";
+import {
   leaderLabel,
   mappingExplanation,
   mappingLabel,
@@ -208,8 +214,19 @@ export function SignalDetail({
                     )
                   : "No mapping on record for this perp."}
               </p>
+              {row && betaExplanation(row, event.endsAt, data.asOf) ? (
+                <p className="mt-2 text-[12px] leading-[1.6] text-dim">
+                  {betaExplanation(row, event.endsAt, data.asOf)}
+                </p>
+              ) : null}
               <dl className="mt-3.5">
-                <Line label="Signed beta" value={link ? `${link.signedBeta >= 0 ? "+" : ""}${link.signedBeta.toFixed(2)}` : "—"} />
+                <Line
+                  label={row?.betaSource === "threshold" ? "Sensitivity (now)" : "Signed beta"}
+                  value={(() => {
+                    const beta = row?.signedBeta ?? link?.signedBeta;
+                    return beta == null ? "—" : `${beta >= 0 ? "+" : ""}${beta.toFixed(2)}`;
+                  })()}
+                />
                 <Line label="Mapping confidence" value={link ? `${Math.round(link.confidence * 100)}%` : "—"} />
                 <Line label="Event volume" value={`$${fmtCompact(event.volume)}`} />
               </dl>
@@ -231,6 +248,13 @@ export function SignalDetail({
               eventId={eventId}
               symbol={symbol}
               signedBeta={row?.signedBeta ?? link?.signedBeta ?? 1}
+              mappedBeta={link?.signedBeta ?? 1}
+              implied={(() => {
+                if (!row) return undefined;
+                const model = modelForRow(row, event);
+                return (pThen: number, pNow: number, tThen: number, tNow: number) =>
+                  impliedMove(model, pThen, pNow, tThen, tNow);
+              })()}
               window={window}
               windowMs={WINDOW_MS[window]}
               odds={odds}
@@ -364,8 +388,16 @@ function Narrative({ row, window }: { row: GapRow; window: GapWindow }) {
     <p className="mt-5 max-w-[70ch] text-[15px] leading-[1.6] text-text">
       {lead} Yes repriced{" "}
       <span className="num text-odds">{fmtOddsDelta(row.oddsMove)}</span> over{" "}
-      {WINDOW_PHRASE[window]}; at a signed beta of{" "}
-      <span className="num">{row.signedBeta.toFixed(2)}</span> that implies a{" "}
+      {WINDOW_PHRASE[window]};{" "}
+      {row.betaSource === "threshold" ? (
+        <>given the strike and time to expiry, that implies a </>
+      ) : (
+        <>
+          at a signed beta of{" "}
+          <span className="num">{row.signedBeta.toFixed(2)}</span> that
+          implies a{" "}
+        </>
+      )}
       <span className="num text-odds">{fmtPct(expected)}</span> perp move. The
       mark moved <span className="num text-mark">{fmtPct(actual)}</span>
       {caught != null ? (
@@ -381,7 +413,11 @@ function Narrative({ row, window }: { row: GapRow; window: GapWindow }) {
 }
 
 function Breakdown({ row }: { row: GapRow }) {
-  const parts = scoreBreakdown({ ...row, score: row.score });
+  const parts = scoreBreakdown({
+    ...row,
+    score: row.score,
+    scale: rowScale(row, WINDOW_MS),
+  });
   const max = Math.max(1, ...parts.map((p) => p.points));
   return (
     <ul className="mt-3 flex flex-col gap-[11px]">

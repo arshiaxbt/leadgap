@@ -10,6 +10,7 @@ import { eventTitleKey, residualPath, WINDOW_MS } from "@/lib/divergence";
 import { fmtOdds, fmtOddsDelta, fmtPct, signedClass } from "@/lib/format";
 import { signalHref } from "@/lib/links";
 import { isActionable } from "@/lib/score";
+import { impliedMove, modelForRow } from "@/lib/sensitivity";
 import { NEWS_LINK_HOSTS, safeHttpsUrl } from "@/lib/safe-url";
 import { thesisLine } from "@/lib/signal";
 import type {
@@ -61,12 +62,17 @@ export function EventRail({
   const event = unique.find((e) => e.id === selectedId) ?? unique[0];
   const gap = event ? gaps.find((g) => g.eventId === event.id) : undefined;
   const link = event?.perps.find((p) => p.symbol === symbol) ?? event?.perps[0];
+  const model = gap && event ? modelForRow(gap, event) : null;
   const path =
     event && link
       ? residualPath({
           odds: oddsHistory[event.id] ?? [],
           marks: markHistory,
-          signedBeta: link.signedBeta,
+          signedBeta: gap?.signedBeta ?? link.signedBeta,
+          implied: model
+            ? (pThen, pNow, tThen, tNow) =>
+                impliedMove(model, pThen, pNow, tThen, tNow)
+            : undefined,
           windowMs: WINDOW_MS[window],
         })
       : [];

@@ -1,4 +1,5 @@
 import { dataService } from "@/lib/data-service";
+import type { HistoryBatch } from "@/lib/research";
 export async function GET(req: Request) {
   if (process.env.ENABLE_DURABLE_DATA !== "true")
     return Response.json(
@@ -26,9 +27,22 @@ export async function GET(req: Request) {
     to: String(now),
   });
   try {
-    return Response.json(await dataService(`/history?${query}`), {
-      headers: { "cache-control": "public, max-age=30" },
-    });
+    const data = await dataService<{
+      batches: HistoryBatch[];
+      nextCursor?: number | null;
+    }>(`/history?${query}`);
+    // Each archived batch carries every event's links and volumes; send only this signal's.
+    const batches = data.batches.map((b) => ({
+      ...b,
+      links: b.links?.[eventId]
+        ? { [eventId]: { [symbol]: b.links[eventId][symbol]! } }
+        : {},
+      volumes: undefined,
+    }));
+    return Response.json(
+      { ...data, batches },
+      { headers: { "cache-control": "public, max-age=30" } },
+    );
   } catch {
     return Response.json(
       { error: "History is temporarily unavailable." },

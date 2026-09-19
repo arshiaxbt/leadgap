@@ -28,6 +28,7 @@ import { APP_NAME } from "@/lib/brand";
 import { GAP_WINDOWS, WINDOW_MS, eventTitleKey } from "@/lib/divergence";
 import { readJson } from "@/lib/http";
 import { fmtPct, fmtPx, signedClass } from "@/lib/format";
+import { impliedMove, modelForRow } from "@/lib/sensitivity";
 import { thesisLine } from "@/lib/signal";
 import { trackEvent } from "@/lib/track";
 import type {
@@ -426,6 +427,17 @@ export function TradeDesk({ symbol }: { symbol: string }) {
     ? windowRows.find((g) => g.eventId === event.id)
     : undefined;
   const link = event?.perps.find((p) => p.symbol === instrument.symbol);
+  const chartModel = !event
+    ? null
+    : selectedGap
+      ? modelForRow(selectedGap, event)
+      : link
+        ? ({ kind: "linear", beta: link.signedBeta, source: "mapping" } as const)
+        : null;
+  const impliedForChart = chartModel
+    ? (pThen: number, pNow: number, tThen: number, tNow: number) =>
+        impliedMove(chartModel, pThen, pNow, tThen, tNow)
+    : undefined;
 
   const intelPanel = (
     <EventRail
@@ -452,7 +464,8 @@ export function TradeDesk({ symbol }: { symbol: string }) {
           p.symbol === instrument.symbol && (!event || p.eventId === event.id),
       )}
       decimals={instrument.priceDecimals}
-      signedBeta={event ? (selectedGap?.signedBeta ?? link?.signedBeta) : undefined}
+      implied={impliedForChart}
+      impliedKey={`${event?.id ?? ""}:${selectedGap?.betaSource ?? "mapping"}:${selectedGap?.signedBeta ?? link?.signedBeta ?? ""}:${event?.endsAt ?? ""}`}
       windowMs={WINDOW_MS[deskWindow]}
       windowLabel={deskWindow}
     />

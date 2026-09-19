@@ -2,7 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { Sparkline } from "@/components/signal/ResidualChart";
-import { residualPath } from "@/lib/divergence";
+import { residualPath, type ImpliedFn } from "@/lib/divergence";
 import { readJson } from "@/lib/http";
 import type { HistoryBatch } from "@/lib/research";
 import { SCORE_MODEL_VERSION, residualTrend } from "@/lib/score";
@@ -18,6 +18,8 @@ export function GapHistory({
   eventId,
   symbol,
   signedBeta,
+  mappedBeta,
+  implied,
   window,
   windowMs,
   odds,
@@ -27,7 +29,12 @@ export function GapHistory({
 }: {
   eventId: string;
   symbol: string;
+  /** The row's effective sensitivity (linear fallback). */
   signedBeta: number;
+  /** The mapping's own beta, as archived with each batch. */
+  mappedBeta: number;
+  /** The row's implied-move model; threshold markets are not linear in odds. */
+  implied?: ImpliedFn;
   window: GapWindow;
   windowMs: number;
   odds: Snapshot[];
@@ -60,13 +67,20 @@ export function GapHistory({
     const same = points.filter(
       (b) =>
         b.odds[eventId]![2] === token &&
-        b.links?.[eventId]?.[symbol] === signedBeta,
+        b.links?.[eventId]?.[symbol] === mappedBeta,
     );
     const first = same[0];
+    const move: ImpliedFn =
+      implied ?? ((pThen, pNow) => (pNow - pThen) * signedBeta);
     gaps = first
       ? same.map(
           (b) =>
-            (b.odds[eventId]![1] - first.odds[eventId]![1]) * signedBeta -
+            move(
+              first.odds[eventId]![1],
+              b.odds[eventId]![1],
+              first.odds[eventId]![0],
+              b.odds[eventId]![0],
+            ) -
             (b.marks[symbol]![1] / first.marks[symbol]![1] - 1),
         )
       : [];
@@ -79,6 +93,7 @@ export function GapHistory({
       odds,
       marks,
       signedBeta,
+      implied,
       windowMs,
       now: asOf || undefined,
     }).map((p) => p.gap);

@@ -155,7 +155,8 @@ export function PriceChart({
   oddsLabel = "Yes %",
   gapMarks,
   decimals = 2,
-  signedBeta,
+  implied,
+  impliedKey,
   windowMs,
   windowLabel,
 }: {
@@ -166,8 +167,10 @@ export function PriceChart({
   oddsLabel?: string;
   gapMarks?: GapTapePoint[];
   decimals?: number;
-  /** Mapping sensitivity of the driving event; enables the residual pane. */
-  signedBeta?: number;
+  /** Implied perp return between two odds observations; enables the residual pane. */
+  implied?: (pThen: number, pNow: number, tThenMs: number, tNowMs: number) => number;
+  /** Changes when the implied-move model changes; `implied` itself may be recreated each render. */
+  impliedKey?: string;
   /** Comparison window the residual rolls over. */
   windowMs?: number;
   windowLabel?: string;
@@ -194,7 +197,11 @@ export function PriceChart({
   const packedRef = useRef<{ logical: UTCTimestamp; real: number }[]>([]);
   const [tool, setTool] = useState<Tool>("cursor");
   const [style, setStyle] = useState<Style>("line");
-  const canResidual = signedBeta != null && windowMs != null;
+  const canResidual = implied != null && windowMs != null;
+  const impliedFnRef = useRef(implied);
+  useEffect(() => {
+    impliedFnRef.current = implied;
+  }, [implied]);
   const [lower, setLower] = useState<Lower>(canResidual ? "residual" : "odds");
   const [log, setLog] = useState(false);
   const [paneTop, setPaneTop] = useState<number | null>(null);
@@ -617,12 +624,13 @@ export function PriceChart({
         oddsMap.set(bar.logical, yesNow * 100);
         yes.push({ time: bar.logical, value: yesNow * 100 });
       }
-      if (w == null || signedBeta == null || yesNow == null) continue;
+      const impliedNow = impliedFnRef.current;
+      if (w == null || !impliedNow || yesNow == null) continue;
       const yesThen = lastAt(samples, end - w);
       const markNow = ohlcRef.current.get(bar.logical)?.c;
       const markThen = lastAt(closes, end - w);
       if (yesThen == null || markNow == null || !markThen) continue;
-      const i = (yesNow - yesThen) * signedBeta * 100;
+      const i = impliedNow(yesThen, yesNow, (end - w) * 1000, end * 1000) * 100;
       const o = (markNow / markThen - 1) * 100;
       imp.push({ time: bar.logical, value: i });
       obs.push({ time: bar.logical, value: o });
@@ -640,7 +648,7 @@ export function PriceChart({
     impliedRef.current!.setData(imp);
     observedRef.current!.setData(obs);
     gapRef.current!.setData(gap);
-  }, [odds, candles, interval, signedBeta, windowMs]);
+  }, [odds, candles, interval, impliedKey, canResidual, windowMs]);
 
   useEffect(() => {
     candleRef.current?.applyOptions({ visible: style === "candle" });

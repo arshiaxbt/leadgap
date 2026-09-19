@@ -50,7 +50,7 @@ export async function researchSnapshot(): Promise<ResearchSnapshot> {
   if (cached && Date.now() - lastRead < 10_000)
     return freshResearchSnapshot(cached);
   try {
-    cached = await dataService<ResearchSnapshot>("/snapshot");
+    cached = await dataService<ResearchSnapshot>("/snapshot/raw");
     lastRead = Date.now();
     return freshResearchSnapshot(cached);
   } catch (error) {

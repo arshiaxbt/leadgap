@@ -1,5 +1,5 @@
+import { readHistoryPages } from "@/lib/history-pages";
 import { dataService } from "@/lib/data-service";
-import type { HistoryBatch } from "@/lib/research";
 export async function GET(req: Request) {
   if (process.env.ENABLE_DURABLE_DATA !== "true")
     return Response.json(
@@ -27,10 +27,7 @@ export async function GET(req: Request) {
     to: String(now),
   });
   try {
-    const data = await dataService<{
-      batches: HistoryBatch[];
-      nextCursor?: number | null;
-    }>(`/history?${query}`);
+    const data = await readHistoryPages(query, (path) => dataService(path));
     // Each archived batch carries every event's links and volumes; send only this signal's.
     const batches = data.batches.map((b) => ({
       ...b,

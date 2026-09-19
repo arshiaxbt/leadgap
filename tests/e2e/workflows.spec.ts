@@ -488,11 +488,15 @@ test("signal pages advertise a generated share image", async ({
   page,
   request,
 }) => {
-  await page.goto("/signals/1/BTC-USD");
+  await page.goto("/signals/1/BTC-USD?window=1h");
   const og = await page
     .locator('meta[property="og:image"]')
     .getAttribute("content");
-  expect(og).toContain("/signals/1/BTC-USD/opengraph-image");
+  expect(og).toContain("/signals/1/BTC-USD/opengraph-image?window=1h");
+  await expect(page.locator('meta[property="og:url"]')).toHaveAttribute("content", /\?window=1h$/);
+  await expect(page.locator('meta[name="twitter:image"]')).toHaveAttribute("content", /twitter-image\?window=1h$/);
+  await page.goto("/signals/1/BTC-USD?window=4h");
+  await expect(page.locator('meta[property="og:image"]')).toHaveAttribute("content", /opengraph-image\?window=4h$/);
   await expect(page.locator('meta[name="twitter:card"]')).toHaveAttribute(
     "content",
     "summary_large_image",

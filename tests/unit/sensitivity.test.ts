@@ -427,3 +427,37 @@ test("tail odds and markets resolving within the window are left out", () => {
     true,
   );
 });
+
+test("negated thresholds use complement probabilities for upper/lower digital/touch conditions", () => {
+  for (const [positive, negative] of [
+    ["Will Bitcoin be above $100,000 on September 30?", "Will Bitcoin not be above $100,000 on September 30?"],
+    ["Will Bitcoin be below $100,000 on September 30?", "Will Bitcoin be not below $100,000 on September 30?"],
+    ["Will Bitcoin reach $100,000 by December 31?", "Will Bitcoin not reach $100,000 by December 31?"],
+    ["Bitcoin will hit $100,000 by December 31?", "Bitcoin won’t hit $100,000 by December 31?"],
+    ["Bitcoin will dip to $80,000 by December 31?", "Bitcoin will never dip to $80,000 by December 31?"],
+  ]) {
+    const args = { symbol: "BTC-USD", baseBeta: 1, mappingKind: "named" as const, mark: 90000, endsAt: now + 90 * DAY, now };
+    const affirmative = linkModel({ ...args, question: positive });
+    const complement = linkModel({ ...args, question: negative });
+    assert.equal(affirmative.kind, "threshold", positive);
+    assert.equal(complement.kind, "threshold", negative);
+    if (affirmative.kind !== "threshold" || complement.kind !== "threshold") continue;
+    assert.equal(complement.terms.complemented, true);
+    assert.ok(Math.abs(impliedMove(complement, .2, .35, now - DAY, now) - impliedMove(affirmative, .8, .65, now - DAY, now)) < 1e-12);
+    assert.ok(Math.abs(localBeta(complement, .3, now) + localBeta(affirmative, .7, now)) < 1e-10);
+    assert.equal(informative(complement, .01, .5, 3600000, now), false);
+    assert.equal(informative(complement, .5, .6, 91 * DAY, now), false);
+  }
+});
+
+test("ambiguous price conditions cannot fall through to a named or cluster model", () => {
+  for (const question of [
+    "Will Bitcoin not never reach $100,000 by December 31?",
+    "Will Bitcoin reach $100,000 and fall below $80,000?",
+    "Will Bitcoin reach $100,000 if Ethereum rallies?",
+    "Will Bitcoin avoid reaching $100,000?",
+    "Will Bitcoin not touch $100,000?",
+    "Will Bitcoin hit (HIGH) $100,000 (LOW)?",
+  ]) for (const mappingKind of ["named", "cluster"] as const)
+    assert.deepEqual(linkModel({ question, symbol: "BTC-USD", baseBeta: 1, mappingKind, mark: 90000, endsAt: now + 90 * DAY, now }), { kind: "drop" }, question);
+});

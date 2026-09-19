@@ -1,3 +1,4 @@
+import { fingerprintModel } from "../../src/lib/model-version";
 import { SCORE_MODEL_VERSION } from "../../src/lib/score";
 import {
   allGammaQueries,
@@ -209,30 +210,7 @@ export async function collect(env: Env, now = Date.now()) {
         if (entry) entry.event.endsAt = endsAt;
       }),
     );
-    const modelBytes = new TextEncoder().encode(
-      JSON.stringify([
-        MAP_REVISION,
-        SCORE_MODEL_VERSION,
-        [...events]
-          .sort((a, b) => a.id.localeCompare(b.id))
-          .map((e) => [
-            e.id,
-            e.yesTokenId,
-            e.endsAt ?? null,
-            e.perps.map((p) => [
-              p.symbol,
-              p.signedBeta,
-              p.confidence,
-              p.mappingKind,
-            ]),
-          ]),
-      ]),
-    );
-    const modelVersion = Array.from(
-      new Uint8Array(await crypto.subtle.digest("SHA-256", modelBytes)),
-    )
-      .map((n) => n.toString(16).padStart(2, "0"))
-      .join("");
+    const modelVersion = await fingerprintModel(events);
     const batch: HistoryBatch = {
       volumes: Object.fromEntries(events.map((e) => [e.id, e.volume])),
       t: now,

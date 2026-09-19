@@ -138,6 +138,63 @@ async function main() {
       ).status,
       401,
     );
+    // Raw collector operations are private, bounded, validated by D1, and idempotent.
+    const raw = (operation: string, body: string, secret = "collector-secret") =>
+      mf!.dispatchFetch(`http://worker/internal/payload/${operation}`, {
+        method: "PUT", headers: { authorization: `Bearer ${secret}` }, body,
+      });
+    for (const secret of ["read-secret", "test-secret"])
+      assert.equal((await raw("catalog", "{}", secret)).status, 401);
+    assert.equal((await raw("unknown", "{}")).status, 400);
+    assert.equal((await raw("catalog", "broken")).status, 400);
+    assert.equal((await raw("catalog", "x".repeat(1_700_000))).status, 413);
+    assert.equal((await raw("catalog", JSON.stringify({ text: "🙂".repeat(160_000) }))).status, 200);
+    const model = "a".repeat(64);
+    assert.equal((await raw("snapshot?t=0&model=invalid", "{}")).status, 400);
+    const makeBatch = (t: number) => ({ t, modelVersion: model,
+      marks: { "BTC-USD": [t, 90000], "ETH-USD": [t, 3000] },
+      odds: { "1": [t, .4, "token1"], "2": [t, .7, "token2"] },
+      links: { "1": { "BTC-USD": 1, "ETH-USD": .5 }, "2": { "ETH-USD": 1 } },
+      volumes: { "1": 1000, "2": 2000 },
+    });
+    for (let t = 0; t < 205; t++) {
+      assert.equal((await raw(`snapshot?t=${t}&model=${model}`, JSON.stringify(makeBatch(t)))).status, 200);
+    }
+    assert.equal((await raw(`snapshot?t=0&model=${model}`, JSON.stringify(makeBatch(0)))).status, 200);
+    assert.equal((await raw(`mapping?t=0&model=${model}`, JSON.stringify({ model }))).status, 200);
+    const stale = { asOf: 1, windows: Object.fromEntries(["1m", "5m", "15m", "30m", "1h", "4h", "12h", "1d"].map((w) => [w, [{ symbol: "BTC-USD" }]])), tickers: {}, oddsHistory: {}, error: null };
+    assert.equal((await raw("latest", JSON.stringify(stale))).status, 200);
+    const rawSnapshot = await mf.dispatchFetch("http://worker/snapshot/raw", { headers: read });
+    assert.equal(rawSnapshot.status, 200);
+    assert.deepEqual(await rawSnapshot.json(), stale);
+    assert.equal((await mf.dispatchFetch("http://worker/snapshot/raw")).status, 401);
+    const filtered = await (await mf.dispatchFetch("http://worker/snapshot", { headers: read })).json() as typeof stale;
+    assert.equal(filtered.error, "Data collection is delayed.");
+    assert.ok(Object.values(filtered.windows).every((rows) => rows.length === 0));
+    const readHistory = async (query: string) => {
+      const response = await mf!.dispatchFetch(`http://worker/history?from=0&to=204&limit=100${query}`, { headers: read });
+      assert.equal(response.status, 200);
+      return await response.json() as { batches: ReturnType<typeof makeBatch>[]; nextCursor: number | null };
+    };
+    const first = await readHistory("&eventId=1&symbol=BTC-USD");
+    assert.equal(first.batches.length, 100);
+    assert.equal(first.nextCursor, 100);
+    assert.deepEqual(first.batches[0], { ...makeBatch(0), marks: { "BTC-USD": [0, 90000] },
+      odds: { "1": [0, .4, "token1"] }, links: { "1": { "BTC-USD": 1 } }, volumes: { "1": 1000 } });
+    const second = await readHistory("&cursor=100&eventId=1&symbol=BTC-USD");
+    const last = await readHistory("&cursor=200&eventId=1&symbol=BTC-USD");
+    assert.equal(last.nextCursor, null);
+    assert.deepEqual([...first.batches, ...second.batches, ...last.batches].map((b) => b.t), Array.from({ length: 205 }, (_, i) => i));
+    const unfiltered = await readHistory("");
+    assert.deepEqual(unfiltered.batches[0], makeBatch(0));
+    assert.deepEqual((await readHistory("&eventId=999&symbol=UNKNOWN")).batches[0].links, {});
+    assert.deepEqual((await readHistory("&eventId=1")).batches[0].links, { "1": makeBatch(0).links["1"] });
+    assert.deepEqual((await readHistory("&symbol=BTC-USD")).batches[0].marks, { "BTC-USD": [0, 90000] });
+    const startup = await mf.dispatchFetch("http://worker/internal/payload/startup", {
+      headers: { authorization: "Bearer collector-secret" },
+    });
+    assert.equal(startup.status, 200);
+    assert.equal((await startup.json() as { key: string; value: { text: string } }[]).find((r) => r.key === "catalog")?.value.text.length, 320_000);
     const item = {
       id: "btc",
       symbol: "BTC-USD",

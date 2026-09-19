@@ -1,36 +1,17 @@
 import type { Metadata } from "next";
 import { SignalDetail } from "@/components/signal/SignalDetail";
-import { GAP_WINDOWS } from "@/lib/divergence";
-import type { GapWindow } from "@/lib/types";
+import { signalWindow, signalShareMetadata } from "@/lib/signal-share";
 
 type Params = Promise<{ event: string; symbol: string }>;
 
 export async function generateMetadata({
   params,
+  searchParams,
 }: {
   params: Params;
+  searchParams: Promise<{ window?: string | string[] }>;
 }): Promise<Metadata> {
-  const { event, symbol } = await params;
-  const name = decodeURIComponent(symbol).replace("-USD", "").toUpperCase();
-  const title = `${name} signal`;
-  const description = `Polymarket odds against the ${name} perp, and the gap between them.`;
-  // Share images come from the colocated opengraph-image and twitter-image routes.
-  return {
-    title,
-    description,
-    openGraph: {
-      title: `${title} · Leadgap`,
-      description,
-      url: `/signals/${event}/${symbol}`,
-      siteName: "Leadgap",
-      type: "website",
-    },
-    twitter: {
-      card: "summary_large_image",
-      title: `${title} · Leadgap`,
-      description,
-    },
-  };
+  return signalShareMetadata(await params, (await searchParams).window);
 }
 
 export default async function SignalPage({
@@ -38,13 +19,11 @@ export default async function SignalPage({
   searchParams,
 }: {
   params: Params;
-  searchParams: Promise<{ window?: string }>;
+  searchParams: Promise<{ window?: string | string[] }>;
 }) {
   const { event, symbol } = await params;
   const { window } = await searchParams;
-  const initial = GAP_WINDOWS.includes(window as GapWindow)
-    ? (window as GapWindow)
-    : "4h";
+  const initial = signalWindow(window);
   const sym = decodeURIComponent(symbol).toUpperCase();
   return (
     <SignalDetail

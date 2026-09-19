@@ -25,7 +25,7 @@ async function main() {
     return r.json();
   }
   while (cursor !== null) {
-    const page = await read(`/history?from=${from}&to=${to}&cursor=${cursor}`);
+    const page = await read(`/history?from=${from}&to=${to}&cursor=${cursor}&limit=100`);
     batches.push(...page.batches);
     if (page.nextCursor !== null && page.nextCursor <= cursor)
       throw new Error("History cursor did not advance");

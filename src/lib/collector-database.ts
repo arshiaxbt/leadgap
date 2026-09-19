@@ -1,8 +1,9 @@
+import { PAYLOAD_MAX_BYTES, PAYLOAD_WRITES, STARTUP_SQL } from "../../workers/data/payloads";
 import type { Database, Result, Statement } from "../../workers/data/db";
 
 type Query = { sql: string; params: unknown[] };
 
-/** The data-service gateway rejects bodies over 512 KB and batches over 32 statements. */
+/** Complete JSON envelope budget for small operations; large writes use raw payloads. */
 export const GATEWAY_CHUNK_BYTES = 400_000;
 const GATEWAY_MAX_STATEMENTS = 32;
 const encoder = new TextEncoder();
@@ -14,20 +15,23 @@ const encoder = new TextEncoder();
 export function chunkQueries(queries: Query[]): Query[][] {
   const chunks: Query[][] = [];
   let current: Query[] = [];
-  let bytes = 0;
+  const envelopeBytes = encoder.encode(JSON.stringify({ queries: [] })).length;
+  let bytes = envelopeBytes;
   for (const query of queries) {
     const size = encoder.encode(JSON.stringify(query)).length;
+    if (size + envelopeBytes > GATEWAY_CHUNK_BYTES)
+      throw new Error("Collector operation exceeds gateway byte budget");
     if (
       current.length &&
-      (bytes + size > GATEWAY_CHUNK_BYTES ||
+      (bytes + size + 1 > GATEWAY_CHUNK_BYTES ||
         current.length >= GATEWAY_MAX_STATEMENTS)
     ) {
       chunks.push(current);
       current = [];
-      bytes = 0;
+      bytes = envelopeBytes;
     }
+    bytes += size + (current.length ? 1 : 0);
     current.push(query);
-    bytes += size;
   }
   if (current.length) chunks.push(current);
   return chunks;
@@ -35,7 +39,7 @@ export function chunkQueries(queries: Query[]): Query[][] {
 
 /** Private, allowlisted D1 bridge for the Node.js collector. */
 export function collectorDatabase(origin: string, secret: string): Database {
-  async function execute(queries: Query[]): Promise<Result[]> {
+  async function executeLegacy(queries: Query[]): Promise<Result[]> {
     const response = await fetch(new URL("/internal/database", origin), {
       method: "POST",
       headers: {
@@ -48,6 +52,47 @@ export function collectorDatabase(origin: string, secret: string): Database {
     if (!response.ok)
       throw new Error(`Collector storage unavailable (${response.status})`);
     return response.json() as Promise<Result[]>;
+  }
+  async function payload(url: URL, body?: string): Promise<unknown> {
+    if (body !== undefined && encoder.encode(body).length > PAYLOAD_MAX_BYTES)
+      throw new Error("Collector payload exceeds storage byte budget");
+    const response = await fetch(url, {
+      method: body === undefined ? "GET" : "PUT",
+      headers: { authorization: `Bearer ${secret}`, "content-type": "application/json" },
+      body,
+      signal: AbortSignal.timeout(12_000),
+    });
+    if (!response.ok) throw new Error(`Collector storage unavailable (${response.status})`);
+    return response.json();
+  }
+  async function execute(queries: Query[]): Promise<Result[]> {
+    const results: Result[] = [];
+    let pending: Query[] = [];
+    async function flush() {
+      for (const chunk of chunkQueries(pending)) results.push(...await executeLegacy(chunk));
+      pending = [];
+    }
+    for (const query of queries) {
+      const operation = Object.entries(PAYLOAD_WRITES).find(([, sql]) => sql === query.sql)?.[0];
+      if (!operation && query.sql !== STARTUP_SQL) { pending.push(query); continue; }
+      await flush();
+      const url = new URL(`/internal/payload/${operation ?? "startup"}`, origin);
+      if (!operation) {
+        const rows = await payload(url) as { key: string; value: unknown }[];
+        results.push({ results: rows.map((r) => ({ key: r.key, value: JSON.stringify(r.value) })), meta: {} });
+      } else {
+        if (operation === "snapshot" || operation === "mapping") {
+          const [first, second] = query.params;
+          url.searchParams.set("t", String(operation === "snapshot" ? first : second));
+          url.searchParams.set("model", String(operation === "snapshot" ? second : first));
+        }
+        const body = query.params.at(-1);
+        if (typeof body !== "string") throw new Error("Invalid collector payload");
+        results.push(await payload(url, body) as Result);
+      }
+    }
+    await flush();
+    return results;
   }
   class RemoteStatement implements Statement {
     constructor(readonly query: Query) {}
@@ -76,10 +121,7 @@ export function collectorDatabase(origin: string, secret: string): Database {
           throw new Error("Invalid collector statement");
         return statement.query;
       });
-      const results: Result[] = [];
-      for (const chunk of chunkQueries(queries))
-        results.push(...(await execute(chunk)));
-      return results;
+      return execute(queries);
     },
   };
 }

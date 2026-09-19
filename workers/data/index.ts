@@ -1,3 +1,5 @@
+import { payloadOperation, PAYLOAD_MAX_BYTES, rawJson } from "./payloads";
+import { historyResponse } from "./history";
 import {
   readRequestText,
   RequestBodyTooLarge,
@@ -8,7 +10,6 @@ import {
   freshResearchSnapshot,
   validRule,
   validWatch,
-  type HistoryBatch,
   type ResearchSnapshot,
 } from "../../src/lib/research";
 const json = (data: unknown, status = 200) =>
@@ -33,10 +34,15 @@ async function bearerMatches(
 /** Collector gateway body cap: headroom over the collector's ~400 KB chunks. */
 const GATEWAY_MAX_BYTES = 1_572_864;
 /** Reads a preview deployment may make with DATA_READ_SECRET; nothing else. */
-const READ_ONLY_PATHS = new Set(["/snapshot", "/history", "/mapping", "/health"]);
+const READ_ONLY_PATHS = new Set(["/snapshot", "/snapshot/raw", "/history", "/mapping", "/health"]);
 export async function handle(request: Request, env: Env): Promise<Response> {
   const url = new URL(request.url),
     path = url.pathname;
+  if (path.startsWith("/internal/payload/")) {
+    if (!(await bearerMatches(request.headers.get("authorization"), env.COLLECTOR_SECRET)))
+      return json({ error: "Unauthorized" }, 401);
+    return payloadOperation(request, env);
+  }
   if (path === "/internal/database") {
     if (
       !(await bearerMatches(
@@ -91,53 +97,20 @@ export async function handle(request: Request, env: Env): Promise<Response> {
       return json({ error: "Ingestion disabled" }, 503);
     return triggerCollection(env);
   }
+  // Vercel applies freshResearchSnapshot on every read, including cache hits.
+  // Keep the legacy filtered route for old deployments and direct consumers.
+  if (request.method === "GET" && path === "/snapshot/raw") {
+    const row = await env.DB.prepare("SELECT value FROM meta WHERE key=?")
+      .bind("latest").first<{ value: string }>();
+    return row ? rawJson(row.value) : json({ error: "History is warming up" }, 503);
+  }
   if (request.method === "GET" && path === "/snapshot") {
     const snapshot = await readMeta<ResearchSnapshot>(env.DB, "latest");
     if (!snapshot) return json({ error: "History is warming up" }, 503);
     return json(freshResearchSnapshot(snapshot));
   }
-  if (request.method === "GET" && path === "/history") {
-    const from = Number(url.searchParams.get("from")),
-      to = Number(url.searchParams.get("to")),
-      symbol = url.searchParams.get("symbol"),
-      eventId = url.searchParams.get("eventId");
-    if (
-      !Number.isFinite(from) ||
-      !Number.isFinite(to) ||
-      from < 0 ||
-      to <= from ||
-      to - from > 31 * 86400_000
-    )
-      return json({ error: "Invalid history range" }, 400);
-    const cursor = Number(url.searchParams.get("cursor") ?? from);
-    if (!Number.isFinite(cursor)) return json({ error: "Invalid cursor" }, 400);
-    const result = await env.DB.prepare(
-      "SELECT t,payload FROM snapshots WHERE t>=? AND t<=? ORDER BY t LIMIT 500",
-    )
-      .bind(Math.max(from, cursor), to)
-      .all<{ t: number; payload: string }>();
-    const batches = result.results.map((row) => {
-      const b = JSON.parse(row.payload) as HistoryBatch;
-      return {
-        ...b,
-        marks: symbol
-          ? Object.fromEntries(
-              Object.entries(b.marks).filter(([k]) => k === symbol),
-            )
-          : b.marks,
-        odds: eventId
-          ? Object.fromEntries(
-              Object.entries(b.odds).filter(([k]) => k === eventId),
-            )
-          : b.odds,
-      };
-    });
-    return json({
-      batches,
-      nextCursor:
-        result.results.length === 500 ? result.results.at(-1)!.t + 1 : null,
-    });
-  }
+  if (request.method === "GET" && path === "/history")
+    return historyResponse(url, env.DB);
   if (request.method === "GET" && path === "/mapping") {
     const row = await env.DB.prepare("SELECT payload FROM mappings WHERE id=?")
       .bind(url.searchParams.get("id"))
@@ -270,8 +243,8 @@ const worker = {
   async fetch(request: Request, env: Env) {
     try {
       const limit =
-        new URL(request.url).pathname === "/internal/database"
-          ? GATEWAY_MAX_BYTES
+        new URL(request.url).pathname.startsWith("/internal/")
+          ? PAYLOAD_MAX_BYTES
           : 16_384;
       if (Number(request.headers.get("content-length") ?? 0) > limit)
         return json({ error: "Request too large" }, 413);

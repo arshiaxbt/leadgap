@@ -75,6 +75,14 @@ export const gaps: GapRow[] = events.map((e, i) => ({
   bias: "long",
   catchup: 0.11,
   volume: e.volume,
+  // Cumulative implied / observed path across the window, as served by /api/gaps.
+  trace:
+    i < 2
+      ? {
+          implied: [0, 0.002, 0.005, 0.014, 0.021, 0.025, 0.028, 0.03, 0.032, 0.0335, 0.0345, 0.035],
+          observed: [0, 0.0002, 0.0005, 0.0012, 0.002, 0.0028, 0.0032, 0.0028, 0.003, 0.0034, 0.0037, 0.004],
+        }
+      : undefined,
 }));
 export async function mockFeeds(page: Page) {
   await page.route("**/api/**", async (route) => {
@@ -122,6 +130,30 @@ export async function mockFeeds(page: Page) {
       };
     else if (url.pathname === "/api/events")
       body = { events, tickers, asOf: now, error: null };
+    else if (url.pathname.startsWith("/api/events/")) {
+      const id = decodeURIComponent(url.pathname.split("/").at(-1)!);
+      const event = events.find((e) => e.id === id);
+      if (!event)
+        return route.fulfill({ status: 404, json: { error: "not found" } });
+      const rows = gaps.filter((g) => g.eventId === id);
+      body = {
+        event,
+        tickers,
+        windows: Object.fromEntries(
+          ["1m", "5m", "15m", "30m", "1h", "4h", "12h", "1d"].map((w) => [
+            w,
+            rows.map((g) => ({ ...g, window: w })),
+          ]),
+        ),
+        oddsHistory: Array.from({ length: 24 }, (_, i) => ({
+          t: now - (23 - i) * 60 * 60_000,
+          v: event.yesPrice - 0.06 + 0.06 * (i / 23),
+        })),
+        news: [],
+        instruments,
+        asOf: now,
+      };
+    }
     else if (url.pathname.startsWith("/api/assets/")) {
       const symbol = url.pathname.split("/").at(-1)!;
       const inst = instruments.find((i) => i.symbol === symbol);
@@ -135,8 +167,21 @@ export async function mockFeeds(page: Page) {
         news: [],
         mapping: null,
         markHistory: [],
-        oddsHistory: {},
+        oddsHistory: {
+          [event.id]: Array.from({ length: 13 }, (_, i) => ({
+            t: now - (12 - i) * 5 * 60_000,
+            v: event.yesPrice - 0.035 + (0.035 * Math.min(1, i / 8)),
+          })),
+        },
         gaps: gaps.filter((g) => g.symbol === symbol),
+        windows: Object.fromEntries(
+          ["1m", "5m", "15m", "30m", "1h", "4h", "12h", "1d"].map((w) => [
+            w,
+            gaps
+              .filter((g) => g.symbol === symbol)
+              .map((g) => ({ ...g, window: w })),
+          ]),
+        ),
         instruments,
         asOf: now,
       };
@@ -165,6 +210,7 @@ export async function mockFeeds(page: Page) {
         })),
       };
     else if (url.pathname === "/api/odds") body = { odds: [] };
+    else if (url.pathname === "/api/history") body = { batches: [] };
     else if (url.pathname === "/api/geo")
       body = {
         blocked: true,

@@ -144,46 +144,96 @@ function LoggedOutPanel({
     <div className="flex min-h-0 flex-1 flex-col overflow-auto">
       <WorkspaceHeading
         title="Portfolio"
-        description="Balances, positions, and your event exposure."
+        description="Balances, positions, and the events behind your exposure."
       />
-      <div className="mx-4 mb-6 max-w-3xl rounded-lg border border-[var(--line)] bg-[var(--surface)] p-6 md:mx-6">
-        <Wallet size={28} className="mb-4 text-[var(--odds)]" />
-        <h2 className="text-2xl font-medium tracking-tight text-[var(--text)]">
-          Connect your trading account
-        </h2>
-        <p className="mt-2 text-[13px] leading-5 text-[var(--muted)]">
-          Connect your trading account to review equity, manage open positions,
-          and see which events your portfolio is exposed to.
-        </p>
-        {insecure ? (
-          <p className="mt-4 text-[13px] text-[var(--warn)]">
-            Open Leadgap over HTTPS to log in and trade.
+      <div className="px-4 pb-8 md:px-6">
+        <div className="max-w-[640px] rounded-xl border border-line bg-surface p-6 md:p-7">
+          <div className="flex size-11 items-center justify-center rounded-[10px] bg-[rgba(203,241,82,0.14)]">
+            <Wallet size={22} className="text-odds" aria-hidden />
+          </div>
+          <h2 className="mt-[18px] text-[22px] font-medium tracking-[-0.02em]">
+            Connect your trading account
+          </h2>
+          <p className="mt-2 text-[13px] leading-[1.6] text-subtle">
+            Review equity, manage open positions, and see which live signals
+            your exposure agrees or disagrees with.
           </p>
-        ) : onLogin ? (
-          <Button
-            type="button"
-            className="mt-5 h-10 rounded-[6px]"
-            onClick={() => onLogin()}
+          {insecure ? (
+            <p className="mt-4 text-[13px] text-warn">
+              Open Leadgap over HTTPS to log in and trade.
+            </p>
+          ) : onLogin ? (
+            <button
+              type="button"
+              className="lg-focus mt-5 h-10 rounded-[7px] bg-odds px-[18px] text-[13px] font-semibold text-on-odds"
+              onClick={() => onLogin()}
+            >
+              Log in to Polymarket
+            </button>
+          ) : (
+            <p className="mt-4 text-[13px] text-subtle">
+              Account connection is unavailable in this environment. You can
+              still explore signals and markets.
+            </p>
+          )}
+          <Link
+            href="/markets"
+            className="lg-focus mt-5 flex w-fit items-center gap-2 text-[13px] text-subtle hover:text-text"
           >
-            Log in to Polymarket
-          </Button>
-        ) : (
-          <p className="mt-4 text-[13px] text-[var(--muted)]">
-            Account connection is unavailable in this environment. You can still
-            explore signals and markets.
-          </p>
-        )}
-        <div className="mt-8 grid grid-cols-3 gap-3 border-y border-[var(--line)] py-5 text-xs text-[var(--muted)]">
-          <span>Positions & equity</span>
-          <span>Open orders</span>
-          <span>Event exposure</span>
+            Explore markets <ArrowRight size={15} aria-hidden />
+          </Link>
         </div>
-        <Link
-          href="/markets"
-          className="lg-focus mt-6 inline-flex items-center gap-2 text-sm"
-        >
-          Explore markets <ArrowRight size={16} />
-        </Link>
+
+        <section aria-labelledby="illustrative" className="mt-8 max-w-[960px]">
+          <h2 id="illustrative" className="kicker mb-3">
+            Illustrative — sign in to see your own
+          </h2>
+          <div className="overflow-hidden rounded-[10px] border border-dashed border-line-strong">
+            <dl className="grid grid-cols-2 gap-px bg-line sm:grid-cols-4">
+              {[
+                ["Equity", "$12,480", ""],
+                ["uPnL", "+$340", "text-long"],
+                ["Margin used", "$2,100", ""],
+                ["Available", "$10,380", ""],
+              ].map(([label, value, tone]) => (
+                <div key={label} className="bg-surface px-[18px] py-3.5">
+                  <dt className="kicker">{label}</dt>
+                  <dd className={cn("num mt-1 text-[18px] text-subtle", tone)}>
+                    {value}
+                  </dd>
+                </div>
+              ))}
+            </dl>
+            <div
+              className="overflow-x-auto"
+              role="region"
+              aria-label="Example position"
+              tabIndex={0}
+            >
+              <table className="w-full min-w-[520px] text-[13px]">
+                <caption className="sr-only">Example position</caption>
+                <thead>
+                  <tr className="border-b border-line">
+                    <th scope="col" className="kicker px-[18px] py-2.5 text-left font-normal">Market</th>
+                    <th scope="col" className="kicker px-[18px] py-2.5 text-right font-normal">Size</th>
+                    <th scope="col" className="kicker px-[18px] py-2.5 text-right font-normal">Entry</th>
+                    <th scope="col" className="kicker px-[18px] py-2.5 text-right font-normal">PnL</th>
+                    <th scope="col" className="kicker px-[18px] py-2.5 text-left font-normal">vs. signal</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td className="px-[18px] py-3 text-subtle">BTC</td>
+                    <td className="num px-[18px] py-3 text-right text-long">+0.026</td>
+                    <td className="num px-[18px] py-3 text-right text-subtle">96,200</td>
+                    <td className="num px-[18px] py-3 text-right text-long">+$340</td>
+                    <td className="px-[18px] py-3 text-[12px] text-long">Long · with signal</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
       </div>
     </div>
   );
@@ -534,7 +584,7 @@ function PortfolioDeskSession() {
         title="Portfolio"
         description="Balances, positions, and the events behind your exposure."
       />
-      <div className="flex flex-wrap items-baseline gap-x-6 gap-y-2 border-b border-[var(--line)] px-4 py-3">
+      <div className="mx-4 mb-4 flex flex-wrap items-baseline gap-x-8 gap-y-3 rounded-[10px] border border-[var(--line)] bg-[var(--surface)] px-[18px] py-3.5 md:mx-6">
         <Kpi label="Equity" value={fmtUsd(state.equity)} />
         <Kpi
           label="uPnL"
@@ -553,7 +603,7 @@ function PortfolioDeskSession() {
           }
         />
         <div className="min-w-[7rem]">
-          <p className="text-[11px] text-[var(--dim)]">
+          <p className="kicker">
             Risk
             {state.liquidation ? (
               <span className="ml-1.5 text-[var(--short)]">Liq</span>
@@ -613,10 +663,10 @@ function PortfolioDeskSession() {
                 aria-pressed={tab === item.id}
                 onClick={() => setTab(item.id)}
                 className={cn(
-                  "shrink-0 border-b-2 px-2 py-1.5 text-[12px] focus-visible:ring-2 focus-visible:ring-[color-mix(in_srgb,var(--odds)_40%,transparent)]",
+                  "lg-focus shrink-0 px-2.5 py-[9px] text-[12px]",
                   tab === item.id
-                    ? "border-[var(--text)] text-[var(--text)]"
-                    : "border-transparent text-[var(--muted)] hover:text-[var(--text)]",
+                    ? "font-medium text-[var(--text)] shadow-[inset_0_-2px_0_var(--odds)]"
+                    : "text-[var(--muted)] hover:text-[var(--text)]",
                 )}
               >
                 {item.label}
@@ -914,8 +964,8 @@ function Kpi({
 }) {
   return (
     <div>
-      <p className="text-[11px] text-[var(--dim)]">{label}</p>
-      <p className={cn("num text-[15px] text-[var(--text)]", className)}>
+      <p className="kicker">{label}</p>
+      <p className={cn("num mt-1 text-[18px] text-[var(--text)]", className)}>
         {value}
       </p>
     </div>

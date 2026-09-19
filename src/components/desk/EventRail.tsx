@@ -1,52 +1,49 @@
 "use client";
 
-import { GapMeter } from "@/components/GapMeter";
-import { MenuSelect } from "@/components/MenuSelect";
-import { OddsFigure } from "@/components/OddsFigure";
-import { ResidualSpark } from "@/components/desk/ResidualSpark";
+import Link from "next/link";
+import { ArrowUpRight } from "lucide-react";
+import { DirectionChip } from "@/components/signal/DirectionChip";
+import { RowTrace } from "@/components/signal/GapTrace";
+import { Sparkline } from "@/components/signal/ResidualChart";
 import { PolymarketEventLink } from "@/components/ui";
 import { eventTitleKey, residualPath, WINDOW_MS } from "@/lib/divergence";
-import { fmtOdds, fmtPct, fmtScore } from "@/lib/format";
-import { scoreClass } from "@/lib/score";
+import { fmtOdds, fmtOddsDelta, fmtPct, signedClass } from "@/lib/format";
+import { signalHref } from "@/lib/links";
+import { isActionable } from "@/lib/score";
 import { NEWS_LINK_HOSTS, safeHttpsUrl } from "@/lib/safe-url";
 import { thesisLine } from "@/lib/signal";
 import type {
   GapRow,
-  GapTapePoint,
   GapWindow,
   NewsItem,
-  ResidualPoint,
   ResolvedEvent,
   Snapshot,
 } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
+/** The desk's Event view: the driving event, its gap and recent headlines. */
 export function EventRail({
   symbol,
   events,
   selectedId,
   onSelect,
   gaps,
+  window,
   oddsHistory,
   markHistory,
   news,
-  collapsed = false,
-  onToggle,
 }: {
   symbol: string;
   events: ResolvedEvent[];
   selectedId: string | null;
   onSelect: (id: string) => void;
   gaps: GapRow[];
-  windows?: Record<GapWindow, GapRow[]>;
+  window: GapWindow;
   oddsHistory: Record<string, Snapshot[]>;
   markHistory: Snapshot[];
-  tape?: GapTapePoint[];
   news: NewsItem[];
-  collapsed?: boolean;
-  onToggle?: () => void;
 }) {
-  const uniqueEvents = (() => {
+  const unique = (() => {
     const seen = new Set<string>();
     const out: ResolvedEvent[] = [];
     for (const item of events) {
@@ -55,23 +52,22 @@ export function EventRail({
       seen.add(key);
       out.push(item);
     }
-    return out.sort((a, b) => {
-      const sa = gaps.find((g) => g.eventId === a.id)?.score ?? 0;
-      const sb = gaps.find((g) => g.eventId === b.id)?.score ?? 0;
-      return sb - sa;
-    });
+    return out.sort(
+      (a, b) =>
+        (gaps.find((g) => g.eventId === b.id)?.score ?? 0) -
+        (gaps.find((g) => g.eventId === a.id)?.score ?? 0),
+    );
   })();
-  const event =
-    uniqueEvents.find((e) => e.id === selectedId) ?? uniqueEvents[0];
+  const event = unique.find((e) => e.id === selectedId) ?? unique[0];
   const gap = event ? gaps.find((g) => g.eventId === event.id) : undefined;
   const link = event?.perps.find((p) => p.symbol === symbol) ?? event?.perps[0];
-  const path: ResidualPoint[] =
+  const path =
     event && link
       ? residualPath({
           odds: oddsHistory[event.id] ?? [],
           marks: markHistory,
           signedBeta: link.signedBeta,
-          windowMs: WINDOW_MS["15m"],
+          windowMs: WINDOW_MS[window],
         })
       : [];
   const headlines = news
@@ -79,151 +75,134 @@ export function EventRail({
       (n) =>
         (event && n.eventIds.includes(event.id)) || n.symbols.includes(symbol),
     )
-    .slice(0, 2);
-  const expected = gap ? (gap.expected ?? gap.oddsMove * gap.signedBeta) : 0;
-  const actual = gap ? (gap.actual ?? gap.perpMove) : 0;
+    .slice(0, 3);
 
   if (!event) {
     return (
-      <div className="relative flex h-full flex-col justify-center px-3 text-[12px] text-[var(--muted)]">
-        {onToggle ? (
-          <button
-            type="button"
-            onClick={onToggle}
-            className="absolute right-1 top-1 px-1.5 py-0.5 text-[11px] text-[var(--dim)] hover:text-[var(--text)]"
-            aria-label="Collapse event rail"
-          >
-            ‹
-          </button>
-        ) : null}
-        No mapped event. The perp still trades.
+      <div className="flex h-full flex-col justify-center gap-3 bg-side px-5 text-[13px] text-subtle">
+        <p>No event currently maps to this perp. It still trades — there is just no Leadgap edge here.</p>
+        <Link href="/markets" className="lg-focus text-odds underline underline-offset-2">
+          See instruments with live signals →
+        </Link>
       </div>
     );
   }
 
-  if (collapsed) {
-    return (
-      <button
-        type="button"
-        onClick={onToggle}
-        className="flex h-full w-full flex-col items-center gap-2 overflow-hidden px-1 py-2 hover:bg-[var(--hover)]"
-        aria-label="Expand event rail"
-      >
-        <span className="num text-[12px] text-[var(--odds)]">
-          {fmtOdds(event.yesPrice)}
-        </span>
-        <span
-          className="max-h-full truncate text-[11px] text-[var(--muted)]"
-          style={{ writingMode: "vertical-rl" }}
-        >
-          {event.title}
-        </span>
-      </button>
-    );
-  }
-
+  const actionable = gap ? isActionable(gap) : false;
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-auto bg-[var(--surface)]">
-      <div className="flex items-center gap-1 border-b border-[var(--line)] px-2 py-1.5">
-        {uniqueEvents.length > 1 ? (
-          <MenuSelect
-            ariaLabel="Event"
-            className="min-w-0 flex-1 py-0.5 text-[11px]"
-            menuClassName="w-72"
-            value={event.id}
-            onChange={onSelect}
-            options={uniqueEvents
-              .slice(0, 8)
-              .map((item) => ({ id: item.id, label: item.title }))}
-          />
+    <div className="flex h-full min-h-0 flex-col overflow-auto bg-side">
+      <div className="flex flex-col gap-4 p-4">
+        {unique.length > 1 ? (
+          <label className="block text-[12px] text-subtle">
+            Driving event
+            <select
+              value={event.id}
+              onChange={(e) => onSelect(e.target.value)}
+              className="lg-select mt-1.5 block h-10 w-full px-3 text-[13px]"
+            >
+              {unique.slice(0, 12).map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.title}
+                </option>
+              ))}
+            </select>
+          </label>
         ) : (
-          <p className="min-w-0 flex-1 truncate text-[12px] text-[var(--text)]">
-            {event.title}
-          </p>
+          <p className="kicker">Driving event</p>
         )}
-        {onToggle ? (
-          <button
-            type="button"
-            onClick={onToggle}
-            className="shrink-0 px-1.5 py-0.5 text-[11px] text-[var(--dim)] hover:text-[var(--text)]"
-            aria-label="Collapse event rail"
-          >
-            ‹
-          </button>
-        ) : null}
-      </div>
-
-      <div className="flex flex-col gap-3 p-3">
-        <p className="text-[13px] leading-5 text-[var(--text)]">
+        <h2 className="serif text-[22px] leading-[1.25]">
           {event.question || event.title}
-        </p>
-        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 text-[12px]">
-          <span className="inline-flex items-baseline gap-1.5">
-            <span className="text-[var(--dim)]">Yes</span>
-            <OddsFigure yes={event.yesPrice} delta={gap?.oddsMove} size="sm" />
+        </h2>
+        <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1 text-[12px] text-subtle">
+          <span className="flex items-baseline gap-1.5">
+            Yes <span className="num text-[15px] text-odds">{fmtOdds(event.yesPrice)}</span>
+            {gap ? (
+              <span className={cn("num text-[11px]", signedClass(gap.oddsMove))}>
+                {fmtOddsDelta(gap.oddsMove)}
+              </span>
+            ) : null}
           </span>
           {gap ? (
-            <>
-              <span className="inline-flex items-baseline gap-1.5">
-                <span className="text-[var(--dim)]">Gap</span>
-                <span
-                  className={cn(
-                    "num",
-                    gap.leader === "odds"
-                      ? "text-[var(--odds)]"
-                      : "text-[var(--dim)]",
-                  )}
-                >
-                  {fmtPct(gap.gap)}
-                </span>
+            <span className="flex items-baseline gap-1.5">
+              Gap{" "}
+              <span className={cn("num text-[15px]", actionable ? "text-odds" : "text-subtle")}>
+                {fmtPct(gap.gap)}
               </span>
-              <span className="inline-flex items-baseline gap-1.5">
-                <span className="text-[var(--dim)]">Score</span>
-                <span className={cn("num", scoreClass(gap.score))}>
-                  {fmtScore(gap.score)}
-                </span>
-              </span>
-            </>
+            </span>
           ) : null}
+          {gap ? <DirectionChip bias={gap.bias} score={gap.score} size="sm" /> : null}
         </div>
-        {gap ? <GapMeter expected={expected} actual={actual} /> : null}
         {gap ? (
-          <p className="text-[12px] leading-5 text-[var(--text)]">
-            {thesisLine(gap)}
+          <div className="rounded-[10px] border border-line bg-surface p-3">
+            <RowTrace
+              row={gap}
+              width={320}
+              height={90}
+              pad={8}
+              dots={false}
+              className="h-[90px] w-full"
+            />
+            <p className="mt-2 text-[12px] leading-[1.55] text-subtle">
+              {thesisLine(gap)}
+            </p>
+          </div>
+        ) : (
+          <p className="text-[12px] text-dim">
+            No comparable observation on the {window} window.
           </p>
+        )}
+        {path.length >= 3 ? (
+          <div>
+            <p className="kicker">Rolling gap · {window}</p>
+            <Sparkline
+              values={path.map((p) => p.gap)}
+              width={320}
+              height={40}
+              baseline={0}
+              className="mt-2 h-10 w-full"
+            />
+          </div>
         ) : null}
-        <ResidualSpark points={path} className="h-8" />
         {headlines.length > 0 ? (
-          <ul className="space-y-1">
-            {headlines.map((item) => {
-              const href = safeHttpsUrl(item.link, NEWS_LINK_HOSTS);
-              return (
-                <li key={item.id}>
-                  {href ? (
-                    <a
-                      href={href}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="text-[12px] leading-4 text-[var(--muted)] hover:text-[var(--text)]"
-                    >
-                      {item.title}
-                    </a>
-                  ) : (
-                    <span className="text-[12px] leading-4 text-[var(--muted)]">
-                      {item.title}
-                    </span>
-                  )}
-                </li>
-              );
-            })}
-          </ul>
+          <div>
+            <p className="kicker">Headlines</p>
+            <ul className="mt-2 space-y-2">
+              {headlines.map((item) => {
+                const href = safeHttpsUrl(item.link, NEWS_LINK_HOSTS);
+                return (
+                  <li key={item.id} className="text-[12px] leading-[1.45]">
+                    {href ? (
+                      <a
+                        href={href}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="lg-focus text-subtle hover:text-text"
+                      >
+                        {item.title}
+                      </a>
+                    ) : (
+                      <span className="text-subtle">{item.title}</span>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
         ) : null}
-        <PolymarketEventLink
-          slug={event.slug}
-          className="text-[11px] text-[var(--muted)] hover:text-[var(--text)]"
-        >
-          Open event on Polymarket
-        </PolymarketEventLink>
+        <div className="flex flex-wrap gap-x-4 gap-y-2 text-[12px]">
+          <Link
+            href={signalHref({ eventId: event.id, symbol, window })}
+            className="lg-focus inline-flex items-center gap-1 text-subtle hover:text-text"
+          >
+            Full signal <ArrowUpRight size={13} aria-hidden />
+          </Link>
+          <PolymarketEventLink
+            slug={event.slug}
+            className="lg-focus inline-flex items-center gap-1 text-dim hover:text-text"
+          >
+            Open event on Polymarket <ArrowUpRight size={13} aria-hidden />
+          </PolymarketEventLink>
+        </div>
       </div>
     </div>
   );

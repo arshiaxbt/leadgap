@@ -104,6 +104,8 @@ export type GapRow = {
   bias: "long" | "short" | "none";
   catchup: number | null;
   volume: number;
+  /** Optional cumulative implied/observed path across the window, for display. */
+  trace?: { implied: number[]; observed: number[] };
 };
 
 export type GapTapePoint = {

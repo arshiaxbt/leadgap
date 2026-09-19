@@ -16,21 +16,25 @@ export function PrivyLogin() {
   const email = user?.email?.address;
 
   if (!ready) {
-    return <span className="inline-block h-7 w-[11.5rem] rounded border border-transparent" aria-hidden />;
+    return <span className="inline-block h-8 w-16 rounded border border-transparent" aria-hidden />;
   }
 
   if (authenticated) {
     return (
-      <div className="flex items-center gap-2">
-        <PortfolioStrip />
-        <PolyProfileChip address={address} fallback={email ?? (address ? shortAddr(address) : "Signed in")} />
+      <div className="flex items-center gap-2.5">
+        <div className="hidden xl:block">
+          <PortfolioStrip />
+        </div>
+        <div className="hidden sm:block">
+          <PolyProfileChip address={address} fallback={email ?? (address ? shortAddr(address) : "Signed in")} />
+        </div>
         <button
           type="button"
           onClick={() => {
             forgetStoredPerpsSession();
             void logout();
           }}
-          className="lg-focus border border-[var(--line)] px-3 py-1.5 text-xs text-[var(--muted)] hover:bg-[var(--hover)]"
+          className="lg-focus inline-flex h-8 items-center rounded-[7px] border border-line-strong px-3 text-[13px] text-subtle transition-colors hover:text-text"
         >
           Log out
         </button>
@@ -45,9 +49,10 @@ export function PrivyLogin() {
         trackEvent("connect_wallet");
         void login();
       }}
-      className="lg-focus whitespace-nowrap border border-[var(--line)] px-2.5 py-1 text-[12px] text-[var(--muted)] hover:bg-[var(--hover)]"
+      aria-label="Log in to Polymarket"
+      className="lg-focus inline-flex h-8 items-center whitespace-nowrap rounded-[7px] border border-line-strong px-3 text-[13px] text-subtle transition-colors hover:text-text"
     >
-      Log in to Polymarket
+      Log in
     </button>
   );
 }

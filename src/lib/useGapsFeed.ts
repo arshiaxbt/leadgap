@@ -1,6 +1,6 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { queryOptions, useQuery } from "@tanstack/react-query";
 import { readJson } from "@/lib/http";
 import type { GapRow, GapWindow, PerpsTicker } from "@/lib/types";
 import { useMarkets } from "@/lib/useMarkets";
@@ -24,15 +24,15 @@ export type GapsFeed = {
   loading: boolean;
   retry: () => void;
 };
-type GapPayload = Pick<
+export type GapPayload = Pick<
   GapsFeed,
   "gaps" | "summary" | "asOf" | "error" | "coverage"
->;
+> & { modelVersion?: string };
 const EMPTY_SUMMARY = { oddsFirst: 0, actionable: 0, topScore: 0 };
 
-export function useGapsFeed(window: GapWindow): GapsFeed {
-  const markets = useMarkets();
-  const gaps = useQuery({
+/** One cache entry per window, shared by every view that reads signals. */
+export function gapsQuery(window: GapWindow) {
+  return queryOptions({
     queryKey: ["gaps", window],
     queryFn: ({ signal }) =>
       readJson<GapPayload>(`/api/gaps?window=${window}`, signal),
@@ -40,14 +40,30 @@ export function useGapsFeed(window: GapWindow): GapsFeed {
     staleTime: 10_000,
     retry: 1,
   });
-  const events = useQuery({
-    queryKey: ["events"],
-    queryFn: ({ signal }) =>
-      readJson<{ events: FeedMappedEvent[] }>("/api/events", signal),
-    refetchInterval: 20_000,
-    staleTime: 10_000,
-    retry: 1,
-  });
+}
+
+export const eventsQuery = queryOptions({
+  queryKey: ["events"],
+  queryFn: ({ signal }) =>
+    readJson<{ events: FeedMappedEvent[] }>("/api/events", signal),
+  refetchInterval: 20_000,
+  staleTime: 10_000,
+  retry: 1,
+});
+
+export function feedError(payload: GapPayload | undefined, error: Error | null) {
+  return (
+    error?.message ??
+    (payload?.error
+      ? "Signals could not refresh. Last available values are shown."
+      : null)
+  );
+}
+
+export function useGapsFeed(window: GapWindow): GapsFeed {
+  const markets = useMarkets();
+  const gaps = useQuery(gapsQuery(window));
+  const events = useQuery(eventsQuery);
   return {
     gaps: gaps.data?.gaps ?? [],
     coverage: gaps.data?.coverage,
@@ -56,10 +72,7 @@ export function useGapsFeed(window: GapWindow): GapsFeed {
     tickers: markets.tickers,
     asOf: gaps.data?.asOf ?? 0,
     error:
-      gaps.error?.message ??
-      (gaps.data?.error
-        ? "Signals could not refresh. Last available values are shown."
-        : null) ??
+      feedError(gaps.data, gaps.error) ??
       events.error?.message ??
       markets.error,
     loading: gaps.isPending,

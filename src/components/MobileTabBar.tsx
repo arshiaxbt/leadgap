@@ -2,48 +2,37 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { APP_NAV, isDeskPath, navItemActive } from "@/lib/nav";
+import { MOBILE_NAV, isDeskPath, navItemActive } from "@/lib/nav";
 import { cn } from "@/lib/utils";
 
 export function MobileTabBar() {
   const path = usePathname();
-  const onDesk = isDeskPath(path);
-
-  const tabs = [
-    { href: "/", label: "Signals", on: navItemActive(path, APP_NAV[0]) },
-    { href: "/markets", label: "Markets", on: navItemActive(path, APP_NAV[1]) },
-    {
-      href: onDesk ? path : "/about",
-      label: onDesk ? "Trade" : "Guide",
-      on: onDesk || path === "/about",
-    },
-    {
-      href: "/portfolio",
-      label: "Portfolio",
-      on: navItemActive(path, APP_NAV[2]),
-    },
-  ];
+  // The desk keeps its Long / Short bar at the bottom instead.
+  if (isDeskPath(path)) return null;
 
   return (
     <nav
-      className="fixed inset-x-0 bottom-0 z-30 border-t border-[var(--line)] bg-[var(--bg)] pb-[env(safe-area-inset-bottom)] md:hidden"
+      className="shrink-0 border-t border-line bg-chrome pb-[env(safe-area-inset-bottom)] md:hidden"
       aria-label="Primary"
     >
-      <ul className="grid h-12 grid-cols-4">
-        {tabs.map((tab) => (
-          <li key={tab.label}>
-            <Link
-              href={tab.href}
-              aria-current={tab.on ? "page" : undefined}
-              className={cn(
-                "lg-focus flex h-full items-center justify-center text-[11px] font-medium",
-                tab.on ? "text-[var(--text)]" : "text-[var(--muted)]",
-              )}
-            >
-              {tab.label}
-            </Link>
-          </li>
-        ))}
+      <ul className="grid h-[54px] grid-cols-4">
+        {MOBILE_NAV.map((tab) => {
+          const on = navItemActive(path, tab);
+          return (
+            <li key={tab.href}>
+              <Link
+                href={tab.href}
+                aria-current={on ? "page" : undefined}
+                className={cn(
+                  "lg-focus flex h-full items-center justify-center text-[11px] font-medium",
+                  on ? "text-odds" : "text-subtle",
+                )}
+              >
+                {tab.short ?? tab.label}
+              </Link>
+            </li>
+          );
+        })}
       </ul>
     </nav>
   );

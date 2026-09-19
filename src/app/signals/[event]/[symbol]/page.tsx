@@ -1,0 +1,40 @@
+import type { Metadata } from "next";
+import { SignalDetail } from "@/components/signal/SignalDetail";
+import { GAP_WINDOWS } from "@/lib/divergence";
+import type { GapWindow } from "@/lib/types";
+
+type Params = Promise<{ event: string; symbol: string }>;
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Params;
+}): Promise<Metadata> {
+  const { symbol } = await params;
+  return {
+    title: `${decodeURIComponent(symbol).replace("-USD", "").toUpperCase()} signal`,
+  };
+}
+
+export default async function SignalPage({
+  params,
+  searchParams,
+}: {
+  params: Params;
+  searchParams: Promise<{ window?: string }>;
+}) {
+  const { event, symbol } = await params;
+  const { window } = await searchParams;
+  const initial = GAP_WINDOWS.includes(window as GapWindow)
+    ? (window as GapWindow)
+    : "4h";
+  const sym = decodeURIComponent(symbol).toUpperCase();
+  return (
+    <SignalDetail
+      key={`${event}:${sym}`}
+      eventId={decodeURIComponent(event)}
+      symbol={sym}
+      initialWindow={initial}
+    />
+  );
+}

@@ -138,3 +138,66 @@ export function whyDirection(
   }
   return `Expected ${(expected * 100).toFixed(2)}% vs actual ${(actual * 100).toFixed(2)}% → gap ${(row.gap * 100).toFixed(2)}%. ${action}.`;
 }
+
+const CLUSTER_LABELS: Record<string, string> = {
+  macro: "Fed/macro cluster",
+  oil: "Oil/geopolitics cluster",
+  semi: "Chips/AI cluster",
+  "crypto-spot": "Crypto cluster",
+  "crypto-equity": "Crypto-equity cluster",
+};
+
+function clusterId(reason: string): string | null {
+  const match = /^(?:Cluster|Named \S+ in cluster) ([a-z-]+)/.exec(reason);
+  return match?.[1] ?? null;
+}
+
+/** Short, plain description of how the event is tied to the perp. */
+export function mappingLabel(
+  row: Pick<GapRow, "mappingKind" | "mappingReason">,
+): string {
+  if (row.mappingKind === "named") return "Direct event link";
+  const id = clusterId(row.mappingReason);
+  return (id && CLUSTER_LABELS[id]) || "Related event";
+}
+
+/** One or two sentences for "Why these are linked". */
+export function mappingExplanation(
+  row: Pick<GapRow, "mappingKind" | "mappingReason" | "symbol" | "signedBeta">,
+): string {
+  const name = perpName(row.symbol);
+  const link =
+    row.mappingKind === "named"
+      ? `Direct map — the event question names ${name}.`
+      : `${mappingLabel(row)} — the event belongs to a topic the model maps to ${name}. A named or clustered relationship, not a verified economic link.`;
+  const sign =
+    row.signedBeta >= 0
+      ? "Sensitivity is signed positive: a rising Yes probability implies a rising mark."
+      : "Sensitivity is signed negative: a rising Yes probability implies a falling mark.";
+  return `${link} ${sign}`;
+}
+
+export function leaderLabel(leader: GapRow["leader"]): string {
+  switch (leader) {
+    case "odds":
+      return "Odds led";
+    case "perp":
+      return "Perp led";
+    case "flat":
+      return "In line";
+    default: {
+      const _never: never = leader;
+      return _never;
+    }
+  }
+}
+
+/** Where a score sits among the live signals on the same window. */
+export function scoreStanding(score: number, scores: number[]): string {
+  if (scores.length < 3) return "Leadgap score";
+  const below = scores.filter((s) => s < score).length / scores.length;
+  if (below >= 0.9) return "Leadgap score · top decile of live signals";
+  if (below >= 0.75) return "Leadgap score · top quartile of live signals";
+  if (below >= 0.5) return "Leadgap score · above the live median";
+  return "Leadgap score · below the live median";
+}

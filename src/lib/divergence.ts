@@ -222,3 +222,104 @@ export function residualPath(args: {
   }
   return out;
 }
+
+/** Cumulative implied vs observed move from the window start to now. */
+export type GapTrace = { implied: number[]; observed: number[] };
+
+function sortedSnapshots(history: Snapshot[] | undefined): Snapshot[] {
+  if (!history?.length) return [];
+  for (let i = 1; i < history.length; i++) {
+    if (history[i]!.t < history[i - 1]!.t)
+      return [...history].sort((a, b) => a.t - b.t);
+  }
+  return history;
+}
+
+/** Last observation at or before `t` in an ascending series. */
+export function valueAtOrBefore(history: Snapshot[], t: number): number | null {
+  let lo = 0,
+    hi = history.length - 1,
+    found: number | null = null;
+  while (lo <= hi) {
+    const mid = (lo + hi) >> 1;
+    const snap = history[mid]!;
+    if (snap.t <= t) {
+      if (Number.isFinite(snap.v)) found = snap.v;
+      lo = mid + 1;
+    } else hi = mid - 1;
+  }
+  return found;
+}
+
+/**
+ * Sample the path of a signal across its comparison window. Both series start
+ * at zero on the same boundary the row was scored from and end exactly on the
+ * row's expected and actual moves, so the trace never disagrees with the row.
+ * Returns null when the window start cannot be observed.
+ */
+export function gapTrace(args: {
+  odds: Snapshot[] | undefined;
+  marks: Snapshot[] | undefined;
+  signedBeta: number;
+  windowMs: number;
+  expected: number;
+  actual: number;
+  now?: number;
+  points?: number;
+}): GapTrace | null {
+  const now = args.now ?? Date.now();
+  const n = Math.max(2, Math.min(240, Math.round(args.points ?? 12)));
+  const odds = sortedSnapshots(args.odds);
+  const marks = sortedSnapshots(args.marks);
+  const oddsStart = valueAt(odds, args.windowMs, now);
+  const markStart = valueAt(marks, args.windowMs, now);
+  if (oddsStart == null || markStart == null || markStart === 0) return null;
+  const start = now - args.windowMs;
+  const implied: number[] = [];
+  const observed: number[] = [];
+  const round = (v: number) => Math.round(v * 1e6) / 1e6;
+  for (let i = 0; i < n; i++) {
+    if (i === 0) {
+      implied.push(0);
+      observed.push(0);
+      continue;
+    }
+    if (i === n - 1) {
+      implied.push(round(args.expected));
+      observed.push(round(args.actual));
+      continue;
+    }
+    const t = start + (i / (n - 1)) * args.windowMs;
+    const o = valueAtOrBefore(odds, t) ?? oddsStart;
+    const m = valueAtOrBefore(marks, t) ?? markStart;
+    implied.push(round((o - oddsStart) * args.signedBeta));
+    observed.push(round(m / markStart - 1));
+  }
+  return { implied, observed };
+}
+
+/** Attach window traces to scored rows. Rows without an observable start keep no trace. */
+export function withTraces<T extends GapRow>(
+  rows: T[],
+  args: {
+    oddsHistory: Record<string, Snapshot[]>;
+    markHistory: Record<string, Snapshot[]>;
+    window: GapWindow;
+    now?: number;
+    points?: number;
+  },
+): (T & { trace?: GapTrace })[] {
+  return rows.map((row) => {
+    const trace = gapTrace({
+      odds: args.oddsHistory[row.eventId],
+      marks: args.markHistory[row.symbol],
+      signedBeta: row.signedBeta,
+      windowMs: WINDOW_MS[args.window],
+      expected: row.expected ?? row.oddsMove * row.signedBeta,
+      actual: row.actual ?? row.perpMove,
+      now: args.now,
+      points: args.points,
+    });
+    return trace ? { ...row, trace } : row;
+  });
+}

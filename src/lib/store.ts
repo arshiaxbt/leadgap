@@ -17,6 +17,7 @@ import {
   eventTitleKey,
   GAP_WINDOWS,
   uniqueGapRows,
+  withTraces,
 } from "./divergence";
 import { isActionable } from "./score";
 import {
@@ -487,6 +488,8 @@ export async function getGaps(window: GapWindow): Promise<{
   summary: { oddsFirst: number; actionable: number; topScore: number };
 }> {
   const s = await ensureFresh();
+  // Shared rows were scored when the snapshot was taken; local rows are scored now.
+  const now = s.shared ? s.shared.asOf : Date.now();
   const gaps = s.shared
     ? s.shared.windows[window]
     : uniqueGapRows(
@@ -496,10 +499,16 @@ export async function getGaps(window: GapWindow): Promise<{
           oddsHistory: s.oddsHistory,
           markHistory: s.markHistory,
           window,
+          now,
         }),
       );
   return {
-    gaps,
+    gaps: withTraces(gaps, {
+      oddsHistory: s.oddsHistory,
+      markHistory: s.markHistory,
+      window,
+      now,
+    }),
     asOf: s.lastIngest,
     ...(s.shared
       ? {
@@ -551,11 +560,46 @@ export async function getEvent(id: string) {
       n.eventIds.includes(event.id) ||
       n.symbols.some((sym) => event.perps.some((p) => p.symbol === sym)),
   );
+  const now = s.shared ? s.shared.asOf : Date.now();
+  const windows = Object.fromEntries(
+    GAP_WINDOWS.map((window) => {
+      const rows = s.shared
+        ? s.shared.windows[window].filter((row) => row.eventId === event.id)
+        : uniqueGapRows(
+            computeGaps({
+              events: [event],
+              tickers: s.tickers,
+              oddsHistory: s.oddsHistory,
+              markHistory: s.markHistory,
+              window,
+              now,
+            }),
+          );
+      return [
+        window,
+        withTraces(rows, {
+          oddsHistory: s.oddsHistory,
+          markHistory: s.markHistory,
+          window,
+          now,
+          points: 24,
+        }),
+      ];
+    }),
+  ) as Record<GapWindow, GapRow[]>;
+  const dayAgo = now - 24 * 60 * 60_000;
+  const odds = (s.oddsHistory[event.id] ?? []).filter((p) => p.t >= dayAgo);
+  const stride = Math.max(1, Math.ceil(odds.length / 240));
+  const oddsHistory = odds.filter(
+    (_, i) => i % stride === 0 || i === odds.length - 1,
+  );
   return {
     event,
     tickers: relatedTickers,
-    news,
+    windows,
+    oddsHistory,
     instruments: s.instruments,
+    news,
     asOf: s.lastIngest,
     ...(s.shared
       ? {
@@ -579,36 +623,35 @@ export async function getAsset(symbol: string) {
     ? (await getNews({ symbol })).news
     : s.news.filter((n) => n.symbols.includes(symbol));
   const mapping = mapBySymbol().get(symbol) ?? null;
-  const gaps = (
-    s.shared
-      ? s.shared.windows["15m"]
-      : uniqueGapRows(
-          computeGaps({
-            events,
-            tickers: s.tickers,
-            oddsHistory: s.oddsHistory,
-            markHistory: s.markHistory,
-            window: "15m",
-          }),
-        )
-  ).filter((row) => row.symbol === symbol);
+  const now = s.shared ? s.shared.asOf : Date.now();
   const windows = Object.fromEntries(
     GAP_WINDOWS.map((window) => [
       window,
-      (s.shared
-        ? s.shared.windows[window]
-        : uniqueGapRows(
-            computeGaps({
-              events,
-              tickers: s.tickers,
-              oddsHistory: s.oddsHistory,
-              markHistory: s.markHistory,
-              window,
-            }),
-          )
-      ).filter((row) => row.symbol === symbol),
+      withTraces(
+        (s.shared
+          ? s.shared.windows[window]
+          : uniqueGapRows(
+              computeGaps({
+                events,
+                tickers: s.tickers,
+                oddsHistory: s.oddsHistory,
+                markHistory: s.markHistory,
+                window,
+                now,
+              }),
+            )
+        ).filter((row) => row.symbol === symbol),
+        {
+          oddsHistory: s.oddsHistory,
+          markHistory: s.markHistory,
+          window,
+          now,
+          points: 48,
+        },
+      ),
     ]),
   ) as Record<GapWindow, GapRow[]>;
+  const gaps = windows["15m"];
   const oddsHistory = Object.fromEntries(
     events.map((event) => [event.id, s.oddsHistory[event.id] ?? []]),
   );

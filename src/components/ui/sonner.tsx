@@ -29,7 +29,7 @@ export function Toaster(props: ToasterProps) {
       toastOptions={{
         classNames: {
           toast:
-            "border border-[var(--line)] bg-[var(--elevated)] text-[13px] text-[var(--text)] shadow-none",
+            "border border-[var(--line-strong)] bg-[var(--surface)] font-sans text-[13px] text-[var(--text)] shadow-[0_20px_40px_-12px_rgba(0,0,0,0.6)]",
           title: "text-[var(--text)]",
           description: "text-[var(--muted)]",
           success: "border-[color-mix(in_srgb,var(--long)_35%,var(--line))]",
@@ -39,12 +39,12 @@ export function Toaster(props: ToasterProps) {
       }}
       style={
         {
-          "--normal-bg": "var(--elevated)",
+          "--normal-bg": "var(--surface)",
           "--normal-text": "var(--text)",
-          "--normal-border": "var(--line)",
-          "--success-bg": "var(--elevated)",
-          "--error-bg": "var(--elevated)",
-          "--border-radius": "8px",
+          "--normal-border": "var(--line-strong)",
+          "--success-bg": "var(--surface)",
+          "--error-bg": "var(--surface)",
+          "--border-radius": "10px",
         } as CSSProperties
       }
       {...props}

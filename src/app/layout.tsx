@@ -1,13 +1,12 @@
 import { ReferralAnalytics } from "@/components/ReferralAnalytics";
 
-import { GeistMono } from "geist/font/mono";
-import { GeistSans } from "geist/font/sans";
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
+import { IBM_Plex_Mono, Instrument_Sans, Instrument_Serif } from "next/font/google";
 import "./globals.css";
+import { AlertWatcher } from "@/components/AlertWatcher";
 import { Header } from "@/components/Header";
 import { MobileTabBar } from "@/components/MobileTabBar";
 import { Providers } from "@/components/Providers";
-import { StatusStrip } from "@/components/StatusStrip";
 import { Toaster } from "@/components/ui/sonner";
 import {
   APP_LOGO,
@@ -17,6 +16,25 @@ import {
   APP_TAGLINE,
 } from "@/lib/brand";
 import { cn } from "@/lib/utils";
+
+const sans = Instrument_Sans({
+  subsets: ["latin"],
+  variable: "--font-instrument-sans",
+  display: "swap",
+});
+const serif = Instrument_Serif({
+  subsets: ["latin"],
+  weight: "400",
+  style: ["normal", "italic"],
+  variable: "--font-instrument-serif",
+  display: "swap",
+});
+const mono = IBM_Plex_Mono({
+  subsets: ["latin"],
+  weight: ["400", "500"],
+  variable: "--font-plex-mono",
+  display: "swap",
+});
 
 export const metadata: Metadata = {
   metadataBase: new URL(APP_ORIGIN),
@@ -46,11 +64,16 @@ export const metadata: Metadata = {
   },
 };
 
+export const viewport: Viewport = {
+  themeColor: "#0e0e0c",
+  colorScheme: "dark",
+};
+
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="en"
-      className={cn("dark h-full", GeistSans.variable, GeistMono.variable)}
+      className={cn("dark h-full", sans.variable, serif.variable, mono.variable)}
     >
       <body className="flex h-full min-h-full flex-col overflow-hidden bg-background font-sans text-foreground antialiased">
         <Providers>
@@ -65,8 +88,8 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           >
             {children}
           </main>
-          <StatusStrip />
           <MobileTabBar />
+          <AlertWatcher />
           <Toaster />
         </Providers>
         <ReferralAnalytics />

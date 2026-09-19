@@ -14,6 +14,64 @@ export type LeadgapMetrics = {
   score: number;
 };
 
+/** The multiplicative factors behind a score, each in 0–1. */
+export type ScoreFactors = {
+  /** |gap| relative to a 4% residual, capped at 1. */
+  magnitude: number;
+  /** 1 when odds led, 0.42 when in line, 0.12 when the perp led. */
+  lead: number;
+  /** Mapping confidence of the event → perp link. */
+  confidence: number;
+  /** log10(event volume) / 6, capped at 1. */
+  liquidity: number;
+  /** 1 for ≥0.8 pt odds moves, 0.65 for ≥0.3 pts, else 0.3. */
+  movement: number;
+  /** Damps implausibly large odds or implied moves. */
+  sanity: number;
+};
+
+export function scoreFactors(args: {
+  oddsMove: number;
+  perpMove: number;
+  signedBeta: number;
+  confidence: number;
+  volume: number;
+}): ScoreFactors & {
+  expected: number;
+  actual: number;
+  gap: number;
+  leader: GapRow["leader"];
+} {
+  const expected = args.oddsMove * args.signedBeta;
+  const actual = args.perpMove;
+  const gap = expected - actual;
+  const oddsAbs = Math.abs(args.oddsMove);
+  const perpAbs = Math.abs(actual);
+  const leader: GapRow["leader"] =
+    oddsAbs > perpAbs * 1.25
+      ? "odds"
+      : perpAbs > oddsAbs * 1.25
+        ? "perp"
+        : "flat";
+  return {
+    expected,
+    actual,
+    gap,
+    leader,
+    magnitude: Math.min(1, Math.abs(gap) / 0.04),
+    lead: leader === "odds" ? 1 : leader === "flat" ? 0.42 : 0.12,
+    confidence: args.confidence,
+    liquidity: Math.min(1, Math.log10(Math.max(args.volume, 10)) / 6),
+    movement: oddsAbs >= 0.008 ? 1 : oddsAbs >= 0.003 ? 0.65 : 0.3,
+    sanity:
+      oddsAbs > 0.25 || Math.abs(expected) > 0.12
+        ? 0.22
+        : oddsAbs > 0.12 || Math.abs(expected) > 0.06
+          ? 0.55
+          : 1,
+  };
+}
+
 /**
  * Leadgap Score is 0–100.
  * Magnitude of residual (odds-implied perp move minus actual mark move),
@@ -27,40 +85,20 @@ export function leadgapMetrics(args: {
   confidence: number;
   volume: number;
 }): LeadgapMetrics {
-  const expected = args.oddsMove * args.signedBeta;
-  const actual = args.perpMove;
-  const gap = expected - actual;
-  const oddsAbs = Math.abs(args.oddsMove);
-  const perpAbs = Math.abs(actual);
-  const leader: GapRow["leader"] =
-    oddsAbs > perpAbs * 1.25
-      ? "odds"
-      : perpAbs > oddsAbs * 1.25
-        ? "perp"
-        : "flat";
-
-  const liquidity = Math.min(1, Math.log10(Math.max(args.volume, 10)) / 6);
-  const magnitude = Math.min(1, Math.abs(gap) / 0.04);
-  const leadWeight = leader === "odds" ? 1 : leader === "flat" ? 0.42 : 0.12;
-  const moveWeight = oddsAbs >= 0.008 ? 1 : oddsAbs >= 0.003 ? 0.65 : 0.3;
-  const sanity =
-    oddsAbs > 0.25 || Math.abs(expected) > 0.12
-      ? 0.22
-      : oddsAbs > 0.12 || Math.abs(expected) > 0.06
-        ? 0.55
-        : 1;
+  const f = scoreFactors(args);
+  const { expected, actual, gap, leader } = f;
   const score = Math.round(
     Math.max(
       0,
       Math.min(
         100,
         100 *
-          magnitude *
-          leadWeight *
-          args.confidence *
-          liquidity *
-          moveWeight *
-          sanity,
+          f.magnitude *
+          f.lead *
+          f.confidence *
+          f.liquidity *
+          f.movement *
+          f.sanity,
       ),
     ),
   );

@@ -8,7 +8,7 @@ export function SocialLinks({ className = "" }: { className?: string }) {
         href={APP_X}
         target="_blank"
         rel="noreferrer"
-        className="lg-focus truncate text-[11px] text-[var(--dim)] hover:text-[var(--muted)]"
+        className="lg-focus truncate text-[11px] text-dim hover:text-subtle"
       >
         Created by {APP_BUILDER}
       </a>
@@ -17,7 +17,7 @@ export function SocialLinks({ className = "" }: { className?: string }) {
         target="_blank"
         rel="noreferrer"
         aria-label="GitHub"
-        className="lg-focus text-[var(--dim)] hover:text-[var(--muted)]"
+        className="lg-focus text-dim hover:text-subtle"
       >
         <GitHubIcon />
       </a>
@@ -26,7 +26,7 @@ export function SocialLinks({ className = "" }: { className?: string }) {
         target="_blank"
         rel="noreferrer"
         aria-label="X"
-        className="lg-focus text-[var(--dim)] hover:text-[var(--muted)]"
+        className="lg-focus text-dim hover:text-subtle"
       >
         <XIcon />
       </a>

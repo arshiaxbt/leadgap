@@ -2,9 +2,15 @@
 import { usePerpsStream } from "@/lib/usePerpsStream";
 import Link from "next/link";
 
-import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
 import dynamic from "next/dynamic";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   Group,
   Panel,
@@ -13,13 +19,16 @@ import {
 } from "react-resizable-panels";
 import { Blotter } from "@/components/desk/Blotter";
 import { EventRail } from "@/components/desk/EventRail";
+import { GapBar, GapStrip } from "@/components/desk/GapBar";
+import { useNow } from "@/components/signal/FeedStamp";
 import { OrderBookPanel } from "@/components/desk/OrderBookPanel";
 import { TickerStrip } from "@/components/desk/TickerStrip";
 import type { TicketPreview } from "@/components/OrderTicket";
 import { APP_NAME } from "@/lib/brand";
+import { GAP_WINDOWS, WINDOW_MS, eventTitleKey } from "@/lib/divergence";
 import { readJson } from "@/lib/http";
-import { fmtPx } from "@/lib/format";
-import { chartStory, thesisLine } from "@/lib/signal";
+import { fmtPct, fmtPx, signedClass } from "@/lib/format";
+import { thesisLine } from "@/lib/signal";
 import { trackEvent } from "@/lib/track";
 import type {
   Candle,
@@ -116,9 +125,23 @@ const layoutStorage = {
   },
 };
 
+function readWindow(value: string | null): GapWindow {
+  return GAP_WINDOWS.includes(value as GapWindow) ? (value as GapWindow) : "4h";
+}
+
 export function TradeDesk({ symbol }: { symbol: string }) {
   const search = useSearchParams();
+  const router = useRouter();
   const eventParam = search.get("event");
+  const [deskWindow, setDeskWindow] = useState<GapWindow>(() =>
+    readWindow(search.get("window")),
+  );
+  const windowRef = useRef(deskWindow);
+  useEffect(() => {
+    windowRef.current = deskWindow;
+  }, [deskWindow]);
+  const [ticketSide, setTicketSide] = useState<"BUY" | "SELL" | undefined>();
+  const now = useNow(5000);
   const [data, setData] = useState<Payload | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [eventId, setEventId] = useState<string | null>(eventParam);
@@ -133,23 +156,22 @@ export function TradeDesk({ symbol }: { symbol: string }) {
   >();
   const [preview, setPreview] = useState<TicketPreview | null>(null);
   const [tab, setTab] = useState<DeskTab>("chart");
-  const [railCollapsed, setRailCollapsed] = useState(true);
   const wide = useSyncExternalStore(subscribeXl, xlMatches, () => false);
   const cols = useDefaultLayout({
     storage: layoutStorage,
-    id: "leadgap-desk-h4",
+    id: "leadgap-desk-h5",
     panelIds: ["cluster", "side"],
     onlySaveAfterUserInteractions: true,
   });
   const rows = useDefaultLayout({
     storage: layoutStorage,
-    id: "leadgap-desk-v2",
+    id: "leadgap-desk-v3",
     panelIds: ["chartbook", "blotter"],
     onlySaveAfterUserInteractions: true,
   });
   const chartBook = useDefaultLayout({
     storage: layoutStorage,
-    id: "leadgap-desk-cb",
+    id: "leadgap-desk-cb2",
     panelIds: ["chart", "book"],
     onlySaveAfterUserInteractions: true,
   });
@@ -172,9 +194,9 @@ export function TradeDesk({ symbol }: { symbol: string }) {
         if (stop) return;
         setData(json);
         setError(null);
-        const best = [...(json.gaps ?? [])].sort(
-          (a, b) => b.score - a.score,
-        )[0];
+        const best = [
+          ...(json.windows?.[windowRef.current] ?? json.gaps ?? []),
+        ].sort((a, b) => b.score - a.score)[0];
         setEventId(
           (cur) =>
             cur ?? eventParam ?? best?.eventId ?? json.events[0]?.id ?? null,
@@ -309,24 +331,43 @@ export function TradeDesk({ symbol }: { symbol: string }) {
     };
   }, [data?.instrument.priceDecimals, data?.ticker?.markPrice, symbol]);
 
+  function changeWindow(next: GapWindow) {
+    setDeskWindow(next);
+    const url = new URL(globalThis.location.href);
+    url.searchParams.set("window", next);
+    globalThis.history.replaceState(null, "", url);
+  }
+
   if (error && !data)
     return (
-      <div className="m-auto max-w-md p-8">
-        <h1 className="text-2xl">Market unavailable</h1>
-        <p className="mt-3 text-[var(--muted)]">{error}</p>
-        <button
-          onClick={() => window.location.reload()}
-          className="lg-focus mt-6 rounded-md border border-[var(--line-strong)] px-4 py-2"
-        >
-          Retry
-        </button>
-        <Link href="/markets" className="ml-4 text-sm underline">
-          Browse markets
-        </Link>
+      <div className="m-auto max-w-md p-8 text-center">
+        <p className="kicker">{symbol.replace("-USD", "")} desk</p>
+        <h1 className="serif mt-3 text-[30px]">Market unavailable</h1>
+        <p className="mt-3 text-[13px] leading-[1.65] text-subtle">{error}</p>
+        <div className="mt-6 flex justify-center gap-3">
+          <button
+            onClick={() => window.location.reload()}
+            className="lg-focus h-9 rounded-[7px] bg-odds px-4 text-[13px] font-semibold text-on-odds"
+          >
+            Retry
+          </button>
+          <Link
+            href="/markets"
+            className="lg-focus inline-flex h-9 items-center rounded-[7px] border border-line-strong px-4 text-[13px] text-subtle hover:text-text"
+          >
+            Browse markets
+          </Link>
+        </div>
       </div>
     );
   if (!data)
-    return <div className="m-4 h-full animate-pulse bg-[var(--hover)]" />;
+    return (
+      <div aria-busy="true" aria-label="Loading market" className="flex min-h-0 flex-1 flex-col">
+        <div className="h-[60px] border-b border-line bg-chrome" />
+        <div className="h-[46px] border-b border-line bg-surface" />
+        <div className="m-4 flex-1 rounded-[10px] bg-raise" />
+      </div>
+    );
 
   const {
     instrument,
@@ -353,52 +394,50 @@ export function TradeDesk({ symbol }: { symbol: string }) {
     stream?.book && stream.book.timestamp > (book?.timestamp ?? 0)
       ? stream.book
       : book;
-  const streamStatus = stream ? (
-    <p
-      role="status"
-      className="shrink-0 border-b border-[var(--line)] px-4 py-1 text-xs text-[var(--muted)]"
-    >
-      {stream.status === "live"
-        ? "Streaming market data"
-        : stream.status === "delayed"
-          ? "Stream delayed · polling active"
-          : stream.status === "reconnecting"
-            ? "Reconnecting · polling active"
-            : "Connecting stream · polling active"}
-    </p>
-  ) : null;
-  const selectedGap = eventId
-    ? gaps.find((g) => g.eventId === eventId)
-    : gaps[0];
-  const story = selectedGap ? chartStory(selectedGap.leader) : undefined;
+  const tickerStale = !ticker || (now > 0 && now - ticker.timestamp > 90_000);
+  const status = stream
+    ? stream.status === "live"
+      ? { label: "STREAMING", warn: false }
+      : stream.status === "delayed"
+        ? { label: "STREAM DELAYED · POLLING", warn: true }
+        : stream.status === "reconnecting"
+          ? { label: "RECONNECTING · POLLING", warn: true }
+          : { label: "CONNECTING · POLLING", warn: false }
+    : { label: tickerStale ? "DELAYED" : "POLLING", warn: tickerStale };
+  const deskEvents = (() => {
+    const seen = new Set<string>();
+    const rows = windows?.[deskWindow] ?? gaps;
+    return events
+      .filter((item) => {
+        const key = eventTitleKey(item.title) || item.id;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      })
+      .sort(
+        (a, b) =>
+          (rows.find((g) => g.eventId === b.id)?.score ?? 0) -
+          (rows.find((g) => g.eventId === a.id)?.score ?? 0),
+      );
+  })();
+  const event = deskEvents.find((e) => e.id === eventId) ?? deskEvents[0];
+  const windowRows = windows?.[deskWindow] ?? (deskWindow === "15m" ? gaps : []);
+  const selectedGap = event
+    ? windowRows.find((g) => g.eventId === event.id)
+    : undefined;
+  const link = event?.perps.find((p) => p.symbol === instrument.symbol);
 
-  function toggleRail() {
-    setRailCollapsed((v) => !v);
-  }
-
-  const tickerStrip = (
-    <TickerStrip
-      instrument={instrument}
-      ticker={ticker}
-      instruments={instruments}
-      events={events}
-      preview={preview}
-    />
-  );
   const intelPanel = (
     <EventRail
       symbol={instrument.symbol}
       events={events}
-      selectedId={eventId}
+      selectedId={event?.id ?? null}
       onSelect={setEventId}
-      gaps={gaps}
-      windows={windows}
+      gaps={windowRows}
+      window={deskWindow}
       oddsHistory={oddsHistory}
       markHistory={markHistory}
-      tape={tape}
       news={news}
-      collapsed={wide && railCollapsed}
-      onToggle={wide ? toggleRail : undefined}
     />
   );
   const chartPanel = (
@@ -407,13 +446,15 @@ export function TradeDesk({ symbol }: { symbol: string }) {
       odds={selectedOdds}
       interval={klineInterval}
       onInterval={setKlineInterval}
-      oddsLabel={events.find((e) => e.id === eventId)?.title ?? "Yes %"}
+      oddsLabel={event?.title ?? "Yes %"}
       gapMarks={(tape ?? []).filter(
         (p) =>
-          p.symbol === instrument.symbol && (!eventId || p.eventId === eventId),
+          p.symbol === instrument.symbol && (!event || p.eventId === event.id),
       )}
-      story={story}
       decimals={instrument.priceDecimals}
+      signedBeta={event ? (selectedGap?.signedBeta ?? link?.signedBeta) : undefined}
+      windowMs={WINDOW_MS[deskWindow]}
+      windowLabel={deskWindow}
     />
   );
   const bookPanel = (
@@ -428,12 +469,14 @@ export function TradeDesk({ symbol }: { symbol: string }) {
   );
   const ticketPanel = (
     <OrderTicket
-      key={`${instrument.symbol}:${eventId ?? ""}:${clickPrice ?? ""}`}
+      key={`${instrument.symbol}:${event?.id ?? ""}:${clickPrice ?? ""}:${ticketSide ?? ""}`}
       instrument={instrument}
       ticker={ticker}
       price={clickPrice}
+      side={ticketSide}
       thesis={selectedGap ? thesisLine(selectedGap) : undefined}
       bias={selectedGap?.bias}
+      gap={selectedGap?.gap}
       onPreview={setPreview}
     />
   );
@@ -446,27 +489,43 @@ export function TradeDesk({ symbol }: { symbol: string }) {
       symbol={instrument.symbol}
     />
   );
+  const errorBanner = error ? (
+    <p className="workspace-error mt-3" role="alert">
+      {error}
+    </p>
+  ) : null;
 
   if (wide) {
     return (
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-        {error ? (
-          <p className="workspace-error" role="alert">
-            {error}
-          </p>
-        ) : null}
-        {tickerStrip}
-        {streamStatus}
+        <TickerStrip
+          instrument={instrument}
+          ticker={ticker}
+          instruments={instruments}
+          events={events}
+          preview={preview}
+          status={status}
+        />
+        <GapBar
+          symbol={instrument.symbol}
+          events={deskEvents}
+          event={event}
+          onSelect={setEventId}
+          gap={selectedGap}
+          window={deskWindow}
+          onWindow={changeWindow}
+        />
+        {errorBanner}
         <Group
-          id="leadgap-desk-h4"
+          id="leadgap-desk-h5"
           orientation="horizontal"
           className="min-h-0 flex-1"
           defaultLayout={cols.defaultLayout}
           onLayoutChanged={cols.onLayoutChanged}
         >
-          <Panel id="cluster" minSize={280} className="min-h-0 overflow-hidden">
+          <Panel id="cluster" minSize={420} className="min-h-0 overflow-hidden">
             <Group
-              id="leadgap-desk-v2"
+              id="leadgap-desk-v3"
               orientation="vertical"
               className="h-full"
               defaultLayout={rows.defaultLayout}
@@ -474,11 +533,11 @@ export function TradeDesk({ symbol }: { symbol: string }) {
             >
               <Panel
                 id="chartbook"
-                minSize={200}
+                minSize={220}
                 className="min-h-0 overflow-hidden"
               >
                 <Group
-                  id="leadgap-desk-cb"
+                  id="leadgap-desk-cb2"
                   orientation="horizontal"
                   className="h-full"
                   defaultLayout={chartBook.defaultLayout}
@@ -486,7 +545,7 @@ export function TradeDesk({ symbol }: { symbol: string }) {
                 >
                   <Panel
                     id="chart"
-                    minSize={220}
+                    minSize={260}
                     className="min-h-0 overflow-hidden"
                   >
                     {chartPanel}
@@ -494,8 +553,8 @@ export function TradeDesk({ symbol }: { symbol: string }) {
                   <Separator className="desk-handle" />
                   <Panel
                     id="book"
-                    defaultSize={200}
-                    minSize={140}
+                    defaultSize={216}
+                    minSize={180}
                     maxSize={360}
                     groupResizeBehavior="preserve-pixel-size"
                     className="min-h-0 overflow-hidden"
@@ -507,9 +566,9 @@ export function TradeDesk({ symbol }: { symbol: string }) {
               <Separator className="desk-handle" />
               <Panel
                 id="blotter"
-                defaultSize={100}
-                minSize={72}
-                maxSize={280}
+                defaultSize={120}
+                minSize={88}
+                maxSize={320}
                 groupResizeBehavior="preserve-pixel-size"
                 className="min-h-0 overflow-hidden"
               >
@@ -520,25 +579,13 @@ export function TradeDesk({ symbol }: { symbol: string }) {
           <Separator className="desk-handle" />
           <Panel
             id="side"
-            defaultSize={railCollapsed ? 376 : 584}
-            minSize={railCollapsed ? 360 : 584}
-            maxSize={760}
+            defaultSize={352}
+            minSize={332}
+            maxSize={520}
             groupResizeBehavior="preserve-pixel-size"
             className="min-h-0 overflow-hidden"
           >
-            <div className="flex h-full min-h-0 min-w-0">
-              <div
-                className={cn(
-                  "min-h-0 shrink-0 overflow-hidden border-r border-[var(--line)]",
-                  railCollapsed ? "w-10" : "w-[264px]",
-                )}
-              >
-                {intelPanel}
-              </div>
-              <div className="min-h-0 min-w-0 flex-1 overflow-hidden">
-                {ticketPanel}
-              </div>
-            </div>
+            {ticketPanel}
           </Panel>
         </Group>
       </div>
@@ -552,17 +599,72 @@ export function TradeDesk({ symbol }: { symbol: string }) {
     { id: "event", label: "Event" },
     { id: "positions", label: "Positions" },
   ];
+  const change = ticker?.change1h ?? null;
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-      {error ? (
-        <p className="workspace-error" role="alert">
-          {error}
-        </p>
-      ) : null}
-      {tickerStrip}
-      {streamStatus}
-      <div className="flex shrink-0 gap-1 overflow-x-auto border-b border-[var(--line)] px-2">
+      <div className="flex shrink-0 items-center gap-2.5 border-b border-line bg-chrome px-4 py-3 md:hidden">
+        <button
+          type="button"
+          aria-label="Back"
+          onClick={() =>
+            window.history.length > 1 ? router.back() : router.push("/markets")
+          }
+          className="lg-focus -ml-1 rounded-[6px] p-1 text-subtle hover:text-text"
+        >
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden>
+            <path d="m14 6-6 6 6 6" />
+          </svg>
+        </button>
+        <h1
+          className="flex items-baseline gap-2"
+          aria-label={`${instrument.symbol.replace("-USD", "")} trading desk`}
+        >
+          <span className="text-[16px] font-semibold">
+            {instrument.symbol.replace("-USD", "")}
+          </span>
+          <span className="num text-[10px] text-dim">PERP</span>
+        </h1>
+        <span className="num ml-auto text-[18px] font-medium">
+          {ticker ? fmtPx(ticker.markPrice, instrument.priceDecimals) : "—"}
+        </span>
+        <span className={cn("num text-[12px]", change != null ? signedClass(change) : "text-dim")}>
+          {change != null ? fmtPct(change) : "—"}
+        </span>
+      </div>
+      <div className="hidden md:contents">
+        <TickerStrip
+          instrument={instrument}
+          ticker={ticker}
+          instruments={instruments}
+          events={events}
+          preview={preview}
+          status={status}
+        />
+        <GapBar
+          symbol={instrument.symbol}
+          events={deskEvents}
+          event={event}
+          onSelect={setEventId}
+          gap={selectedGap}
+          window={deskWindow}
+          onWindow={changeWindow}
+        />
+      </div>
+      <div className="md:hidden">
+        <GapStrip
+          symbol={instrument.symbol}
+          event={event}
+          gap={selectedGap}
+          window={deskWindow}
+        />
+      </div>
+      {errorBanner}
+      <div
+        className="flex shrink-0 gap-[3px] overflow-x-auto px-4 py-2.5"
+        role="group"
+        aria-label="Desk view"
+      >
         {tabs.map((item) => (
           <button
             key={item.id}
@@ -570,10 +672,10 @@ export function TradeDesk({ symbol }: { symbol: string }) {
             aria-pressed={tab === item.id}
             onClick={() => setTab(item.id)}
             className={cn(
-              "lg-focus shrink-0 border-b-2 px-3 py-3 text-[13px]",
+              "lg-focus shrink-0 rounded-[6px] px-3 py-1.5 text-[12px] transition-colors",
               tab === item.id
-                ? "border-[var(--text)] text-[var(--text)]"
-                : "border-transparent text-[var(--muted)] hover:text-[var(--text)]",
+                ? "bg-active font-medium text-text"
+                : "text-subtle hover:text-text",
             )}
           >
             {item.label}
@@ -587,6 +689,30 @@ export function TradeDesk({ symbol }: { symbol: string }) {
         {tab === "event" ? intelPanel : null}
         {tab === "positions" ? blotterPanel : null}
       </div>
+      {tab !== "trade" ? (
+        <div className="flex shrink-0 gap-2.5 border-t border-line bg-side px-4 pt-3 pb-[calc(12px+env(safe-area-inset-bottom))]">
+          <button
+            type="button"
+            onClick={() => {
+              setTicketSide("BUY");
+              setTab("trade");
+            }}
+            className="lg-focus h-12 flex-1 rounded-[8px] bg-long text-[15px] font-semibold text-on-long"
+          >
+            Long
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setTicketSide("SELL");
+              setTab("trade");
+            }}
+            className="lg-focus h-12 flex-1 rounded-[8px] border border-line-strong text-[15px] font-medium text-subtle hover:text-text"
+          >
+            Short
+          </button>
+        </div>
+      ) : null}
     </div>
   );
 }

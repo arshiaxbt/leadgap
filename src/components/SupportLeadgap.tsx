@@ -27,13 +27,13 @@ export function SupportLeadgap() {
             href={POLYMARKET_REFERRAL_URL}
             target="_blank"
             rel="sponsored noopener noreferrer"
-            className="lg-focus inline-flex min-h-11 items-center gap-2 rounded-md bg-[var(--text)] px-4 text-sm text-[var(--bg)]"
+            className="lg-focus inline-flex min-h-10 items-center gap-2 rounded-[7px] bg-odds px-4 text-[13px] font-semibold text-on-odds"
           >
             Open Polymarket <ArrowUpRight size={16} />
           </a>
           <button
             onClick={() => void copy()}
-            className="lg-focus inline-flex min-h-11 items-center gap-2 rounded-md border border-[var(--line-strong)] px-4 text-sm"
+            className="lg-focus inline-flex min-h-10 items-center gap-2 rounded-[7px] border border-line-strong px-4 text-[13px] text-subtle hover:text-text"
           >
             {message.startsWith("Referral") ? (
               <Check size={16} />
@@ -43,15 +43,15 @@ export function SupportLeadgap() {
             Copy referral link
           </button>
         </div>
-        <p className="mt-3 break-all text-sm">{POLYMARKET_REFERRAL_URL}</p>
-        <p role="status" className="mt-2 text-sm">
+        <p className="num mt-3 break-all text-[12px] text-dim">{POLYMARKET_REFERRAL_URL}</p>
+        <p role="status" className="mt-2 text-[13px] text-subtle">
           {message}
         </p>
         <a
           href="https://help.polymarket.com/en/articles/14174498-referral-program"
           target="_blank"
           rel="noopener noreferrer"
-          className="lg-focus mt-3 inline-block text-sm underline"
+          className="lg-focus mt-3 inline-block text-[13px] text-subtle underline underline-offset-2 hover:text-text"
         >
           Polymarket referral terms
         </a>

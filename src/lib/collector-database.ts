@@ -1,3 +1,5 @@
+import { gzipSync, gunzipSync } from "node:zlib";
+import { SNAPSHOT_ENCODING } from "../../workers/data/snapshot-codec";
 import { PAYLOAD_MAX_BYTES, PAYLOAD_WRITES, STARTUP_SQL } from "../../workers/data/payloads";
 import type { Database, Result, Statement } from "../../workers/data/db";
 
@@ -78,8 +80,15 @@ export function collectorDatabase(origin: string, secret: string): Database {
       await flush();
       const url = new URL(`/internal/payload/${operation ?? "startup"}`, origin);
       if (!operation) {
+        url.searchParams.set("encoding", "gzip");
         const rows = await payload(url) as { key: string; value: unknown }[];
-        results.push({ results: rows.map((r) => ({ key: r.key, value: JSON.stringify(r.value) })), meta: {} });
+        results.push({ results: rows.map((r) => {
+          const stored = r.value as { _leadgapEncoding?: string; data?: string } | null;
+          const value = r.key === "latest" && stored?._leadgapEncoding === SNAPSHOT_ENCODING && typeof stored.data === "string"
+            ? gunzipSync(Buffer.from(stored.data, "base64"), { maxOutputLength: PAYLOAD_MAX_BYTES }).toString("utf8")
+            : JSON.stringify(r.value);
+          return { key: r.key, value };
+        }), meta: {} });
       } else {
         if (operation === "snapshot" || operation === "mapping") {
           const [first, second] = query.params;
@@ -88,7 +97,12 @@ export function collectorDatabase(origin: string, secret: string): Database {
         }
         const body = query.params.at(-1);
         if (typeof body !== "string") throw new Error("Invalid collector payload");
-        results.push(await payload(url, body) as Result);
+        if (encoder.encode(body).length > PAYLOAD_MAX_BYTES)
+          throw new Error("Collector payload exceeds storage byte budget");
+        const encoded = operation === "latest"
+          ? JSON.stringify({ _leadgapEncoding: SNAPSHOT_ENCODING, data: gzipSync(body).toString("base64") })
+          : body;
+        results.push(await payload(url, encoded) as Result);
       }
     }
     await flush();

@@ -15,12 +15,11 @@ import { perpName } from "@/lib/signal";
 import type { GapRow, GapWindow } from "@/lib/types";
 import { gapsQuery } from "@/lib/useGapsFeed";
 import {
-  removeRule,
-  removeWatch,
-  setRuleMuted,
-  useWatchState,
+  useWatchStore,
+  type AccountNotice,
   type SavedRule,
   type SavedSignal,
+  type WatchStore,
 } from "@/lib/watchlist";
 import { cn } from "@/lib/utils";
 
@@ -34,7 +33,7 @@ function agoCopy(ts: number, now: number): string {
 }
 
 export function Watchlist() {
-  const state = useWatchState();
+  const state = useWatchStore();
   const now = useNow(30_000);
   const windows = useMemo(
     () =>
@@ -58,14 +57,29 @@ export function Watchlist() {
     <div className="min-h-0 flex-1 overflow-auto">
       <WorkspaceHeading
         title="Watchlist"
-        description="Signals you’re tracking, and the alerts that fire when the gap moves. Saved in this browser."
+        description={`Signals you’re tracking, and the alerts that fire when the gap moves. ${state.mode === "account" ? "Synced to your account." : "Saved in this browser."}`}
       />
       <div className="flex flex-col gap-7 px-4 pb-8 md:px-6">
+        {state.error ? (
+          <p role="alert" className="workspace-error mx-0">
+            {state.error}
+          </p>
+        ) : null}
+        {state.overflow ? (
+          <p className="rounded-[10px] border border-line bg-surface px-[18px] py-3 text-[12px] text-subtle">
+            {state.overflow} saved item{state.overflow === 1 ? "" : "s"} stayed
+            in this browser because your account is at its limit (100 signals,
+            20 alerts).
+          </p>
+        ) : null}
+        {state.mode === "account" ? <Inbox store={state} now={now} /> : null}
         <section aria-labelledby="watching-heading">
           <h2 id="watching-heading" className="kicker mb-3">
             Watching · {state.items.length}
           </h2>
-          {state.items.length === 0 ? (
+          {state.loading ? (
+            <p className="text-[12px] text-dim">Loading your watchlist…</p>
+          ) : state.items.length === 0 ? (
             <Empty
               title="Nothing saved yet."
               body="Open a signal and choose Watch to follow its gap here."
@@ -78,6 +92,7 @@ export function Watchlist() {
                   item={item}
                   row={find(item.window, item.eventId, item.symbol)}
                   loading={loadingFor(item.window)}
+                  onRemove={() => void state.removeWatch(item.id)}
                 />
               ))}
             </ul>
@@ -99,17 +114,21 @@ export function Watchlist() {
                 <RuleRow
                   key={rule.id}
                   rule={rule}
-                  lastFired={state.alerts[rule.id]?.lastFired ?? 0}
+                  lastFired={state.lastFired[rule.id] ?? 0}
                   now={now}
                   live={find(rule.window, rule.eventId, rule.symbol)}
+                  store={state}
                 />
               ))}
             </ul>
           )}
           <p className="mt-3 text-[11px] leading-[1.6] text-dim">
-            Alerts are checked on every refresh while Leadgap is open in this
-            browser. Repeated triggers on the same rule have a 30-minute
-            cooldown.
+            {state.mode === "account"
+              ? "Alerts are checked every minute by the research service, even while Leadgap is closed."
+              : "Alerts are checked on every refresh while Leadgap is open in this browser. Log in to have them checked while it’s closed."}{" "}
+            Repeated triggers on the same rule have a 30-minute cooldown.
+            Model v2 prices threshold markets from their strike, so older
+            rules on those markets may fire less often.
           </p>
         </section>
       </div>
@@ -136,10 +155,12 @@ function WatchRow({
   item,
   row,
   loading,
+  onRemove,
 }: {
   item: SavedSignal;
   row?: GapRow;
   loading: boolean;
+  onRemove: () => void;
 }) {
   const name = perpName(item.symbol);
   const actionable = row ? isActionable(row) : false;
@@ -178,7 +199,7 @@ function WatchRow({
       <button
         type="button"
         aria-label={`Remove ${item.label} from watchlist`}
-        onClick={() => removeWatch(item.id)}
+        onClick={onRemove}
         className="lg-focus rounded-[5px] p-1 text-dim hover:text-text"
       >
         <X size={14} aria-hidden />
@@ -192,11 +213,13 @@ function RuleRow({
   lastFired,
   now,
   live,
+  store,
 }: {
   rule: SavedRule;
   lastFired: number;
   now: number;
   live?: GapRow;
+  store: WatchStore;
 }) {
   const name = perpName(rule.symbol);
   return (
@@ -230,7 +253,7 @@ function RuleRow({
       </span>
       <button
         type="button"
-        onClick={() => setRuleMuted(rule.id, !rule.muted)}
+        onClick={() => void store.setRuleMuted(rule.id, !rule.muted)}
         className="lg-focus text-[12px] text-subtle hover:text-text"
       >
         {rule.muted ? "Resume" : "Mute"}
@@ -238,7 +261,76 @@ function RuleRow({
       <button
         type="button"
         aria-label={`Delete alert for ${name}`}
-        onClick={() => removeRule(rule.id)}
+        onClick={() => void store.removeRule(rule.id)}
+        className="lg-focus rounded-[5px] p-1 text-dim hover:text-text"
+      >
+        <X size={14} aria-hidden />
+      </button>
+    </li>
+  );
+}
+
+function Inbox({ store, now }: { store: WatchStore; now: number }) {
+  const unread = store.notices.filter((n) => !n.read).length;
+  return (
+    <section aria-labelledby="inbox-heading">
+      <h2 id="inbox-heading" className="kicker mb-3">
+        Alerts inbox · {unread} unread
+      </h2>
+      {store.notices.length === 0 ? (
+        <p className="rounded-[10px] border border-dashed border-line-strong px-[18px] py-4 text-[12px] text-subtle">
+          Fired alerts land here, newest first.
+        </p>
+      ) : (
+        <ul className="overflow-hidden rounded-[10px] border border-line">
+          {store.notices.slice(0, 20).map((notice) => (
+            <NoticeRow key={notice.id} notice={notice} now={now} store={store} />
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
+function NoticeRow({
+  notice,
+  now,
+  store,
+}: {
+  notice: AccountNotice;
+  now: number;
+  store: WatchStore;
+}) {
+  return (
+    <li className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-line bg-surface px-[18px] py-3.5 last:border-b-0">
+      <span
+        aria-hidden
+        className={cn("size-[7px] shrink-0 rounded-full", notice.read ? "bg-off" : "bg-odds")}
+      />
+      <div className="min-w-0 flex-1 basis-56">
+        <Link
+          href={signalHref({ eventId: notice.eventId, symbol: notice.symbol })}
+          className={cn("lg-focus text-[13px] hover:text-odds", notice.read && "text-subtle")}
+        >
+          {notice.title}
+        </Link>
+        <p className="mt-1 text-[11px] text-dim">
+          {perpName(notice.symbol)} · {now ? agoCopy(notice.createdAt, now) : ""}
+        </p>
+      </div>
+      {!notice.read ? (
+        <button
+          type="button"
+          onClick={() => void store.markRead(notice.id)}
+          className="lg-focus text-[12px] text-subtle hover:text-text"
+        >
+          Mark read
+        </button>
+      ) : null}
+      <button
+        type="button"
+        aria-label={`Delete alert notice: ${notice.title}`}
+        onClick={() => void store.removeNotice(notice.id)}
         className="lg-focus rounded-[5px] p-1 text-dim hover:text-text"
       >
         <X size={14} aria-hidden />

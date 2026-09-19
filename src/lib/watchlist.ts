@@ -1,6 +1,11 @@
 "use client";
 
-import { useSyncExternalStore } from "react";
+import {
+  createContext,
+  useContext,
+  useMemo,
+  useSyncExternalStore,
+} from "react";
 import type { AlertRule, AlertState, WatchItem } from "./research";
 import type { GapRow, GapWindow } from "./types";
 
@@ -132,7 +137,7 @@ export function removeWatch(id: string) {
 export function saveRule(
   rule: Omit<SavedRule, "id" | "createdAt" | "muted">,
 ): SavedRule {
-  const id = `${signalKey(rule)}-${rule.window}`.slice(0, 64);
+  const id = ruleId(rule);
   const next: SavedRule = { ...rule, id, muted: false, createdAt: Date.now() };
   update((state) => ({
     ...state,
@@ -172,4 +177,99 @@ export function ruleFor(
 ): SavedRule | undefined {
   const key = signalKey(row);
   return state.rules.find((r) => signalKey(r) === key);
+}
+
+/** Remove local copies that now live in the account; keep anything the account refused. */
+export function forgetMigrated(ids: { watchlist: string[]; rules: string[] }) {
+  const items = new Set(ids.watchlist);
+  const rules = new Set(ids.rules);
+  update((state) => ({
+    items: state.items.filter((item) => !items.has(item.id)),
+    rules: state.rules.filter((rule) => !rules.has(rule.id)),
+    alerts: Object.fromEntries(
+      Object.entries(state.alerts).filter(([key]) => !rules.has(key)),
+    ),
+  }));
+}
+
+export function readWatchState(): WatchState {
+  return read();
+}
+
+/** A notification written by the research service when a rule fires. */
+export type AccountNotice = {
+  id: string;
+  ruleId: string;
+  title: string;
+  symbol: string;
+  eventId: string;
+  createdAt: number;
+  read: boolean;
+};
+
+/** One interface for the browser-only store and the signed-in account store. */
+export type WatchStore = {
+  mode: "local" | "account";
+  loading: boolean;
+  error: string | null;
+  items: SavedSignal[];
+  rules: SavedRule[];
+  /** Local mode: per-rule crossing state. Account mode: derived from notices. */
+  lastFired: Record<string, number>;
+  notices: AccountNotice[];
+  /** When notices last loaded; 0 until the first load (and always in local mode). */
+  noticesAt: number;
+  /** Local items the account could not take (limit reached). */
+  overflow: number;
+  isWatched(row: Pick<GapRow, "eventId" | "symbol">): boolean;
+  ruleFor(row: Pick<GapRow, "eventId" | "symbol">): SavedRule | undefined;
+  toggleWatch(
+    row: Pick<GapRow, "eventId" | "symbol" | "title">,
+    window: GapWindow,
+  ): Promise<boolean>;
+  removeWatch(id: string): Promise<void>;
+  saveRule(rule: Omit<SavedRule, "id" | "createdAt" | "muted">): Promise<void>;
+  setRuleMuted(id: string, muted: boolean): Promise<void>;
+  removeRule(id: string): Promise<void>;
+  markRead(id: string): Promise<void>;
+  removeNotice(id: string): Promise<void>;
+};
+
+export const AccountWatchContext = createContext<WatchStore | null>(null);
+
+function localStore(state: WatchState): WatchStore {
+  return {
+    mode: "local",
+    loading: false,
+    error: null,
+    items: state.items,
+    rules: state.rules,
+    lastFired: Object.fromEntries(
+      Object.entries(state.alerts).map(([id, s]) => [id, s.lastFired]),
+    ),
+    notices: [],
+    noticesAt: 0,
+    overflow: 0,
+    isWatched: (row) => isWatched(state, row),
+    ruleFor: (row) => ruleFor(state, row),
+    toggleWatch: async (row, window) => toggleWatch(row, window),
+    removeWatch: async (id) => removeWatch(id),
+    saveRule: async (rule) => void saveRule(rule),
+    setRuleMuted: async (id, muted) => setRuleMuted(id, muted),
+    removeRule: async (id) => removeRule(id),
+    markRead: async () => {},
+    removeNotice: async () => {},
+  };
+}
+
+/** The active store: the signed-in account when research is on, else this browser. */
+export function useWatchStore(): WatchStore {
+  const account = useContext(AccountWatchContext);
+  const state = useWatchState();
+  const local = useMemo(() => localStore(state), [state]);
+  return account ?? local;
+}
+
+export function ruleId(rule: Pick<SavedRule, "eventId" | "symbol" | "window">): string {
+  return `${signalKey(rule)}-${rule.window}`.slice(0, 64);
 }

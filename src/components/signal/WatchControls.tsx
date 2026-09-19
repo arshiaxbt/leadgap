@@ -10,14 +10,7 @@ import {
 } from "@/components/ui/dialog";
 import { perpName } from "@/lib/signal";
 import type { GapRow, GapWindow } from "@/lib/types";
-import {
-  isWatched,
-  removeRule,
-  ruleFor,
-  saveRule,
-  toggleWatch,
-  useWatchState,
-} from "@/lib/watchlist";
+import { useWatchStore, type WatchStore } from "@/lib/watchlist";
 import { cn } from "@/lib/utils";
 
 type Row = Pick<GapRow, "eventId" | "symbol" | "title" | "score" | "gap">;
@@ -36,10 +29,13 @@ export function WatchControls({
   window: GapWindow;
   className?: string;
 }) {
-  const state = useWatchState();
-  const watching = isWatched(state, row);
-  const rule = ruleFor(state, row);
+  const store = useWatchStore();
+  const watching = store.isWatched(row);
+  const rule = store.ruleFor(row);
   const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const where =
+    store.mode === "account" ? "Synced to your account." : "Saved in this browser.";
   const base =
     "lg-focus inline-flex h-[38px] flex-1 items-center justify-center gap-2 rounded-[7px] border text-[13px] transition-colors";
   return (
@@ -47,13 +43,21 @@ export function WatchControls({
       <button
         type="button"
         aria-pressed={watching}
-        onClick={() => {
-          const now = toggleWatch(row, window);
-          toast(now ? "Added to your watchlist" : "Removed from your watchlist", {
-            description: now
-              ? `${perpName(row.symbol)} · ${window} window. Saved in this browser.`
-              : undefined,
-          });
+        disabled={busy || store.loading}
+        onClick={async () => {
+          setBusy(true);
+          try {
+            const now = await store.toggleWatch(row, window);
+            toast(now ? "Added to your watchlist" : "Removed from your watchlist", {
+              description: now
+                ? `${perpName(row.symbol)} · ${window} window. ${where}`
+                : undefined,
+            });
+          } catch (error) {
+            toast.error(error instanceof Error ? error.message : "Could not update your watchlist.");
+          } finally {
+            setBusy(false);
+          }
         }}
         className={cn(
           base,
@@ -83,6 +87,7 @@ export function WatchControls({
         onOpenChange={setOpen}
         row={row}
         window={window}
+        store={store}
         existing={rule ? { minScore: rule.minScore, minGap: rule.minGap } : null}
       />
     </div>
@@ -94,14 +99,17 @@ function AlertDialog({
   onOpenChange,
   row,
   window,
+  store,
   existing,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   row: Row;
   window: GapWindow;
+  store: WatchStore;
   existing: { minScore: number; minGap: number } | null;
 }) {
+  const [saving, setSaving] = useState(false);
   const [score, setScore] = useState(() =>
     String(existing?.minScore ?? Math.max(28, Math.floor(row.score / 10) * 10)),
   );
@@ -136,21 +144,28 @@ function AlertDialog({
         </DialogDescription>
         <form
           className="mt-5"
-          onSubmit={(e) => {
+          onSubmit={async (e) => {
             e.preventDefault();
-            if (invalid) return;
-            saveRule({
-              symbol: row.symbol,
-              eventId: row.eventId,
-              window,
-              minScore: Math.round(scoreN),
-              minGap: gapN / 100,
-              label: row.title,
-            });
-            toast("Alert saved", {
-              description: `${name} · score ≥ ${Math.round(scoreN)} and gap ≥ ${gapN}% on ${window}.`,
-            });
-            onOpenChange(false);
+            if (invalid || saving) return;
+            setSaving(true);
+            try {
+              await store.saveRule({
+                symbol: row.symbol,
+                eventId: row.eventId,
+                window,
+                minScore: Math.round(scoreN),
+                minGap: gapN / 100,
+                label: row.title.slice(0, 240),
+              });
+              toast("Alert saved", {
+                description: `${name} · score ≥ ${Math.round(scoreN)} and gap ≥ ${gapN}% on ${window}.`,
+              });
+              onOpenChange(false);
+            } catch (error) {
+              toast.error(error instanceof Error ? error.message : "Could not save the alert.");
+            } finally {
+              setSaving(false);
+            }
           }}
         >
           <div className="grid grid-cols-2 gap-3">
@@ -183,7 +198,9 @@ function AlertDialog({
             </label>
           </div>
           <p className="mt-3 text-[11px] leading-[1.6] text-dim">
-            Checked on every refresh while Leadgap is open in this browser.
+            {store.mode === "account"
+              ? "Checked every minute by the research service, even while Leadgap is closed. New alerts appear in your watchlist inbox."
+              : "Checked on every refresh while Leadgap is open in this browser. Log in to have alerts checked while Leadgap is closed."}{" "}
             Repeated triggers on the same rule wait 30 minutes.
           </p>
           {permission === "default" && !asked ? (
@@ -200,7 +217,7 @@ function AlertDialog({
           ) : null}
           <div className="mt-5 flex items-center gap-2">
             {existing ? (
-              <RemoveRule row={row} onDone={() => onOpenChange(false)} />
+              <RemoveRule row={row} store={store} onDone={() => onOpenChange(false)} />
             ) : null}
             <button
               type="button"
@@ -211,7 +228,7 @@ function AlertDialog({
             </button>
             <button
               type="submit"
-              disabled={invalid}
+              disabled={invalid || saving}
               className="lg-focus h-9 rounded-[7px] bg-odds px-4 text-[13px] font-semibold text-on-odds disabled:opacity-50"
             >
               {existing ? "Update alert" : "Save alert"}
@@ -223,17 +240,28 @@ function AlertDialog({
   );
 }
 
-function RemoveRule({ row, onDone }: { row: Row; onDone: () => void }) {
-  const state = useWatchState();
-  const rule = ruleFor(state, row);
+function RemoveRule({
+  row,
+  store,
+  onDone,
+}: {
+  row: Row;
+  store: WatchStore;
+  onDone: () => void;
+}) {
+  const rule = store.ruleFor(row);
   if (!rule) return null;
   return (
     <button
       type="button"
-      onClick={() => {
-        removeRule(rule.id);
-        toast("Alert removed");
-        onDone();
+      onClick={async () => {
+        try {
+          await store.removeRule(rule.id);
+          toast("Alert removed");
+          onDone();
+        } catch (error) {
+          toast.error(error instanceof Error ? error.message : "Could not remove the alert.");
+        }
       }}
       className="lg-focus h-9 rounded-[7px] px-1 text-[13px] text-short hover:underline"
     >

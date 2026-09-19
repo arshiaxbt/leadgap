@@ -8,6 +8,7 @@ function bucket(path: string): { key: string; limit: number } {
   if (path === "/api/builder/sign") return { key: path, limit: 30 };
   if (path === "/api/telemetry") return { key: path, limit: 10 };
   if (path === "/api/history") return { key: path, limit: 20 };
+  if (path === "/api/research/import") return { key: path, limit: 5 };
   if (path.startsWith("/api/research/")) return { key: "research", limit: 30 };
   if (path === "/api/ingest") return { key: path, limit: 5 };
   if (path === "/api/book" || path === "/api/klines")

@@ -38,7 +38,7 @@ Roll Vercel back to the previous v4 deployment. The Worker retains the old bound
 
 ## Validation on 19 September 2026
 
-- 81 unit/integration tests, Worker runtime/D1 checks, TypeScript, lint and production build passed. All 20 browser scenarios passed, including 375–1440 px layouts, accessibility, unknown evidence and browser alert migration.
+- 82 unit/integration tests, Worker runtime/D1 checks, TypeScript, lint and production build passed. All 21 browser scenarios passed, including 375–1440 px layouts, accessibility, unknown evidence and browser alert migration.
 - Live local shadow smoke runs reproduced 67–77 supported comparisons with zero replay mismatches. They are smoke checks, not the 24-hour gate.
 - Backward-compatible Worker content was deployed; current version `dddd4446-7159-45bf-a664-00eee9f20584`. Previous version: `d11b2200-101b-4101-a26b-fbb1dccd27c5`. All 24 paced recent/history probes returned HTTP 200; production collection stayed healthy. Sampled invocation CPU was at most 5 ms. Recheck full-period P99 and quotas after shadow; these short samples do not replace that gate. Observability sampling was restored to 10%.
 - Production remains on v4 while the draft v5 release is validated. The existing production soak process remains running independently.
@@ -46,3 +46,5 @@ Roll Vercel back to the previous v4 deployment. The Worker retains the old bound
 A subsequent multi-minute shadow check exposed a valid ticker arriving after the cron-start timestamp. Evaluation now advances to the completion of observation reads, preserving strict rejection of genuinely future data. Regression coverage injects this timing offset. The read-only v4 preview similarly accounts for already-published source timestamps within five seconds. Legacy alerts with no prior evaluation state, including temporarily absent server rows, are also baselined without firing.
 
 Draft release: https://github.com/arshiaxbt/leadgap/pull/18. The final shadow run must be restarted on this timing correction; use `artifacts/shadow-v5/active-monitor.json` for its exact revision, PID and deadline. Superseded and short runs remain historical evidence and cannot authorize activation.
+
+Freshness checks also demote a candidate when its order-book evidence expires, independently of its mark/midpoint timestamps. The recorded evidence stays unchanged for replay.

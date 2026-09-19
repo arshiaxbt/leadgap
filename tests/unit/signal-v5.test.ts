@@ -516,3 +516,12 @@ test('replay counts non-overlapping asset positions and leaves absent historical
   assert.ok(missing.observations.every(o=>o.net===null));
   assert.equal(missing.observations.length,report.observations.length);
 });
+
+test('quote evidence expires independently of fresh mark and midpoint data',async()=>{
+  const {freshResearchSnapshot}=await import('../../src/lib/research');
+  const s={asOf:now,scoreVersion:'heuristic-v5',tickers:{'BTC-USD':{timestamp:now}},oddsHistory:{'1':[{t:now,v:.6}]},evidence:{odds:{'1':{at:now-80000,bid:.59,ask:.6}},perps:{}},windows:Object.fromEntries(WINDOWS.map(w=>[w,[{...gaps[0],execution:{...gaps[0].execution!,at:now}}]])),error:null} as unknown as ResearchSnapshot;
+  assert.equal(isActionable(freshResearchSnapshot(s,now).windows['4h'][0]),true);
+  const expired=freshResearchSnapshot(s,now+11000).windows['4h'][0];
+  assert.equal(expired.execution?.status,'unknown');assert.equal(isActionable(expired),false);
+  assert.equal(s.windows['4h'][0].execution?.status,'pass');
+});

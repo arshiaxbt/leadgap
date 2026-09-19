@@ -143,6 +143,11 @@ export function freshResearchSnapshot(
                 ticker.timestamp <= now && now - ticker.timestamp <= 90_000 &&
                 odds.t <= now && now - odds.t <= 90_000
               );
+            }).map(row => {
+              if (row.scoreVersion !== "heuristic-v5" || row.execution?.status !== "pass") return row;
+              const odds = snapshot.evidence?.odds[row.eventId];
+              if (odds && odds.at <= now && now-odds.at <= 90000 && row.execution.at <= now && now-row.execution.at <= 90000) return row;
+              return { ...row, execution: { ...row.execution, status: "unknown" as const, reasons: ["expired-quote-evidence"] }, candidateReasons: [...new Set([...(row.candidateReasons??[]), "expired-quote-evidence"])] };
             }),
       ]),
     ) as ResearchSnapshot["windows"],

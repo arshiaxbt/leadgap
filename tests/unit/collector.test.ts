@@ -1,3 +1,4 @@
+import { gunzipSync } from "node:zlib";
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
@@ -47,7 +48,10 @@ test("collector writes are split into gateway-sized requests in order", async ()
     assert.equal(results.length, writes.length);
     assert.deepEqual(requests.map((r) => new URL(r.url).pathname),
       ["snapshot", "mapping", "catalog", "latest"].map((op) => `/internal/payload/${op}`));
-    assert.deepEqual(requests.map((r) => r.body), writes.map((w) => w.params.at(-1)));
+    const decoded = requests.map((r) => r.url.endsWith("/latest")
+      ? gunzipSync(Buffer.from(JSON.parse(r.body).data, "base64")).toString("utf8") : r.body);
+    assert.deepEqual(decoded, writes.map((w) => w.params.at(-1)));
+    assert.ok(Buffer.byteLength(requests.at(-1)!.body) < Buffer.byteLength(decoded.at(-1)!) / 2);
     assert.ok(requests.every((r) => Buffer.byteLength(r.body) < 1_572_864));
   } finally {
     globalThis.fetch = original;

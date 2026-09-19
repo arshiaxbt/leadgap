@@ -108,3 +108,11 @@ The current auth SDK still pulls an older wallet dependency tree through `x402`.
 - Signal share routes retain their existing paths, accept `window`, and use explicit page metadata; missing/invalid windows remain 4h. The model, image label, values and URL use the same window.
 - CI builds with history enabled and runs browser checks against `next start`. Local development continues using `next dev`.
 - Rollback: roll back Vercel first (old transport remains supported); revert Worker content only if needed. D1 data and model archives stay intact. Compare per-path CPU measurements before/after; target P99 below 8 ms and no CPU-limit errors on representative workloads. Start a new 72-hour soak after rollout; require ≥99% fresh/healthy samples and no sampling gap ≥3 minutes. Owner account-sync and funded-trading acceptance remain separate from automated checks.
+
+### Snapshot compression follow-up
+
+Actual post-release collection writes exceeded the short-run idempotent probe's CPU result (sampled latest write 9 ms; aggregate P99 briefly 17.455 ms). Do not use the initial probe as sustained acceptance evidence.
+
+Vercel now gzips only the mutable latest snapshot before sending its versioned base64 envelope to D1 (about 385 KB → 63 KB including base64 on the measured catalog). The Worker returns precompressed bytes with `encodeBody: manual`; HTTP clients inflate them normally. New collector startup reads request the encoded representation and inflate on Vercel. Historical archives remain plain JSON. Raw snapshot, legacy filtered snapshot, uncompressed writes, and legacy SQL/startup reads retain their original application semantics. Decompressed compatibility reads are bounded to 1.5 MB.
+
+Deploy codec-aware Worker code before the collector. For rollback, revert Vercel first and wait for its first successful collection to replace latest with plain JSON **before** reverting the Worker to a version without codec support. Keep the codec-aware Worker in place while compressed snapshots remain. No schema migration or billing change is needed. Restart the 72-hour soak after this follow-up reaches production; measure real collection writes again.

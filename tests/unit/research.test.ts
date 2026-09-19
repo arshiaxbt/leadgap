@@ -1,3 +1,4 @@
+import { snapshotText } from "../../workers/data/snapshot-codec";
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { database } from "../helpers/database";
@@ -321,7 +322,7 @@ test("remote collector survives restart, rejects duplicate minute writes and exp
     const latest = await db
       .prepare("SELECT value FROM meta WHERE key='latest'")
       .first<{ value: string }>();
-    const data = JSON.parse(latest!.value) as ResearchSnapshot;
+    const data = JSON.parse(await snapshotText(latest!.value)) as ResearchSnapshot;
     assert.equal(data.windows["1m"].length, 1);
     assert.equal(data.oddsHistory["1"].length >= 2, true);
     const rows = await db
@@ -340,16 +341,16 @@ test("remote collector survives restart, rejects duplicate minute writes and exp
     missingOdds = true;
     time = now + 121_000;
     await collect(collectorEnv, time);
-    const partial = JSON.parse((await db.prepare("SELECT value FROM meta WHERE key='latest'")
-      .first<{ value: string }>())!.value) as ResearchSnapshot;
+    const partial = JSON.parse(await snapshotText((await db.prepare("SELECT value FROM meta WHERE key='latest'")
+      .first<{ value: string }>())!.value)) as ResearchSnapshot;
     assert.equal(partial.events.length, 1, "an unconfirmed missing quote must not evict a market");
     assert.match(partial.error!, /odds/);
 
     closedMarket = true;
     time = now + 181_000;
     await collect(collectorEnv, time);
-    const settled = JSON.parse((await db.prepare("SELECT value FROM meta WHERE key='latest'")
-      .first<{ value: string }>())!.value) as ResearchSnapshot;
+    const settled = JSON.parse(await snapshotText((await db.prepare("SELECT value FROM meta WHERE key='latest'")
+      .first<{ value: string }>())!.value)) as ResearchSnapshot;
     assert.equal(settled.events.length, 0);
     assert.notEqual(settled.modelVersion, partial.modelVersion);
     assert.equal(settled.error, "Discovering mapped events.");

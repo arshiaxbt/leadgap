@@ -1,3 +1,4 @@
+import { snapshotText } from "./snapshot-codec";
 import type { Env } from "./db";
 import { readRequestText } from "../../src/lib/request-body";
 
@@ -22,6 +23,10 @@ export async function payloadOperation(request: Request, env: Env): Promise<Resp
   const operation = url.pathname.slice("/internal/payload/".length);
   if (operation === "startup" && request.method === "GET") {
     const data = await env.DB.prepare(STARTUP_SQL).all<{ key: string; value: string }>();
+    if (url.searchParams.get("encoding") !== "gzip") {
+      for (const row of data.results)
+        if (row.key === "latest") row.value = await snapshotText(row.value);
+    }
     return rawJson(`[${data.results.map((row) =>
       `{"key":${JSON.stringify(row.key)},"value":${row.value}}`).join(",")}]`);
   }

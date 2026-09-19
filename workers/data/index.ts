@@ -1,3 +1,4 @@
+import { snapshotGzip, snapshotText } from "./snapshot-codec";
 import { payloadOperation, PAYLOAD_MAX_BYTES, rawJson } from "./payloads";
 import { historyResponse } from "./history";
 import {
@@ -77,11 +78,20 @@ export async function handle(request: Request, env: Env): Promise<Response> {
       )
     )
       return json({ error: "Invalid collector operation" }, 400);
-    return json(
-      await env.DB.batch(
-        body.queries.map((q) => env.DB.prepare(q.sql).bind(...q.params)),
-      ),
+    const results = await env.DB.batch(
+      body.queries.map((q) => env.DB.prepare(q.sql).bind(...q.params)),
     );
+    // Preserve legacy collector reads during rollback. Current collectors use
+    // the compressed startup operation and inflate on Vercel instead.
+    for (let i = 0; i < results.length; i++) {
+      const query = body.queries[i];
+      for (const row of results[i].results) {
+        if (typeof row.value === "string" &&
+            (row.key === "latest" || (query.sql === "SELECT value FROM meta WHERE key=?" && query.params[0] === "latest")))
+          row.value = await snapshotText(row.value);
+      }
+    }
+    return json(results);
   }
   const authorization = request.headers.get("authorization");
   const allowed =
@@ -102,7 +112,13 @@ export async function handle(request: Request, env: Env): Promise<Response> {
   if (request.method === "GET" && path === "/snapshot/raw") {
     const row = await env.DB.prepare("SELECT value FROM meta WHERE key=?")
       .bind("latest").first<{ value: string }>();
-    return row ? rawJson(row.value) : json({ error: "History is warming up" }, 503);
+    if (!row) return json({ error: "History is warming up" }, 503);
+    const gzip = snapshotGzip(row.value);
+    const compressedInit = {
+      encodeBody: "manual" as const,
+      headers: { "content-type": "application/json", "content-encoding": "gzip", "cache-control": "no-store" },
+    };
+    return gzip ? new Response(gzip, compressedInit) : rawJson(row.value);
   }
   if (request.method === "GET" && path === "/snapshot") {
     const snapshot = await readMeta<ResearchSnapshot>(env.DB, "latest");

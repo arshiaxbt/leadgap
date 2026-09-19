@@ -1,3 +1,4 @@
+import { snapshotText } from "./snapshot-codec";
 export type Result<T = Record<string, unknown>> = {
   results: T[];
   meta: {
@@ -34,7 +35,7 @@ export async function readMeta<T>(
     .prepare("SELECT value FROM meta WHERE key=?")
     .bind(key)
     .first<{ value: string }>();
-  return row ? (JSON.parse(row.value) as T) : null;
+  return row ? (JSON.parse(key === "latest" ? await snapshotText(row.value) : row.value) as T) : null;
 }
 export async function writeMeta(db: Database, key: string, value: unknown) {
   return db

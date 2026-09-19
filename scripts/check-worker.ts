@@ -1,3 +1,4 @@
+import { gzipSync, gunzipSync } from "node:zlib";
 import { Miniflare, convertV4MiniflareOptions } from "miniflare";
 import { execFileSync } from "node:child_process";
 import { readFile, mkdtemp, rm } from "node:fs/promises";
@@ -171,6 +172,22 @@ async function main() {
     const filtered = await (await mf.dispatchFetch("http://worker/snapshot", { headers: read })).json() as typeof stale;
     assert.equal(filtered.error, "Data collection is delayed.");
     assert.ok(Object.values(filtered.windows).every((rows) => rows.length === 0));
+    const compressed = JSON.stringify({ _leadgapEncoding: "gzip-base64-v1", data: gzipSync(JSON.stringify(stale)).toString("base64") });
+    assert.equal((await raw("latest", compressed)).status, 200);
+    const compressedResponse = await mf.dispatchFetch("http://worker/snapshot/raw", { headers: read });
+    const compressedBytes = Buffer.from(await compressedResponse.arrayBuffer());
+    // Miniflare/HTTP clients may inflate Content-Encoding before exposing bytes.
+    const decoded = compressedBytes[0] === 0x1f ? gunzipSync(compressedBytes) : compressedBytes;
+    assert.deepEqual(JSON.parse(decoded.toString()), stale);
+    const oldSnapshot = await mf.dispatchFetch("http://worker/snapshot", { headers: read });
+    assert.equal((await oldSnapshot.json() as { error: string }).error, "Data collection is delayed.");
+    const oldStartup = await mf.dispatchFetch("http://worker/internal/payload/startup", { headers: { authorization: "Bearer collector-secret" } });
+    assert.deepEqual((await oldStartup.json() as { key: string; value: unknown }[]).find((r) => r.key === "latest")?.value, stale);
+    const encodedStartup = await mf.dispatchFetch("http://worker/internal/payload/startup?encoding=gzip", { headers: { authorization: "Bearer collector-secret" } });
+    assert.deepEqual((await encodedStartup.json() as { key: string; value: unknown }[]).find((r) => r.key === "latest")?.value, JSON.parse(compressed));
+    const legacySql = await storage("collector-secret", "SELECT key,value FROM meta WHERE key IN ('health','latest','instrumentsAt','catalog')");
+    const legacyResults = await legacySql.json() as { results: { key: string; value: string }[] }[];
+    assert.deepEqual(JSON.parse(legacyResults[0].results.find((r) => r.key === "latest")!.value), stale);
     const readHistory = async (query: string) => {
       const response = await mf!.dispatchFetch(`http://worker/history?from=0&to=204&limit=100${query}`, { headers: read });
       assert.equal(response.status, 200);

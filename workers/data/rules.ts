@@ -43,7 +43,7 @@ export async function evaluateRules(
       (r) => r.symbol === rule.symbol && r.eventId === rule.eventId,
     );
     const result = evaluateAlert(rule, prior, row, now, snapshot.asOf);
-    const state = resetModel ? { ...result.state, lastFired: prior.lastFired } : result.state;
+    const state = resetModel ? { ...result.state, matched: row ? result.state.matched : true, lastFired: prior.lastFired } : result.state;
     const fire = !resetModel && result.fire;
     if (state.matched !== prior.matched || state.lastFired !== prior.lastFired)
       states.push({

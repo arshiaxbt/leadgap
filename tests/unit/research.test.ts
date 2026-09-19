@@ -258,7 +258,9 @@ test("remote collector survives restart, rejects duplicate minute writes and exp
       ...env,
       DB: collectorDatabase("https://data.test", "collector-secret"),
     };
-  const original = globalThis.fetch;
+  const original = globalThis.fetch, originalNow = Date.now;
+  let elapsed = 0;
+  Date.now = () => originalNow() + elapsed;
   let time = now;
   let missingOdds = false;
   let closedMarket = false;
@@ -276,15 +278,17 @@ test("remote collector survives restart, rejects duplicate minute writes and exp
           price_decimals: 2,
         },
       ]);
-    if (url.includes("/tickers"))
+    if (url.includes("/tickers")) {
+      elapsed += 1500; // Ticker arrives after collection starts.
       return Response.json([
         {
           instrument_id: 1,
           symbol: "BTC-USD",
           mark_price: "100",
-          timestamp: time,
+          timestamp: time + 1000,
         },
       ]);
+    }
     if (url.includes("/public-search")) return Response.json({ events: [] });
     if (url.includes("/midpoints"))
       return Response.json(missingOdds ? {} : { "100": "0.65" });
@@ -324,6 +328,7 @@ test("remote collector survives restart, rejects duplicate minute writes and exp
       .first<{ value: string }>();
     const data = JSON.parse(await snapshotText(latest!.value)) as ResearchSnapshot;
     assert.equal(data.windows["1m"].length, 1);
+    assert.ok(data.asOf >= time + 1000, "evaluation includes newly fetched observations");
     assert.equal(data.oddsHistory["1"].length >= 2, true);
     const rows = await db
       .prepare("SELECT payload FROM snapshots")
@@ -359,6 +364,7 @@ test("remote collector survives restart, rejects duplicate minute writes and exp
     assert.deepEqual(catalog.events, {});
   } finally {
     globalThis.fetch = original;
+    Date.now = originalNow;
     close();
   }
 });

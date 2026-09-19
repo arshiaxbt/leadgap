@@ -401,6 +401,8 @@ test("a model transition baselines server alerts without changing saved rules or
       asOf: now,
       windows: { "4h": [gaps[0]] },
     } as unknown as ResearchSnapshot;
+    await evaluateRules({ DB: db, DATA_SERVICE_SECRET: "s" }, { ...s, windows: { "4h": [] } } as unknown as ResearchSnapshot, now, true);
+    await evaluateRules({ DB: db, DATA_SERVICE_SECRET: "s" }, s, now + 1000);
     await evaluateRules({ DB: db, DATA_SERVICE_SECRET: "s" }, s, now, true);
     assert.equal(
       (await db.prepare("SELECT * FROM notifications").all()).results.length,

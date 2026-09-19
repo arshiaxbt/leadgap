@@ -28,12 +28,12 @@ export const events: ResolvedEvent[] = instruments.map((inst, i) => ({
   title: [
     "Bitcoin above $100,000 this month?",
     "Ethereum above $4,000 this month?",
-    "Will Apple announce a new product?",
+    "Will Apple trade above $250?",
   ][i],
   question: [
     "Will Bitcoin exceed $100,000 before month end?",
     "Will Ethereum exceed $4,000 before month end?",
-    "Will Apple announce a new product before month end?",
+    "Will Apple trade above $250 before month end?",
   ][i],
   slug: `fixture-event-${i}`,
   volume: 120000,

@@ -6,6 +6,7 @@ import {
   useMemo,
   useSyncExternalStore,
 } from "react";
+import { SCORE_MODEL_VERSION } from "./score";
 import type { AlertRule, AlertState, WatchItem } from "./research";
 import type { GapRow, GapWindow } from "./types";
 
@@ -14,7 +15,7 @@ import type { GapRow, GapWindow } from "./types";
  * a server; alerts are evaluated while Leadgap is open (see AlertWatcher).
  */
 export type SavedSignal = WatchItem & { savedAt: number };
-export type SavedRule = AlertRule & { createdAt: number; label?: string };
+export type SavedRule = AlertRule & { createdAt: number; label?: string; scoreVersion?: string };
 export type WatchState = {
   items: SavedSignal[];
   rules: SavedRule[];
@@ -138,7 +139,7 @@ export function saveRule(
   rule: Omit<SavedRule, "id" | "createdAt" | "muted">,
 ): SavedRule {
   const id = ruleId(rule);
-  const next: SavedRule = { ...rule, id, muted: false, createdAt: Date.now() };
+  const next: SavedRule = { ...rule, id, muted: false, createdAt: Date.now(), scoreVersion: SCORE_MODEL_VERSION };
   update((state) => ({
     ...state,
     rules: [next, ...state.rules.filter((r) => r.id !== id)],

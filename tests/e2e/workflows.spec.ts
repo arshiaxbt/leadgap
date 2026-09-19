@@ -393,6 +393,7 @@ test("a saved alert fires once when its signal crosses the thresholds", async ({
             minGap: 0.01,
             muted: false,
             createdAt: Date.now(),
+            scoreVersion: "heuristic-v5",
           },
         ],
         alerts: {},
@@ -527,5 +528,15 @@ test('a saved v4 alert is baselined on v5 without a manufactured notification',a
   await expect.poll(()=>page.evaluate(()=>JSON.parse(localStorage.getItem('leadgap:watchlist:v1')!).alerts.legacy.scoreVersion)).toBe('heuristic-v5');
   const alert=await page.evaluate(()=>JSON.parse(localStorage.getItem('leadgap:watchlist:v1')!).alerts.legacy);
   expect(alert.matched).toBe(true);expect(alert.lastFired).toBe(123);
+  await expect(page.getByText('BTC alert · score 70')).not.toBeVisible();
+});
+
+
+test('legacy browser rules without previous evaluation state also baseline',async({page})=>{
+  await page.addInitScript(()=>localStorage.setItem('leadgap:watchlist:v1',JSON.stringify({items:[],rules:[{id:'legacy',symbol:'BTC-USD',eventId:'1',window:'4h',minScore:60,minGap:.01,muted:false}],alerts:{}})));
+  await page.goto('/');
+  await expect.poll(()=>page.evaluate(()=>JSON.parse(localStorage.getItem('leadgap:watchlist:v1')!).alerts.legacy?.scoreVersion)).toBe('heuristic-v5');
+  const alert=await page.evaluate(()=>JSON.parse(localStorage.getItem('leadgap:watchlist:v1')!).alerts.legacy);
+  expect(alert.matched).toBe(true);expect(alert.lastFired).toBe(0);
   await expect(page.getByText('BTC alert · score 70')).not.toBeVisible();
 });

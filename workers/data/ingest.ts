@@ -45,6 +45,7 @@ export async function collect(
   now = Date.now(),
   options: { enrich?: boolean; evaluateAlerts?: boolean } = {},
 ) {
+  const wallStarted = Date.now();
   const owner = crypto.randomUUID();
   const db = env.DB;
   const slot = Math.floor(now / 60_000) * 60_000;
@@ -251,6 +252,9 @@ export async function collect(
         if (entry) entry.event.endsAt = endsAt;
       }),
     );
+    // Score at observation time: fetched tickers can legitimately arrive after
+    // the cron began. Preserve injected clocks in replay/integration tests.
+    now += Date.now() - wallStarted;
     const modelVersion = await fingerprintModel(events);
     const batch: HistoryBatch = {
       schema: 2,

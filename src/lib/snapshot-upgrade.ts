@@ -7,6 +7,8 @@ import { SCORE_MODEL_VERSION } from "./score";
 /** Read-only compatibility during rollout. Archived v4 observations stay intact. */
 export function currentSnapshot(source: ResearchSnapshot): ResearchSnapshot {
   if (source.scoreVersion === SCORE_MODEL_VERSION) return source;
+  const now = Math.max(source.asOf, ...Object.values(source.tickers).map(t =>
+    Number.isFinite(t.timestamp) && t.timestamp <= Date.now() && t.timestamp-source.asOf <= 5000 ? t.timestamp : source.asOf));
   const events = source.events
     .map((event) => ({
       ...event,
@@ -23,6 +25,7 @@ export function currentSnapshot(source: ResearchSnapshot): ResearchSnapshot {
     .filter((e) => e.perps.length);
   const snapshot: ResearchSnapshot = {
     ...source,
+    asOf: now,
     events,
     scoreVersion: SCORE_MODEL_VERSION,
     modelVersion: `preview-v5:${source.modelVersion}`,
@@ -36,7 +39,7 @@ export function currentSnapshot(source: ResearchSnapshot): ResearchSnapshot {
             markHistory: source.markHistory,
             oddsHistory: source.oddsHistory,
             window,
-            now: source.asOf,
+            now,
           }),
         ),
       ]),

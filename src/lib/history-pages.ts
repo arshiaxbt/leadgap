@@ -18,14 +18,16 @@ export async function readHistoryPages(
     const data = await read(`/history?${p}`);
     if (!Array.isArray(data.batches)) throw new Error("Invalid history page");
     for (const batch of data.batches) {
-      if (!Number.isFinite(batch.t) || batch.t < cursor || batch.t > to ||
+      if (!Number.isFinite(batch.t) || batch.t < cursor ||
           (batches.length && batch.t <= batches.at(-1)!.t))
         throw new Error("History observations did not advance");
-      batches.push(batch);
+      // A collection arriving mid-pagination may share the final minute slot
+      // but have an observation timestamp after the fixed request cutoff.
+      if (batch.t <= to) batches.push(batch);
     }
     if (data.nextCursor === null) return { batches, nextCursor: null };
     if (!Number.isSafeInteger(data.nextCursor) || data.nextCursor <= cursor ||
-        !data.batches.length || data.nextCursor <= data.batches.at(-1)!.t)
+        !data.batches.length)
       throw new Error("History cursor did not advance");
     if (data.nextCursor > to) return { batches, nextCursor: null };
     cursor = data.nextCursor;

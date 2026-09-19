@@ -22,3 +22,13 @@ test("history rejects failed pages, overlapping observations and stuck cursors",
   await assert.rejects(readHistoryPages(query(), async () => ({ batches: [batch(1)], nextCursor: 0 })), /cursor/);
   await assert.rejects(readHistoryPages(query(), async () => ({ batches: [batch(1), batch(1)], nextCursor: null })), /observations/);
 });
+
+test("minute-slot cursors are independent of actual collection timestamps", async () => {
+  const data = await readHistoryPages(new URLSearchParams({ from: "0", to: "120100" }), async (path) => {
+    const cursor = Number(new URL(path, "https://data.test").searchParams.get("cursor"));
+    if (cursor === 0) return { batches: [batch(2000), batch(62000)], nextCursor: 60001 };
+    assert.equal(cursor, 60001);
+    return { batches: [batch(122000)], nextCursor: null };
+  });
+  assert.deepEqual(data.batches.map((b) => b.t), [2000, 62000]);
+});

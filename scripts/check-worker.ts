@@ -32,6 +32,7 @@ async function main() {
         bindings: {
           DATA_SERVICE_SECRET: "test-secret",
           COLLECTOR_SECRET: "collector-secret",
+          DATA_READ_SECRET: "read-secret",
           INGEST_ENABLED: "false",
         },
       }),
@@ -82,6 +83,52 @@ async function main() {
       ).status,
       503,
     );
+    // The preview read key may only read published data.
+    const read = { authorization: "Bearer read-secret" };
+    assert.deepEqual(
+      await (await mf.dispatchFetch("http://worker/health", { headers: read })).json(),
+      { status: "warming" },
+    );
+    assert.equal(
+      (await mf.dispatchFetch("http://worker/snapshot", { headers: read })).status,
+      503,
+    );
+    assert.equal(
+      (
+        await mf.dispatchFetch(
+          `http://worker/history?from=0&to=${60_000}`,
+          { headers: read },
+        )
+      ).status,
+      200,
+    );
+    for (const [path, method] of [
+      ["/account/watchlist", "GET"],
+      ["/account/rules", "PUT"],
+      ["/collect", "POST"],
+      ["/telemetry", "POST"],
+      ["/health", "POST"],
+    ] as const)
+      assert.equal(
+        (
+          await mf.dispatchFetch(`http://worker${path}`, {
+            method,
+            headers: { ...read, "x-leadgap-user": "did:privy:alice" },
+            ...(method === "GET" ? {} : { body: "{}" }),
+          })
+        ).status,
+        401,
+        `${method} ${path} must reject the read key`,
+      );
+    assert.equal((await storage("read-secret", "SELECT 1")).status, 401);
+    assert.equal(
+      (
+        await mf.dispatchFetch("http://worker/health", {
+          headers: { authorization: "Bearer read-secretX" },
+        })
+      ).status,
+      401,
+    );
     const item = {
       id: "btc",
       symbol: "BTC-USD",
@@ -115,7 +162,7 @@ async function main() {
       { items: [] },
     );
     console.log(
-      "Worker runtime, D1 migration, authorization and account isolation passed.",
+      "Worker runtime, D1 migration, authorization, read-only key and account isolation passed.",
     );
   } finally {
     await mf?.dispose();

@@ -17,7 +17,20 @@ test.afterEach(async ({ page }) => {
   expect(browserErrors.get(page)).toEqual([]);
 });
 
+/** Let enter transitions (dialog fade/zoom) finish so axe never measures blended colors. */
+async function settleAnimations(page: Page) {
+  await page.evaluate(() =>
+    Promise.all(
+      document
+        .getAnimations()
+        .filter((a) => a.effect?.getComputedTiming().endTime !== Infinity)
+        .map((a) => a.finished.catch(() => undefined)),
+    ),
+  );
+}
+
 async function expectAccessible(page: Page) {
+  await settleAnimations(page);
   const result = await new AxeBuilder({ page })
     .withTags(["wcag2a", "wcag2aa", "wcag21aa"])
     .analyze();
@@ -123,6 +136,7 @@ test("market filters, navigation, guide and portfolio", async ({ page }) => {
   await expect(page).toHaveURL(/BTC-USD/);
   for (const path of ["/portfolio", "/about", "/not-a-page"]) {
     await page.goto(path);
+    await settleAnimations(page);
     const results = await new AxeBuilder({ page })
       .withTags(["wcag2a", "wcag2aa", "wcag21aa"])
       .analyze();
@@ -191,6 +205,7 @@ test("all secondary surfaces stay usable at every supported width", async ({
       await page.goto(path);
       await expect(page.locator("h1").first()).toBeVisible();
       await expectNoOverflow(page);
+      await settleAnimations(page);
       const a = await new AxeBuilder({ page })
         .withTags(["wcag2a", "wcag2aa", "wcag21aa"])
         .analyze();
@@ -292,6 +307,7 @@ test("compact results and order review at wide and short viewport sizes", async 
     await expect(
       dialog.getByText("Determined by venue; excluded from margin estimate"),
     ).toBeVisible();
+    await settleAnimations(page);
     const audit = await new AxeBuilder({ page })
       .withTags(["wcag2a", "wcag2aa", "wcag21aa"])
       .analyze();

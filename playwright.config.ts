@@ -13,7 +13,7 @@ export default defineConfig({
   webServer: process.env.PLAYWRIGHT_BASE_URL
     ? undefined
     : {
-        command: "npm run dev:http",
+        command: process.env.CI ? "npm run start" : "npm run dev:http",
         env: { NEXT_PUBLIC_ENABLE_HISTORY: "true" },
         url: "http://localhost:3000",
         reuseExistingServer: !process.env.CI,

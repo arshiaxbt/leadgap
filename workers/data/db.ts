@@ -20,7 +20,7 @@ export type Database = {
 export type Env = {
   DB: Database;
   DATA_SERVICE_SECRET: string;
-  /** Optional read-only key for preview deployments: GET /snapshot, /history, /mapping, /health. */
+  /** Optional read-only key for preview deployments: GET /snapshot, /snapshot/raw, /history, /mapping, /health. */
   DATA_READ_SECRET?: string;
   INGEST_ENABLED?: string;
   COLLECTOR_URL?: string;

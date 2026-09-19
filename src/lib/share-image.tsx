@@ -8,7 +8,6 @@ import type { GapRow, GapWindow } from "@/lib/types";
 
 export const SHARE_SIZE = { width: 1200, height: 630 };
 
-const WINDOW: GapWindow = "4h";
 const C = {
   bg: "#121210",
   surface: "#191916",
@@ -53,16 +52,18 @@ function loadFonts() {
   return fonts;
 }
 
-async function findRow(eventId: string, symbol: string): Promise<GapRow | null> {
-  const timeout = new Promise<null>((resolve) => setTimeout(resolve, 5_000, null));
-  const lookup = getGaps(WINDOW)
+export async function findShareRow(eventId: string, symbol: string, window: GapWindow, load: (window: GapWindow) => Promise<{ gaps: GapRow[] }> = getGaps): Promise<GapRow | null> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<null>((resolve) => { timer = setTimeout(resolve, 5_000, null); });
+  const lookup = load(window)
     .then(
       (data) =>
         data.gaps.find((g) => g.eventId === eventId && g.symbol === symbol) ??
         null,
     )
     .catch(() => null);
-  return Promise.race([lookup, timeout]);
+  try { return await Promise.race([lookup, timeout]); }
+  finally { clearTimeout(timer); }
 }
 
 function clip(text: string, max: number): string {
@@ -143,7 +144,7 @@ function Direction({ row }: { row: GapRow }) {
   );
 }
 
-function SignalCard({ row }: { row: GapRow }) {
+export function SignalCard({ row }: { row: GapRow }) {
   // The market question carries the strike ("above $116,000"); event titles use a blank.
   const question = clip(row.question || row.title, 130);
   return (
@@ -151,7 +152,7 @@ function SignalCard({ row }: { row: GapRow }) {
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <Logo />
         <div style={{ fontSize: 18, letterSpacing: 2, color: C.dim }}>
-          {`${perpName(row.symbol)} · ${WINDOW.toUpperCase()} WINDOW`}
+          {`${perpName(row.symbol)} · ${row.window.toUpperCase()} WINDOW`}
         </div>
       </div>
       <div
@@ -188,7 +189,7 @@ function SignalCard({ row }: { row: GapRow }) {
   );
 }
 
-function FallbackCard({ symbol }: { symbol: string }) {
+function FallbackCard({ symbol, window }: { symbol: string; window: GapWindow }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", justifyContent: "space-between", width: "100%", height: "100%", padding: "56px 64px", background: C.bg, fontFamily: "IBM Plex Mono" }}>
       <Logo />
@@ -201,19 +202,19 @@ function FallbackCard({ symbol }: { symbol: string }) {
         </div>
       </div>
       <div style={{ fontSize: 17, letterSpacing: 2, color: C.dim }}>
-        POLYMARKET ODDS · MAPPED PERPS · THE GAP BETWEEN THEM
+        {`${window.toUpperCase()} WINDOW · POLYMARKET ODDS · MAPPED PERPS`}
       </div>
     </div>
   );
 }
 
 /** Shared by the opengraph-image and twitter-image routes of a signal. */
-export async function renderSignalImage(params: Promise<{ event: string; symbol: string }>) {
+export async function renderSignalImage(params: Promise<{ event: string; symbol: string }>, window: GapWindow = "4h") {
   const { event, symbol } = await params;
   const eventId = decodeURIComponent(event);
   const sym = decodeURIComponent(symbol).toUpperCase();
-  const [row, fontData] = await Promise.all([findRow(eventId, sym), loadFonts()]);
-  return new ImageResponse(row ? <SignalCard row={row} /> : <FallbackCard symbol={sym} />, {
+  const [row, fontData] = await Promise.all([findShareRow(eventId, sym, window), loadFonts()]);
+  return new ImageResponse(row ? <SignalCard row={row} /> : <FallbackCard symbol={sym} window={window} />, {
     ...SHARE_SIZE,
     fonts: fontData.map((f) => ({ ...f, style: "normal" as const })),
     headers: {

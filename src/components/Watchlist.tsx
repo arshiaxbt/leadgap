@@ -127,7 +127,7 @@ export function Watchlist() {
               ? "Alerts are checked every minute by the research service, even while Leadgap is closed."
               : "Alerts are checked on every refresh while Leadgap is open in this browser. Log in to have them checked while it’s closed."}{" "}
             Repeated triggers on the same rule have a 30-minute cooldown.
-            Model v3 sizes implied moves from each perp’s volatility, so older
+            The current model sizes implied moves from each perp’s volatility, so older
             rules on those markets may fire less often.
           </p>
         </section>

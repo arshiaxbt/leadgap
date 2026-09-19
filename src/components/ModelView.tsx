@@ -220,7 +220,9 @@ export function ModelView() {
               drift as expiry nears are not read as price moves. Markets priced
               below 5% or above 95%, or resolving within the window, are left
               out: there a one-tick wobble or time decay would read as a large
-              move.
+              move. Clear negative outcomes such as “will not reach” use the
+              complement probability (1 − Yes). Compound conditions and
+              unsupported negations are left out.
             </p>
             <p>
               <span className="text-text">Other events</span> are assumed to be
@@ -233,7 +235,8 @@ export function ModelView() {
               estimate.
             </p>
             <p className="text-[12px] text-dim">
-              Model v3 (September 2026). v1 read every odds move one-for-one
+              Model v4 (September 2026) adds explicit threshold negation and
+              versions question changes. v1 read every odds move one-for-one
               as a price move (6 points became 6%, in oil or ETH alike), so
               signals now score far lower and alert rules saved under v1 may
               stop firing.

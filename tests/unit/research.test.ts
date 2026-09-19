@@ -263,7 +263,7 @@ test("remote collector survives restart, rejects duplicate minute writes and exp
   let closedMarket = false;
   globalThis.fetch = async (input, init) => {
     const url = String(input);
-    if (url === "https://data.test/internal/database")
+    if (url.startsWith("https://data.test/internal/"))
       return handle(new Request(input, init), env);
     if (url.includes("/instruments"))
       return Response.json([

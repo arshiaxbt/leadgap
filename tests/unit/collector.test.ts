@@ -34,25 +34,21 @@ test("collector writes are split into gateway-sized requests in order", async ()
   const latestSize = JSON.stringify(writes.at(-1)).length;
   assert.ok(total > GATEWAY_LIMIT, `fixture must reproduce the 413 (got ${total})`);
   assert.ok(latestSize > 300_000 && latestSize < 450_000, `latest ${latestSize}`);
-  const bodies: { queries: { sql: string }[] }[] = [];
+  const requests: { url: string; body: string }[] = [];
   const original = globalThis.fetch;
-  globalThis.fetch = async (_input, init) => {
+  globalThis.fetch = async (input, init) => {
     const body = String(init?.body);
-    assert.ok(body.length < 450_000, `request body ${body.length} bytes`);
-    const parsed = JSON.parse(body) as { queries: { sql: string }[] };
-    bodies.push(parsed);
-    return Response.json(parsed.queries.map((_, i) => ({ results: [], meta: { changes: i } })));
+    requests.push({ url: String(input), body });
+    return Response.json({ results: [], meta: { changes: 1 } });
   };
   try {
     const db = collectorDatabase("https://data.test", "collector-secret");
-    const results = await db.batch(
-      writes.map((w) => db.prepare(w.sql).bind(...w.params)),
-    );
+    const results = await db.batch(writes.map((w) => db.prepare(w.sql).bind(...w.params)));
     assert.equal(results.length, writes.length);
-    assert.ok(bodies.length >= 2);
-    const order = bodies.flatMap((b) => b.queries.map((q) => q.sql));
-    assert.deepEqual(order, writes.map((w) => w.sql));
-    assert.match(order.at(-1)!, /'latest'/);
+    assert.deepEqual(requests.map((r) => new URL(r.url).pathname),
+      ["snapshot", "mapping", "catalog", "latest"].map((op) => `/internal/payload/${op}`));
+    assert.deepEqual(requests.map((r) => r.body), writes.map((w) => w.params.at(-1)));
+    assert.ok(requests.every((r) => Buffer.byteLength(r.body) < 1_572_864));
   } finally {
     globalThis.fetch = original;
   }
@@ -82,4 +78,26 @@ test("compact rows keep six significant digits", () => {
   assert.equal(row.gap, 0.031);
   assert.equal(row.catchup, null);
   assert.equal(row.score, gaps[0]!.score);
+});
+
+test("gateway budgets include UTF-8, commas and the complete envelope", () => {
+  const queries = Array.from({length: 12}, () => ({ sql: "test", params: ["🙂".repeat(12000)] }));
+  for (const chunk of chunkQueries(queries))
+    assert.ok(Buffer.byteLength(JSON.stringify({ queries: chunk })) <= GATEWAY_CHUNK_BYTES);
+  assert.throws(() => chunkQueries([{ sql: "test", params: ["é".repeat(GATEWAY_CHUNK_BYTES)] }]), /byte budget/);
+});
+
+test("collector stops before publishing latest when an earlier payload fails", async () => {
+  const original = globalThis.fetch;
+  const urls: string[] = [];
+  globalThis.fetch = async (input) => {
+    urls.push(String(input));
+    return Response.json({}, { status: 503 });
+  };
+  try {
+    const db = collectorDatabase("https://data.test", "secret");
+    await assert.rejects(db.batch(productionSizedWrites().map((w) => db.prepare(w.sql).bind(...w.params))), /503/);
+    assert.equal(urls.length, 1);
+    assert.ok(!urls.some((url) => url.includes("latest")));
+  } finally { globalThis.fetch = original; }
 });

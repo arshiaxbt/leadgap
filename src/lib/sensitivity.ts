@@ -101,9 +101,11 @@ export function normInv(p: number): number {
 export type Threshold = {
   /** digital: settles on the price at a time. touch: any time before expiry. */
   kind: "digital" | "touch";
-  /** +1 when a higher price makes Yes more likely. */
+  /** Direction of the affirmative condition, before complementing Yes. */
   direction: 1 | -1;
   strike: number;
+  /** Yes is the complement of the affirmative threshold condition. */
+  complemented?: true;
 };
 
 const UP = "above|over|higher than|greater than|at least|exceed(?:s|ing)?|reach(?:es)?|hit(?:s)?|tops?|surpass(?:es)?|break(?:s)? above|climb(?:s)? to|rise(?:s)? to";
@@ -142,26 +144,40 @@ export function thresholdTerms(
   question: string,
   mark: number | undefined,
   symbol: string,
-): Threshold | "range" | null {
-  const q = question.replace(/\s+/g, " ");
+): Threshold | "range" | "ambiguous" | null {
+  const q = question.replace(/[’‘]/g, "'").replace(/\s+/g, " ");
   if (/\bup or down\b/i.test(q)) {
+    if (NEGATION.test(q)) return "ambiguous";
     return mark && mark > 0
       ? { kind: "digital", direction: 1, strike: mark }
       : null;
   }
   if (NOT_PRICE.test(q)) return null;
   const match = THRESHOLD.exec(q);
-  if (!match) return RANGE.test(q) && /\$|\bprice\b/i.test(q) ? "range" : null;
+  if (!match) {
+    if (NEGATION.test(q) && /\$\s*\d|\bprice\b/i.test(q)) return "ambiguous";
+    return RANGE.test(q) && /\$|\bprice\b/i.test(q) ? "range" : null;
+  }
   if (/\bbetween\b/i.test(q)) return "range";
+  // Only a single price condition has a well-defined complement. Reject
+  // unsupported scope rather than silently falling back to a generic beta.
+  if (/\b(and|or|unless|if|while|provided|either)\b/i.test(q) ||
+      THRESHOLD.test(q.slice(match.index + match[0].length))) return "ambiguous";
+  const before = q.slice(0, match.index);
+  const negative = /\b(?:not|never|won't|doesn't|isn't|will not|does not|is not|fail(?:s)? to)\s+(?:be\s+)?$/i.exec(before);
+  const remainder = negative
+    ? before.slice(0, negative.index) + q.slice(match.index)
+    : q;
+  if (NEGATION.test(remainder) || /\bfail(?:s|ed)?\b/i.test(remainder)) return "ambiguous";
   const verb = (match[1] ?? match[2]!).toLowerCase();
   const raw = Number(match[3]!.replace(/,/g, ""));
   const unit = match[4] ? (SCALE[match[4].toLowerCase()] ?? 1) : 1;
   let strike = raw * unit;
   if (PER_THOUSAND.has(symbol)) strike *= 1000;
-  if (!(strike > 0) || !(mark && mark > 0)) return null;
+  if (!(strike > 0) || !(mark && mark > 0)) return negative ? "ambiguous" : null;
   const ratio = strike / mark;
   // A strike far from the mark is some other quantity (market cap, index points of another asset…).
-  if (ratio <= 0.25 || ratio >= 4) return null;
+  if (ratio <= 0.25 || ratio >= 4) return negative ? "ambiguous" : null;
   const down = /^[<≤]$/.test(verb) || new RegExp(`^(?:${DOWN})$`, "i").test(verb);
   const lowMarker = /\((?:low)\)/i.test(q);
   const highMarker = /\((?:high)\)/i.test(q);
@@ -171,12 +187,13 @@ export function thresholdTerms(
     lowMarker ||
     highMarker ||
     (BY_PERIOD.test(q) && !/\bon (?:[a-z]+ \d{1,2}|\d{1,2} [a-z]+)\b/i.test(q));
-  return { kind: touch ? "touch" : "digital", direction, strike };
+  if (lowMarker && highMarker) return "ambiguous";
+  return { kind: touch ? "touch" : "digital", direction, strike, ...(negative ? { complemented: true as const } : {}) };
 }
 
 const HAVENS = new Set(["GOLD-USD", "SILVER-USD"]);
 const MACRO_DATA = /\b(cpi|inflation|unemployment|jobless|payrolls?|nfp|gdp|pce|ppi|retail sales)\b/i;
-const NEGATION = /\b(no|not|avoid|avert|without|never|won't|doesn't|isn't)\b/i;
+const NEGATION = /\b(no|not|avoid|avert|without|never|won't|doesn't|isn't|can't|cannot|couldn't|wouldn't|shouldn't|didn't|hasn't|haven't|aren't|wasn't|weren't|neither|nor|except)\b/i;
 const HOLD = /\b(no change|pause|hold|unchanged|skip)\b/i;
 // Plural "reserves" only: "Federal Reserve" and "Bitcoin Reserve" questions stay signable.
 const QUANTITY = /\b(reserves|inventor(?:y|ies)|stockpiles?)\b/i;
@@ -232,7 +249,7 @@ export function linkModel(args: {
   now: number;
 }): LinkModel {
   const terms = thresholdTerms(args.question, args.mark, args.symbol);
-  if (terms === "range") return { kind: "drop" };
+  if (terms === "range" || terms === "ambiguous") return { kind: "drop" };
   const sign: 1 | -1 = args.baseBeta < 0 ? -1 : 1;
   if (terms) {
     // Without an expiry the strike's sensitivity is unknown; wait for it.
@@ -311,8 +328,8 @@ export function impliedMove(
   if (model.kind === "linear") return (pNow - pThen) * model.beta;
   const tau0 = Math.max(MIN_TAU_MS, model.endsAt - tThen) / YEAR_MS;
   const tau1 = Math.max(MIN_TAU_MS, model.endsAt - tNow) / YEAR_MS;
-  const p0 = clampP(pThen);
-  const p1 = clampP(pNow);
+  const p0 = clampP(model.terms.complemented ? 1 - pThen : pThen);
+  const p1 = clampP(model.terms.complemented ? 1 - pNow : pNow);
   const s = model.sigma;
   const logMove =
     model.terms.kind === "digital"
@@ -333,7 +350,8 @@ export function localBeta(
   const h = 0.001;
   const lo = clampP(p - h);
   const hi = clampP(p + h);
-  return impliedMove(model, lo, hi, t, t) / (hi - lo);
+  // Log-return slope is symmetric under p ↔ 1-p, unlike a finite simple return.
+  return Math.log1p(impliedMove(model, lo, hi, t, t)) / (hi - lo);
 }
 
 export type BetaSource = NonNullable<GapRow["betaSource"]>;

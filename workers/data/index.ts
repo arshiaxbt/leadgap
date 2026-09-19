@@ -30,6 +30,8 @@ async function bearerMatches(
   for (let i = 0; i < a.length; i++) diff |= a[i] ^ b[i];
   return diff === 0;
 }
+/** Collector gateway body cap: headroom over the collector's ~400 KB chunks. */
+const GATEWAY_MAX_BYTES = 1_572_864;
 /** Reads a preview deployment may make with DATA_READ_SECRET; nothing else. */
 const READ_ONLY_PATHS = new Set(["/snapshot", "/history", "/mapping", "/health"]);
 export async function handle(request: Request, env: Env): Promise<Response> {
@@ -46,7 +48,7 @@ export async function handle(request: Request, env: Env): Promise<Response> {
     if (request.method !== "POST")
       return json({ error: "Method not allowed" }, 405);
     // The collector chunks writes to ~400 KB; the headroom covers one oversized statement.
-    const body = JSON.parse(await readRequestText(request, 1_572_864)) as {
+    const body = JSON.parse(await readRequestText(request, GATEWAY_MAX_BYTES)) as {
       queries?: { sql: string; params: unknown[] }[];
     };
     if (
@@ -269,7 +271,7 @@ const worker = {
     try {
       const limit =
         new URL(request.url).pathname === "/internal/database"
-          ? 524_288
+          ? GATEWAY_MAX_BYTES
           : 16_384;
       if (Number(request.headers.get("content-length") ?? 0) > limit)
         return json({ error: "Request too large" }, 413);

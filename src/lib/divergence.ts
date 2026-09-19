@@ -4,6 +4,7 @@ import {
   betaSourceOf,
   gapScale,
   impliedMove,
+  informative,
   linkModel,
   localBeta,
   modelForRow,
@@ -113,6 +114,7 @@ export function computeGaps(args: {
         now,
       });
       if (model.kind === "drop") continue;
+      if (!informative(model, oddsThen, oddsNow, age, now)) continue;
       const expected = impliedMove(model, oddsThen, oddsNow, now - age, now);
       // Keep row.oddsMove × row.signedBeta ≈ row.expected for every consumer.
       const signedBeta =

@@ -7,6 +7,7 @@ import {
   eventDirection,
   gapScale,
   impliedMove,
+  informative,
   linkModel,
   localBeta,
   normInv,
@@ -304,4 +305,32 @@ test("computeGaps prices a threshold market from its strike and expiry", () => {
   assert.ok(row.expected > 0.003 && row.expected < 0.01, `expected ${row.expected}`);
   assert.ok(Math.abs(row.oddsMove * row.signedBeta - row.expected) < 1e-12);
   assert.ok(row.score < 28);
+});
+
+test("tail odds and markets resolving within the window are left out", () => {
+  const model = linkModel({
+    question: "Will the price of Solana be above $95 on September 25?",
+    symbol: "SOL-USD",
+    baseBeta: 1,
+    mappingKind: "named",
+    mark: 110,
+    endsAt: now + 6 * DAY,
+    now,
+  });
+  if (model.kind !== "threshold") throw new Error(`expected threshold, got ${model.kind}`);
+  const h1 = WINDOW_MS["1h"];
+  // Production case: 97.0% → 97.8% read as a +1.3% SOL move and scored 56.
+  assert.equal(informative(model, 0.97, 0.978, h1, now), false);
+  assert.equal(informative(model, 0.034, 0.018, h1, now), false);
+  assert.equal(informative(model, 0.65, 0.625, h1, now), true);
+  assert.equal(informative(model, 0.05, 0.95, h1, now), true);
+  // Resolving in 2.2h: fine for 1h, time decay dominates a 4h window.
+  const soon = { ...model, endsAt: now + 2.2 * 3_600_000 };
+  assert.equal(informative(soon, 0.3, 0.25, h1, now), true);
+  assert.equal(informative(soon, 0.3, 0.25, WINDOW_MS["4h"], now), false);
+  // Linear links are never filtered here.
+  assert.equal(
+    informative({ kind: "linear", beta: 1, source: "mapping" }, 0.99, 0.999, h1, now),
+    true,
+  );
 });

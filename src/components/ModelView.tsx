@@ -22,7 +22,7 @@ const FACTORS: { key: keyof ScoreFactors; label: string; rule: string }[] = [
   {
     key: "magnitude",
     label: "Perp lag (residual magnitude)",
-    rule: "Threshold markets: the gap against two of the perp’s typical moves over the window. Other links: the gap as a share of 4%. Capped at 1.",
+    rule: "The gap against two of the perp’s typical moves over the window. Capped at 1.",
   },
   {
     key: "lead",
@@ -223,16 +223,20 @@ export function ModelView() {
               move.
             </p>
             <p>
-              <span className="text-text">Other events</span> keep the
-              mapping’s heuristic sensitivity, with its sign flipped when the
+              <span className="text-text">Other events</span> are assumed to be
+              worth about one day’s typical move of the perp if they resolve
+              Yes rather than No (volatility ÷ √365; ~3% for ETH, ~2% for
+              oil). The mapping only sets the direction, flipped when the
               question is bad news for the perp (recessions, delistings, “dip
               to”). Ambiguous wording — negations, macro data prints — is left
-              out rather than guessed.
+              out rather than guessed. The size is an assumption, not an
+              estimate.
             </p>
             <p className="text-[12px] text-dim">
-              Model v2 (September 2026). Threshold signals now score far lower
-              than under v1, which read a 6-point odds move as a 6% price move;
-              alert rules saved on those markets may stop firing.
+              Model v3 (September 2026). v1 read every odds move one-for-one
+              as a price move (6 points became 6%, in oil or ETH alike), so
+              signals now score far lower and alert rules saved under v1 may
+              stop firing.
             </p>
           </div>
         </section>

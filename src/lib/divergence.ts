@@ -128,8 +128,7 @@ export function computeGaps(args: {
         confidence: link.confidence,
         volume: event.volume,
         expected,
-        scale:
-          model.kind === "threshold" ? gapScale(link.symbol, age) : undefined,
+        scale: gapScale(link.symbol, age),
       });
 
       rows.push({

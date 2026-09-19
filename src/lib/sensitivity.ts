@@ -7,14 +7,18 @@ import type { GapRow, GapWindow, MappingKind, ResolvedEvent } from "./types";
  * Price-threshold markets ("above $X on <date>", "reach $X by <date>") are
  * options on the perp's own price, so the move they imply follows from the
  * strike being fixed: for a digital, ln S = ln K + σ√τ·Φ⁻¹(p). Everything
- * else keeps the mapping's heuristic beta, with its sign corrected when the
- * question is bearish for the perp.
+ * else is assumed to be worth about one day's typical move of the perp if it
+ * resolves Yes rather than No (see eventImpact), with the mapping's sign,
+ * corrected when the question is bearish for the perp.
  */
 
 const YEAR_MS = 365.25 * 24 * 3600_000;
 const MIN_TAU_MS = 5 * 60_000;
 /** Markets this close to resolving move on settlement mechanics, not news. */
 export const RESOLVING_MS = 15 * 60_000;
+
+/** Days of typical movement a non-threshold event is assumed to be worth. */
+export const EVENT_IMPACT_DAYS = 1;
 
 /** Typical annualised volatility. Assumptions, not live estimates. */
 export const ANNUAL_VOL: Record<string, number> = {
@@ -235,13 +239,30 @@ export function linkModel(args: {
     };
   }
   const direction = eventDirection(args.question, args.symbol);
+  const beta = args.baseBeta * eventImpact(args.symbol);
   if (direction == null)
     return args.mappingKind === "cluster"
       ? { kind: "drop" }
-      : { kind: "linear", beta: args.baseBeta, source: "mapping" };
+      : { kind: "linear", beta, source: "mapping" };
   return direction < 0
-    ? { kind: "linear", beta: -args.baseBeta, source: "direction" }
-    : { kind: "linear", beta: args.baseBeta, source: "mapping" };
+    ? { kind: "linear", beta: -beta, source: "direction" }
+    : { kind: "linear", beta, source: "mapping" };
+}
+
+/**
+ * The return a non-threshold event is assumed to be worth: resolving Yes
+ * instead of No moves the perp by about one day's typical move
+ * (σ·√(days/year)). An assumption about size, not an estimate: the mapping
+ * says which way, not how far, and a flat β = 1 read a 10-point odds move
+ * as a 10% move in oil.
+ */
+export function eventImpact(symbol: string): number {
+  return annualVol(symbol) * Math.sqrt((EVENT_IMPACT_DAYS * 86_400_000) / YEAR_MS);
+}
+
+/** Linear sensitivity for a link when no scored row is available (charts, fallbacks). */
+export function mappedBeta(link: { symbol: string; signedBeta: number }): number {
+  return link.signedBeta * eventImpact(link.symbol);
 }
 
 const clampP = (p: number) => Math.min(0.99, Math.max(0.01, p));
@@ -342,12 +363,12 @@ export function modelForRow(
   };
 }
 
-/** Scale used to score a row's gap: the perp's typical move for threshold rows, 4% otherwise. */
+/** Scale used to score a row's gap: the perp's typical move over the window (4% for rows scored before v2). */
 export function rowScale(
   row: Pick<GapRow, "symbol" | "window" | "betaSource">,
   windowMs: Record<GapWindow, number>,
 ): number | undefined {
-  return row.betaSource === "threshold"
+  return row.betaSource
     ? gapScale(row.symbol, windowMs[row.window])
     : undefined;
 }
@@ -363,7 +384,9 @@ export function betaExplanation(
     const vol = Math.round(annualVol(row.symbol) * 100);
     return `Derived from the strike${days != null ? `, ${days < 1 ? `${Math.max(1, Math.round(days * 24))}h` : `${days.toFixed(1)} days`} to expiry` : ""} and an assumed ~${vol}% annual volatility: a Yes move maps to the price move that would explain it.`;
   }
-  if (row.betaSource === "direction")
-    return "The question is bearish for this perp, so a rising Yes implies a falling mark.";
-  return null;
+  if (!row.betaSource) return null;
+  const size = `Assumes Yes instead of No would move ${row.symbol.replace("-USD", "")} about one day’s typical move (~${(eventImpact(row.symbol) * 100).toFixed(1)}%, from an assumed ~${Math.round(annualVol(row.symbol) * 100)}% annual volatility). The size is an assumption; the mapping only sets the direction.`;
+  return row.betaSource === "direction"
+    ? `The question is bearish for this perp, so a rising Yes implies a falling mark. ${size}`
+    : size;
 }

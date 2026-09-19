@@ -5,9 +5,11 @@ import { leadgapMetrics, scoreFactors } from "../../src/lib/score";
 import {
   ANNUAL_VOL,
   eventDirection,
+  eventImpact,
   gapScale,
   impliedMove,
   informative,
+  mappedBeta,
   linkModel,
   localBeta,
   normInv,
@@ -200,7 +202,70 @@ test("question wording signs the relationship or declines to guess", () => {
     endsAt: now + 100 * DAY,
     now,
   });
-  assert.deepEqual(bearish, { kind: "linear", beta: -1, source: "direction" });
+  assert.deepEqual(bearish, {
+    kind: "linear",
+    beta: -eventImpact("NAS100-USD"),
+    source: "direction",
+  });
+});
+
+test("non-threshold events are worth about one day's typical move, not 1:1", () => {
+  // ~σ/√365: ETH ≈ 3.4%, oil ≈ 1.8%, S&P ≈ 0.9%.
+  assert.ok(Math.abs(eventImpact("ETH-USD") - 0.034) < 0.001);
+  assert.ok(Math.abs(eventImpact("WTIOIL-USD") - 0.0183) < 0.001);
+  assert.ok(Math.abs(eventImpact("SP500-USD") - 0.0089) < 0.001);
+  assert.equal(mappedBeta({ symbol: "WTIOIL-USD", signedBeta: -1 }), -eventImpact("WTIOIL-USD"));
+  const event: ResolvedEvent = {
+    id: "7",
+    slug: "saudi-pipeline",
+    title: "Saudi Oil Pipeline (East-West) restarts by September 30?",
+    question: "Saudi Oil Pipeline (East-West) restarts by September 30?",
+    volume: 500_000,
+    yesTokenId: "t",
+    noTokenId: "n",
+    yesPrice: 0.3,
+    liquidityScore: 1,
+    endsAt: now + 11 * DAY,
+    perps: [
+      {
+        symbol: "WTIOIL-USD",
+        signedBeta: 1,
+        confidence: 0.88,
+        cluster: "oil",
+        mappingReason: "Cluster oil",
+        mappingKind: "named",
+      },
+    ],
+  };
+  const rows = computeGaps({
+    events: [event],
+    tickers: {
+      "WTIOIL-USD": {
+        instrumentId: 9,
+        symbol: "WTIOIL-USD",
+        indexPrice: 70,
+        markPrice: 70.08,
+        lastPrice: 70.08,
+        midPrice: 70.08,
+        openInterest: 1,
+        fundingRate: 0,
+        nextFunding: 0,
+        timestamp: now,
+        change1h: null,
+      },
+    },
+    oddsHistory: { "7": [{ t: now - WINDOW_MS["4h"], v: 0.4 }, { t: now, v: 0.3 }] },
+    markHistory: { "WTIOIL-USD": [{ t: now - WINDOW_MS["4h"], v: 70 }, { t: now, v: 70.08 }] },
+    window: "4h",
+    now,
+  });
+  assert.equal(rows.length, 1);
+  const row = rows[0]!;
+  // v1 read −10 pts as a −10% oil move and scored it 45 Short.
+  assert.equal(row.betaSource, "mapping");
+  assert.ok(Math.abs(row.expected + 0.1 * eventImpact("WTIOIL-USD")) < 1e-9, `expected ${row.expected}`);
+  assert.ok(row.score < 28, `score ${row.score}`);
+  assert.ok(Math.abs(row.oddsMove * row.signedBeta - row.expected) < 1e-12);
 });
 
 test("every mapped perp has an assumed volatility", () => {

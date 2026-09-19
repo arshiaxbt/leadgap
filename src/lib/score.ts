@@ -1,5 +1,5 @@
 /** Increment when scoring coefficients or formula change. */
-export const SCORE_MODEL_VERSION = "heuristic-v2";
+export const SCORE_MODEL_VERSION = "heuristic-v3";
 import type { GapRow } from "./types";
 
 export type Bias = "long" | "short" | "none";
@@ -17,8 +17,8 @@ export type LeadgapMetrics = {
 /** The multiplicative factors behind a score, each in 0–1. */
 export type ScoreFactors = {
   /**
-   * |gap| relative to a 4% residual, capped at 1. Threshold-market rows
-   * instead measure the gap against two of the perp's typical window moves.
+   * |gap| against two of the perp's typical moves over the window, capped
+   * at 1. Rows without a scale (scored before v2) use a flat 4%.
    */
   magnitude: number;
   /** 1 when odds led, 0.42 when in line, 0.12 when the perp led. */
@@ -41,11 +41,11 @@ export type ScoreInputs = {
   volume: number;
   /** The implied perp move when it is not simply oddsMove × signedBeta. */
   expected?: number;
-  /** Threshold rows: the perp's typical move over the window (see sensitivity.gapScale). */
+  /** The perp's typical move over the window (see sensitivity.gapScale). */
   scale?: number;
 };
 
-/** Gaps smaller than this are noise: 0.2% for mapped rows, 5% of the window's typical move for threshold rows. */
+/** Gaps smaller than 5% of the window's typical move are noise (0.2% without a scale). */
 export function biasCutoff(scale?: number): number {
   return scale ? 0.05 * scale : 0.002;
 }

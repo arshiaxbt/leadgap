@@ -26,7 +26,9 @@ import { deskHref, eventHref } from "@/lib/links";
 import { isActionable, scoreBreakdown } from "@/lib/score";
 import {
   betaExplanation,
+  eventImpact,
   impliedMove,
+  mappedBeta,
   modelForRow,
   rowScale,
 } from "@/lib/sensitivity";
@@ -221,9 +223,9 @@ export function SignalDetail({
               ) : null}
               <dl className="mt-3.5">
                 <Line
-                  label={row?.betaSource === "threshold" ? "Sensitivity (now)" : "Signed beta"}
+                  label={row?.betaSource === "threshold" ? "Sensitivity (now)" : "Sensitivity"}
                   value={(() => {
-                    const beta = row?.signedBeta ?? link?.signedBeta;
+                    const beta = row?.signedBeta ?? (link ? mappedBeta(link) : undefined);
                     return beta == null ? "—" : `${beta >= 0 ? "+" : ""}${beta.toFixed(2)}`;
                   })()}
                 />
@@ -247,7 +249,7 @@ export function SignalDetail({
             <GapHistory
               eventId={eventId}
               symbol={symbol}
-              signedBeta={row?.signedBeta ?? link?.signedBeta ?? 1}
+              signedBeta={row?.signedBeta ?? (link ? mappedBeta(link) : eventImpact(symbol))}
               mappedBeta={link?.signedBeta ?? 1}
               implied={(() => {
                 if (!row) return undefined;
@@ -393,9 +395,8 @@ function Narrative({ row, window }: { row: GapRow; window: GapWindow }) {
         <>given the strike and time to expiry, that implies a </>
       ) : (
         <>
-          at a signed beta of{" "}
-          <span className="num">{row.signedBeta.toFixed(2)}</span> that
-          implies a{" "}
+          if a Yes outcome is worth about one day’s typical{" "}
+          {perpName(row.symbol)} move, that implies a{" "}
         </>
       )}
       <span className="num text-odds">{fmtPct(expected)}</span> perp move. The

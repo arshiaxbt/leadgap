@@ -2,6 +2,37 @@ import type { Database, Result, Statement } from "../../workers/data/db";
 
 type Query = { sql: string; params: unknown[] };
 
+/** The data-service gateway rejects bodies over 512 KB and batches over 32 statements. */
+export const GATEWAY_CHUNK_BYTES = 400_000;
+const GATEWAY_MAX_STATEMENTS = 32;
+const encoder = new TextEncoder();
+
+/**
+ * Split a batch into gateway-sized requests, preserving order. Collector
+ * writes are idempotent upserts, so a partial failure is retried next minute.
+ */
+export function chunkQueries(queries: Query[]): Query[][] {
+  const chunks: Query[][] = [];
+  let current: Query[] = [];
+  let bytes = 0;
+  for (const query of queries) {
+    const size = encoder.encode(JSON.stringify(query)).length;
+    if (
+      current.length &&
+      (bytes + size > GATEWAY_CHUNK_BYTES ||
+        current.length >= GATEWAY_MAX_STATEMENTS)
+    ) {
+      chunks.push(current);
+      current = [];
+      bytes = 0;
+    }
+    current.push(query);
+    bytes += size;
+  }
+  if (current.length) chunks.push(current);
+  return chunks;
+}
+
 /** Private, allowlisted D1 bridge for the Node.js collector. */
 export function collectorDatabase(origin: string, secret: string): Database {
   async function execute(queries: Query[]): Promise<Result[]> {
@@ -39,13 +70,16 @@ export function collectorDatabase(origin: string, secret: string): Database {
   }
   return {
     prepare: (sql) => new RemoteStatement({ sql, params: [] }),
-    batch: (statements) =>
-      execute(
-        statements.map((statement) => {
-          if (!(statement instanceof RemoteStatement))
-            throw new Error("Invalid collector statement");
-          return statement.query;
-        }),
-      ),
+    batch: async (statements) => {
+      const queries = statements.map((statement) => {
+        if (!(statement instanceof RemoteStatement))
+          throw new Error("Invalid collector statement");
+        return statement.query;
+      });
+      const results: Result[] = [];
+      for (const chunk of chunkQueries(queries))
+        results.push(...(await execute(chunk)));
+      return results;
+    },
   };
 }

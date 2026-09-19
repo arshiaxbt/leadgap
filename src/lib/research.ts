@@ -26,9 +26,14 @@ export type ResearchSnapshot = {
   oddsHistory: Record<string, Snapshot[]>;
   windows: Record<GapWindow, GapRow[]>;
   error: string | null;
-  coverage: { startedAt: number; cadenceMs: number };
+  coverage: { startedAt: number; cadenceMs: number; queryCount?: number; discoveryCycleMs?: number; catalogLimit?: number; excluded?: Record<string, number> };
+  scoreVersion?: string;
+  evidence?: import("./signal-evidence").QuoteEvidence;
 };
 export type HistoryBatch = {
+  schema?: 2;
+  evaluatedAt?: number;
+  evidence?: import("./signal-evidence").QuoteEvidence;
   t: number;
   modelVersion: string;
   links: Record<string, Record<string, number>>;
@@ -62,7 +67,7 @@ export type Notice = {
   createdAt: number;
   read: boolean;
 };
-export type AlertState = { matched: boolean; lastFired: number };
+export type AlertState = { matched: boolean; lastFired: number; scoreVersion?: string };
 export function evaluateAlert(
   rule: AlertRule,
   previous: AlertState,
@@ -71,7 +76,7 @@ export function evaluateAlert(
   asOf: number,
 ): { state: AlertState; fire: boolean } {
   // Missing/stale data must not re-arm a rule or manufacture a new crossing.
-  if (rule.muted || !row || now - asOf > 90_000)
+  if (rule.muted || !row || (row.scoreVersion === "heuristic-v5" && row.eligibility?.status !== "eligible") || now - asOf > 90_000)
     return { state: previous, fire: false };
   const matched =
     row.score >= rule.minScore && Math.abs(row.gap) >= rule.minGap;
@@ -135,8 +140,8 @@ export function freshResearchSnapshot(
               return (
                 ticker &&
                 odds &&
-                now - ticker.timestamp <= 90_000 &&
-                now - odds.t <= 90_000
+                ticker.timestamp <= now && now - ticker.timestamp <= 90_000 &&
+                odds.t <= now && now - odds.t <= 90_000
               );
             }),
       ]),

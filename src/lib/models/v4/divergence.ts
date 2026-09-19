@@ -1,5 +1,6 @@
+// Frozen heuristic-v4 implementation for historical replay. Do not modify formulas.
 import { CONFIDENCE_FLOOR, isClearMapping, mappingKindOf } from "./mapping";
-import { SCORE_MODEL_VERSION, leadgapMetrics } from "./score";
+import { leadgapMetrics } from "./score";
 import {
   betaSourceOf,
   gapScale,
@@ -16,7 +17,7 @@ import type {
   ResidualPoint,
   ResolvedEvent,
   Snapshot,
-} from "./types";
+} from "../../types";
 
 export const WINDOW_MS: Record<GapWindow, number> = {
   "1m": 60_000,
@@ -83,7 +84,7 @@ export function computeGaps(args: {
 
   for (const event of args.events) {
     const latestOdds = args.oddsHistory[event.id]?.at(-1);
-    if (!latestOdds || latestOdds.t > now || now - latestOdds.t > 90_000) continue;
+    if (!latestOdds || now - latestOdds.t > 90_000) continue;
     const oddsNow = event.yesPrice;
     const oddsThen = valueAt(args.oddsHistory[event.id], age, now);
     const oddsMove = oddsThen == null ? null : oddsNow - oddsThen;
@@ -93,7 +94,6 @@ export function computeGaps(args: {
       const ticker = args.tickers[link.symbol];
       if (
         !ticker ||
-        ticker.timestamp > now ||
         now - ticker.timestamp > 90_000 ||
         !Number.isFinite(ticker.markPrice) ||
         ticker.markPrice <= 0
@@ -106,7 +106,7 @@ export function computeGaps(args: {
       if (oddsMove == null || oddsThen == null || perpMove == null) continue;
 
       const model = linkModel({
-        question: event.question,
+        question: event.question || event.title,
         symbol: link.symbol,
         baseBeta: link.signedBeta,
         mappingKind: mappingKindOf(link),
@@ -133,8 +133,6 @@ export function computeGaps(args: {
       });
 
       rows.push({
-        scoreVersion: SCORE_MODEL_VERSION,
-        eligibility: { status: "eligible", rule: "own-price-threshold-v1" },
         eventId: event.id,
         title: event.title,
         question: event.question,

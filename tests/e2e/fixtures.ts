@@ -53,6 +53,11 @@ export const events: ResolvedEvent[] = instruments.map((inst, i) => ({
   ],
 }));
 export const gaps: GapRow[] = events.map((e, i) => ({
+  scoreVersion: "heuristic-v5",
+  eligibility: { status: "eligible", rule: "own-price-threshold-v1" },
+  timing: { status: "odds-leads", lagMinutes: 2, correlation: .8, samples: 50, coverage: 1 },
+  execution: { status: "pass", reasons: [], at: Date.now(), notional:100, horizonMs:1800000, totalCost:.001 },
+  candidateReasons: [],
   eventId: e.id,
   title: e.title,
   question: e.question,

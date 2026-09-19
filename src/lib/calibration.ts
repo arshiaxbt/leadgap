@@ -1,3 +1,4 @@
+/** Legacy raw-beta experiment retained for historical comparisons only. Use replayReport for version-aware validation. */
 import type { HistoryBatch } from "./research";
 export type CalibrationPair = {
   t: number;

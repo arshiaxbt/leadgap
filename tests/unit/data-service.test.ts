@@ -16,7 +16,7 @@ test("raw snapshot reads still remove stale data on the Vercel boundary", async 
   let reads = 0;
   globalThis.fetch = async (url) => {
     assert.equal(String(url), "https://data.test/snapshot/raw?encoding=stored");
-    const snapshot = { asOf, error: null,
+    const snapshot = { asOf, error: null, scoreVersion: "heuristic-v5",
       windows: Object.fromEntries(WINDOWS.map((w) => [w, [{ ...gaps[0], window: w }]])),
       tickers: { "BTC-USD": { timestamp: asOf } }, oddsHistory: { "1": [{ t: asOf }] },
     };

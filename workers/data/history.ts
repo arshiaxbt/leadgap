@@ -30,6 +30,10 @@ export async function historyResponse(url: URL, db: Database): Promise<Response>
     }
   }
   if (symbol || event) {
+    for (const [field,key] of [["odds",event],["perps",symbol]] as const) {
+      if(key){projections.push(`'$.evidence.${field}', json((SELECT json_group_object(key,json(value)) FROM json_each(payload,'$.evidence.${field}') WHERE key=?))`);params.push(key);}
+      else projections.push(`'$.evidence.${field}', json('{}')`);
+    }
     projections.push(`'$.links', json((SELECT json_group_object(e.key, json(${symbol
       ? "(SELECT json_group_object(s.key,s.value) FROM json_each(e.value) s WHERE s.key=?)"
       : "e.value"})) FROM json_each(payload,'$.links') e ${event ? "WHERE e.key=?" : ""}))`);

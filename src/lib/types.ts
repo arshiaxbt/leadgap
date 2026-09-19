@@ -67,6 +67,7 @@ export type LinkedPerp = {
 };
 
 export type ResolvedEvent = {
+  marketId?: string;
   id: string;
   slug: string;
   title: string;
@@ -84,6 +85,11 @@ export type ResolvedEvent = {
 export type GapWindow = "1m" | "5m" | "15m" | "30m" | "1h" | "4h" | "12h" | "1d";
 
 export type GapRow = {
+  scoreVersion?: string;
+  eligibility?: { status: "eligible"; rule: "own-price-threshold-v1" };
+  timing?: import("./signal-evidence").TimingEvidence;
+  execution?: import("./signal-evidence").ExecutionEvidence;
+  candidateReasons?: string[];
   eventId: string;
   title: string;
   question: string;

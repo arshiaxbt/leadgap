@@ -20,7 +20,7 @@ export type GapsFeed = {
   tickers: Record<string, PerpsTicker>;
   asOf: number;
   error: string | null;
-  coverage?: { startedAt: number; cadenceMs: number };
+  coverage?: import("./research").ResearchSnapshot["coverage"];
   loading: boolean;
   retry: () => void;
 };

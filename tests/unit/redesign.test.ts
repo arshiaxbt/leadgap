@@ -170,8 +170,8 @@ test("mapping and leader copy stays plain", () => {
     mappingExplanation({ ...row, signedBeta: -1 }),
     /rising Yes probability implies a falling mark/,
   );
-  assert.equal(leaderLabel("odds"), "Odds led");
-  assert.equal(leaderLabel("perp"), "Perp led");
+  assert.equal(leaderLabel("odds"), "Larger implied move");
+  assert.equal(leaderLabel("perp"), "Larger perp move");
   assert.equal(leaderLabel("flat"), "In line");
 });
 

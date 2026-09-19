@@ -11,7 +11,7 @@ import { gaps } from "../e2e/fixtures";
 
 const GATEWAY_LIMIT = 524_288;
 
-/** A collector write sized like production on 19 Sep 2026: ~62 rows per window, ~360 KB `latest`. */
+/** A collector write sized like production on 19 Sep 2026: ~62 rows per window, v5 evidence on every row. */
 function productionSizedWrites() {
   const row = { ...gaps[0]!, title: "x".repeat(60), question: "y".repeat(80) };
   const rows = Array.from({ length: 62 }, (_, i) => ({ ...row, eventId: String(i) }));
@@ -34,7 +34,7 @@ test("collector writes are split into gateway-sized requests in order", async ()
   const total = JSON.stringify({ queries: writes }).length;
   const latestSize = JSON.stringify(writes.at(-1)).length;
   assert.ok(total > GATEWAY_LIMIT, `fixture must reproduce the 413 (got ${total})`);
-  assert.ok(latestSize > 300_000 && latestSize < 450_000, `latest ${latestSize}`);
+  assert.ok(latestSize > 500_000 && latestSize < 900_000, `latest ${latestSize}`);
   const requests: { url: string; body: string }[] = [];
   const original = globalThis.fetch;
   globalThis.fetch = async (input, init) => {

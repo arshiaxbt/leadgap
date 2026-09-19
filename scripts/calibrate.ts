@@ -1,6 +1,6 @@
 import { readFile, writeFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
-import { calibrationPairs, calibrationReport } from "../src/lib/calibration";
+import { replayReport } from "../src/lib/replay";
 async function main() {
   const file = process.argv[2];
   if (!file)
@@ -15,7 +15,7 @@ async function main() {
   if (data.schema !== 1 || !Array.isArray(data.batches))
     throw new Error("Unsupported archive");
   const report = {
-    ...calibrationReport(calibrationPairs(data.batches)),
+    ...replayReport(data),
     inputHash: hash,
     modelVersions: Object.keys(data.mappings ?? {}),
   };
@@ -25,7 +25,7 @@ async function main() {
     { flag: "wx" },
   );
   console.log(
-    `${report.status}: ${report.train.samples} train / ${report.test.samples} test samples. ${file}.report.json`,
+    `${report.status}: ${report.train.positions} train / ${report.test.positions} test samples. ${file}.report.json`,
   );
 }
 main().catch((e) => {

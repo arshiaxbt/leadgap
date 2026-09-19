@@ -23,6 +23,7 @@ import {
   signedClass,
 } from "@/lib/format";
 import { deskHref, eventHref } from "@/lib/links";
+import { SignalEvidence } from "./SignalEvidence";
 import { isActionable, scoreBreakdown } from "@/lib/score";
 import {
   betaExplanation,
@@ -95,7 +96,9 @@ export function SignalDetail({
       <div className="m-auto max-w-md px-6 py-16 text-center">
         <p className="kicker">Signal</p>
         <h1 className="serif mt-3 text-[30px]">
-          {asset.error ? "This signal couldn’t load." : "This signal isn’t live."}
+          {asset.error
+            ? "This signal couldn’t load."
+            : "This signal isn’t live."}
         </h1>
         <p className="mt-3 text-[13px] leading-[1.65] text-subtle">
           {asset.error
@@ -130,7 +133,10 @@ export function SignalDetail({
   return (
     <div className="min-h-0 flex-1 overflow-auto">
       <div className="flex flex-wrap items-center gap-x-2.5 gap-y-2 px-4 pt-[22px] md:px-6">
-        <nav aria-label="Breadcrumb" className="num flex items-center gap-2.5 text-[11px] text-dim">
+        <nav
+          aria-label="Breadcrumb"
+          className="num flex items-center gap-2.5 text-[11px] text-dim"
+        >
           <Link href="/" className="lg-focus text-subtle hover:text-text">
             SIGNALS
           </Link>
@@ -156,8 +162,17 @@ export function SignalDetail({
         <div className="min-w-0 [grid-area:main]">
           <p className="flex flex-wrap items-center gap-2.5 text-[12px] text-subtle">
             <span className="chip">{name}</span>
-            {row || link ? mappingLabel(row ?? { mappingKind: link!.mappingKind, mappingReason: link!.mappingReason }) : "Mapped event"}
-            {link ? ` · mapping confidence ${Math.round(link.confidence * 100)}%` : ""}
+            {row || link
+              ? mappingLabel(
+                  row ?? {
+                    mappingKind: link!.mappingKind,
+                    mappingReason: link!.mappingReason,
+                  },
+                )
+              : "Mapped event"}
+            {link
+              ? ` · mapping confidence ${Math.round(link.confidence * 100)}%`
+              : ""}
           </p>
           <h1 className="serif mt-3 max-w-[20ch] text-[32px] leading-[1.1] md:text-[42px]">
             {event.question || event.title}
@@ -173,7 +188,10 @@ export function SignalDetail({
           />
 
           {row ? (
-            <Narrative row={row} window={window} />
+            <>
+              <Narrative row={row} window={window} />
+              <SignalEvidence row={row} />
+            </>
           ) : (
             <p className="mt-5 max-w-[70ch] text-[15px] leading-[1.6] text-subtle">
               No comparable observation for {name} on the {window} window yet —
@@ -223,25 +241,45 @@ export function SignalDetail({
               ) : null}
               <dl className="mt-3.5">
                 <Line
-                  label={row?.betaSource === "threshold" ? "Sensitivity (now)" : "Sensitivity"}
+                  label={
+                    row?.betaSource === "threshold"
+                      ? "Sensitivity (now)"
+                      : "Sensitivity"
+                  }
                   value={(() => {
-                    const beta = row?.signedBeta ?? (link ? mappedBeta(link) : undefined);
-                    return beta == null ? "—" : `${beta >= 0 ? "+" : ""}${beta.toFixed(2)}`;
+                    const beta =
+                      row?.signedBeta ?? (link ? mappedBeta(link) : undefined);
+                    return beta == null
+                      ? "—"
+                      : `${beta >= 0 ? "+" : ""}${beta.toFixed(2)}`;
                   })()}
                 />
-                <Line label="Mapping confidence" value={link ? `${Math.round(link.confidence * 100)}%` : "—"} />
-                <Line label="Event volume" value={`$${fmtCompact(event.volume)}`} />
+                <Line
+                  label="Mapping confidence"
+                  value={link ? `${Math.round(link.confidence * 100)}%` : "—"}
+                />
+                <Line
+                  label="Event volume"
+                  value={`$${fmtCompact(event.volume)}`}
+                />
               </dl>
             </section>
             <section className="bg-surface p-[18px]">
               <h2 className="kicker">Where the score comes from</h2>
-              {row ? <Breakdown row={row} /> : (
-                <p className="mt-3 text-[13px] text-subtle">Scored once the window has comparable data.</p>
+              {row ? (
+                <Breakdown row={row} />
+              ) : (
+                <p className="mt-3 text-[13px] text-subtle">
+                  Scored once the window has comparable data.
+                </p>
               )}
               <p className="mt-3.5 text-[11px] leading-[1.6] text-dim">
                 Additive split of the published score. Not a probability of
                 profit.{" "}
-                <Link href="/model" className="lg-focus text-subtle underline underline-offset-2 hover:text-text">
+                <Link
+                  href="/model"
+                  className="lg-focus text-subtle underline underline-offset-2 hover:text-text"
+                >
                   How the model works
                 </Link>
               </p>
@@ -249,13 +287,20 @@ export function SignalDetail({
             <GapHistory
               eventId={eventId}
               symbol={symbol}
-              signedBeta={row?.signedBeta ?? (link ? mappedBeta(link) : eventImpact(symbol))}
+              signedBeta={
+                row?.signedBeta ??
+                (link ? mappedBeta(link) : eventImpact(symbol))
+              }
               mappedBeta={link?.signedBeta ?? 1}
               implied={(() => {
                 if (!row) return undefined;
                 const model = modelForRow(row, event);
-                return (pThen: number, pNow: number, tThen: number, tNow: number) =>
-                  impliedMove(model, pThen, pNow, tThen, tNow);
+                return (
+                  pThen: number,
+                  pNow: number,
+                  tThen: number,
+                  tNow: number,
+                ) => impliedMove(model, pThen, pNow, tThen, tNow);
               })()}
               window={window}
               windowMs={WINDOW_MS[window]}
@@ -295,13 +340,34 @@ function Hero({
         <span className="kicker">The residual</span>
         {row ? (
           <>
-            <Key swatch="bg-odds" label="Implied" value={fmtPct(expected)} tone="text-odds" />
-            <Key swatch="bg-mark" label="Observed" value={fmtPct(actual)} tone="text-mark" />
-            <Key swatch="h-2.5 bg-[var(--band)]" label="Gap" value={fmtPct(row.gap)} tone={actionable ? "text-odds" : "text-subtle"} />
+            <Key
+              swatch="bg-odds"
+              label="Implied"
+              value={fmtPct(expected)}
+              tone="text-odds"
+            />
+            <Key
+              swatch="bg-mark"
+              label="Observed"
+              value={fmtPct(actual)}
+              tone="text-mark"
+            />
+            <Key
+              swatch="h-2.5 bg-[var(--band)]"
+              label="Gap"
+              value={fmtPct(row.gap)}
+              tone={actionable ? "text-odds" : "text-subtle"}
+            />
           </>
         ) : null}
-        <div className="flex flex-wrap gap-0.5 md:ml-auto" role="group" aria-label="Comparison window">
-          {GAP_WINDOWS.filter((id) => HERO_WINDOWS.includes(id) || id === window).map((id) => (
+        <div
+          className="flex flex-wrap gap-0.5 md:ml-auto"
+          role="group"
+          aria-label="Comparison window"
+        >
+          {GAP_WINDOWS.filter(
+            (id) => HERO_WINDOWS.includes(id) || id === window,
+          ).map((id) => (
             <button
               key={id}
               type="button"
@@ -309,7 +375,9 @@ function Hero({
               onClick={() => onWindow(id)}
               className={cn(
                 "lg-focus num rounded-[4px] px-2 py-1 text-[11px]",
-                id === window ? "bg-active text-text" : "text-subtle hover:text-text",
+                id === window
+                  ? "bg-active text-text"
+                  : "text-subtle hover:text-text",
               )}
             >
               {id}
@@ -340,7 +408,9 @@ function Hero({
           className="h-[34px] min-w-0 flex-1"
         />
         {yesSeries.length < 2 ? <span className="flex-1" /> : null}
-        <span className="num text-[12px] text-odds">{fmtOdds(event.yesPrice)}</span>
+        <span className="num text-[12px] text-odds">
+          {fmtOdds(event.yesPrice)}
+        </span>
         {row ? (
           <span className={cn("num text-[11px]", signedClass(row.oddsMove))}>
             {fmtOddsDelta(row.oddsMove)}
@@ -376,11 +446,11 @@ function Narrative({ row, window }: { row: GapRow; window: GapWindow }) {
   const actual = row.actual ?? row.perpMove;
   const lead =
     row.leader === "perp"
-      ? `${name} moved more than the odds on this window — the perp led, so this is not a Leadgap setup.`
+      ? `${name} moved more than the odds on this window — the observed move is larger than the model-implied move.`
       : row.leader === "flat"
-        ? `Odds and ${name} are moving in line. The remaining gap is too small to act on.`
+        ? `Odds and ${name} are moving in line. The remaining residual is small.`
         : row.bias === "none"
-          ? `Odds moved first, but the residual does not clear the trade threshold yet.`
+          ? `The implied move is larger, but the residual does not clear the score threshold.`
           : `The model indicates a ${row.gap > 0 ? "positive" : "negative"} ${name} residual.`;
   const caught =
     row.catchup != null && Number.isFinite(row.catchup)
@@ -506,9 +576,17 @@ function Decision({
       </div>
       <div className="bg-surface px-[18px] py-1.5">
         <dl>
-          <Stat label="Remaining gap" value={row ? fmtPct(row.gap) : "—"} tone={actionable ? "text-odds" : undefined} />
+          <Stat
+            label="Remaining gap"
+            value={row ? fmtPct(row.gap) : "—"}
+            tone={actionable ? "text-odds" : undefined}
+          />
           <Stat label="Mark captured" value={caught} />
-          <Stat label={`${name} mark`} value={mark != null ? fmtPx(mark, decimals) : "—"} tone="text-mark" />
+          <Stat
+            label={`${name} mark`}
+            value={mark != null ? fmtPx(mark, decimals) : "—"}
+            tone="text-mark"
+          />
           <Stat
             last
             label="Funding · next"

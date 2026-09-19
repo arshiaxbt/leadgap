@@ -295,7 +295,7 @@ test("remote collector survives restart, rejects duplicate minute writes and exp
   try {
     await writeMeta(db, "catalog", {
       cursor: 0,
-      events: { "1": { seen: now, event: events[0] } },
+      events: { "1": { seen: now, event: { ...events[0], question: "Will Bitcoin be above $100 on September 30?", endsAt: now+7*86400000 } } },
     });
     const forbidden = new Request("https://data.test/internal/database", {
       method: "POST",

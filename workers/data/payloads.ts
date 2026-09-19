@@ -3,6 +3,7 @@ import type { Env } from "./db";
 import { readRequestText } from "../../src/lib/request-body";
 
 export const PAYLOAD_MAX_BYTES = 1_572_864;
+export const RECENT_SQL = "SELECT json_object('t',json_extract(payload,'$.t'),'modelVersion',model,'marks',json_extract(payload,'$.marks'),'odds',json_extract(payload,'$.odds')) AS payload FROM snapshots WHERE t>=? AND t<=? ORDER BY t DESC LIMIT 61";
 export const STARTUP_SQL = "SELECT key,value FROM meta WHERE key IN ('health','latest','instrumentsAt','catalog')";
 export const PAYLOAD_WRITES = {
   latest: "INSERT INTO meta(key,value) VALUES('latest',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
@@ -21,6 +22,13 @@ export function rawJson(body: string, status = 200): Response {
 export async function payloadOperation(request: Request, env: Env): Promise<Response> {
   const url = new URL(request.url);
   const operation = url.pathname.slice("/internal/payload/".length);
+  if (operation === "recent" && request.method === "GET") {
+    const to=Number(url.searchParams.get("to")), from=Number(url.searchParams.get("from"));
+    if(!url.searchParams.has("to")||!url.searchParams.has("from")||!Number.isSafeInteger(to)||!Number.isSafeInteger(from)||from<0||to<from||to-from>61*60000)
+      return rawJson('{"error":"Invalid recent range"}',400);
+    const data=await env.DB.prepare(RECENT_SQL).bind(from,to).all<{payload:string}>();
+    return rawJson('['+data.results.map(r=>r.payload).reverse().join(',')+']');
+  }
   if (operation === "startup" && request.method === "GET") {
     const data = await env.DB.prepare(STARTUP_SQL).all<{ key: string; value: string }>();
     if (url.searchParams.get("encoding") !== "gzip") {

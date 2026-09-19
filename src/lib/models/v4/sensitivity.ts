@@ -1,6 +1,6 @@
-import { priceEligibility } from "./eligibility";
+// Frozen heuristic-v4 implementation for historical replay. Do not modify formulas.
 import { nameStrength } from "./mapping";
-import type { GapRow, GapWindow, MappingKind, ResolvedEvent } from "./types";
+import type { GapRow, GapWindow, MappingKind, ResolvedEvent } from "../../types";
 
 /**
  * How much an event's Yes probability says about its perp.
@@ -249,9 +249,8 @@ export function linkModel(args: {
   endsAt: number | null | undefined;
   now: number;
 }): LinkModel {
-  const eligibility = priceEligibility(args.question, args.symbol, args.mark, args.endsAt);
-  if (!eligibility.eligible) return { kind: "drop" };
-  const terms = eligibility.terms;
+  const terms = thresholdTerms(args.question, args.mark, args.symbol);
+  if (terms === "range" || terms === "ambiguous") return { kind: "drop" };
   const sign: 1 | -1 = args.baseBeta < 0 ? -1 : 1;
   if (terms) {
     // Without an expiry the strike's sensitivity is unknown; wait for it.
@@ -265,7 +264,15 @@ export function linkModel(args: {
       sign,
     };
   }
-  return { kind: "drop" };
+  const direction = eventDirection(args.question, args.symbol);
+  const beta = args.baseBeta * eventImpact(args.symbol);
+  if (direction == null)
+    return args.mappingKind === "cluster"
+      ? { kind: "drop" }
+      : { kind: "linear", beta, source: "mapping" };
+  return direction < 0
+    ? { kind: "linear", beta: -beta, source: "direction" }
+    : { kind: "linear", beta, source: "mapping" };
 }
 
 /**

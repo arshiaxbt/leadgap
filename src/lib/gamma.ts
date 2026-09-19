@@ -9,6 +9,7 @@ export type GammaSearchEvent = {
 };
 
 export type GammaMarket = {
+  id?: string;
   question?: string;
   closed?: boolean;
   active?: boolean;

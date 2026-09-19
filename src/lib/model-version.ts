@@ -1,3 +1,5 @@
+import { SIGNAL_POLICY } from "./signal-policy";
+import { ANNUAL_VOL } from "./sensitivity";
 import { MAP_REVISION } from "./mapping";
 import { SCORE_MODEL_VERSION } from "./score";
 import type { ResolvedEvent } from "./types";
@@ -10,8 +12,9 @@ export async function fingerprintModel(
   const bytes = new TextEncoder().encode(JSON.stringify([
     MAP_REVISION,
     scoreVersion,
+    SIGNAL_POLICY, ANNUAL_VOL,
     [...events].sort((a, b) => a.id.localeCompare(b.id)).map((event) => [
-      event.id,
+      event.id, event.marketId,
       event.yesTokenId,
       event.question || event.title,
       event.endsAt ?? null,

@@ -1,4 +1,5 @@
-import type { ClusterRule, LinkedPerp, MapRow, MappingKind } from "./types";
+// Frozen heuristic-v4 implementation for historical replay. Do not modify formulas.
+import type { ClusterRule, LinkedPerp, MapRow, MappingKind } from "../../types";
 
 function equity(
   symbol: string,
@@ -265,7 +266,7 @@ export const CLUSTER_RULES: ClusterRule[] = [
 ];
 
 export const CONFIDENCE_FLOOR = 0.5;
-export const MAP_REVISION = 4;
+export const MAP_REVISION = 3;
 const CLUSTER_PRIMARY = 0.75;
 const FOREIGN_MACRO =
   /\b(china|chinese|japan|japanese|uk|britain|british|india|indian|europe|eurozone|brazil|canada|mexico|korea|russia)\b/;

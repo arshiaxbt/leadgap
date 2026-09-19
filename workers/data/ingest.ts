@@ -1,13 +1,20 @@
+import { compactRow } from "../../src/lib/snapshot-row";
+export { compactRow } from "../../src/lib/snapshot-row";
+import { eligibleMarket, priceEligibility } from "../../src/lib/eligibility";
+import { collectEvidence, attachEvidence } from "../../src/lib/enrichment";
+import { SIGNAL_POLICY } from "../../src/lib/signal-policy";
+import { ANNUAL_VOL } from "../../src/lib/sensitivity";
+import { RECENT_SQL } from "./payloads";
 import { fingerprintModel } from "../../src/lib/model-version";
 import { SCORE_MODEL_VERSION } from "../../src/lib/score";
 import {
+  ASSET_MAP,
   allGammaQueries,
   linksForSearchHit,
   selectLinkedPerps,
   MAP_REVISION,
 } from "../../src/lib/mapping";
 import {
-  bestMarket,
   fetchGammaEvent,
   parseEndsAt,
   parseTokenIds,
@@ -25,12 +32,7 @@ import {
   type HistoryBatch,
   type ResearchSnapshot,
 } from "../../src/lib/research";
-import type {
-  GapRow,
-  PerpsTicker,
-  ResolvedEvent,
-  Snapshot,
-} from "../../src/lib/types";
+import type { PerpsTicker, ResolvedEvent, Snapshot } from "../../src/lib/types";
 import { writeMeta, type Env } from "./db";
 import { evaluateRules } from "./rules";
 type Catalog = {
@@ -38,7 +40,11 @@ type Catalog = {
   cursor: number;
   events: Record<string, { event: ResolvedEvent; seen: number }>;
 };
-export async function collect(env: Env, now = Date.now()) {
+export async function collect(
+  env: Env,
+  now = Date.now(),
+  options: { enrich?: boolean; evaluateAlerts?: boolean } = {},
+) {
   const owner = crypto.randomUUID();
   const db = env.DB;
   const slot = Math.floor(now / 60_000) * 60_000;
@@ -84,6 +90,13 @@ export async function collect(env: Env, now = Date.now()) {
         ? await fetchInstruments()
         : previous.instruments;
     const rawTickers = await fetchTickers();
+    const marks = Object.fromEntries(
+      rawTickers.map((t) => [t.symbol, t.markPrice]),
+    );
+    const excluded: Record<string, number> = {};
+    const exclude = (reason: string) => {
+      excluded[reason] = (excluded[reason] ?? 0) + 1;
+    };
     let catalog = meta<Catalog>("catalog") ?? {
       cursor: 0,
       events: {},
@@ -102,8 +115,16 @@ export async function collect(env: Env, now = Date.now()) {
       if (result.status !== "fulfilled") continue;
       const { q, events } = result.value;
       for (const event of events) {
-        const market = bestMarket(event);
-        if (!market) continue;
+        const market = eligibleMarket(
+          event,
+          ASSET_MAP.map((a) => a.symbol),
+          marks,
+          now,
+        );
+        if (!market) {
+          exclude("no-eligible-child-market");
+          continue;
+        }
         const yesPrice = parseYesPrice(market),
           tokens = parseTokenIds(market);
         if (
@@ -117,12 +138,14 @@ export async function collect(env: Env, now = Date.now()) {
         if (!Number.isFinite(volume) || volume < 500) continue;
         const question = market.question ?? event.title;
         const old = catalog.events[event.id]?.event;
-        const links = linksForSearchHit({
-          hay: `${event.title} ${question}`,
-          source: q.source,
-          id: q.id,
-          query: q.query,
-        });
+        const links = ASSET_MAP.flatMap((a) =>
+          linksForSearchHit({
+            hay: question,
+            source: "asset",
+            id: a.symbol,
+            query: q.query,
+          }),
+        );
         const perps = selectLinkedPerps(`${event.title} ${question}`, [
           ...new Map(
             [
@@ -136,6 +159,7 @@ export async function collect(env: Env, now = Date.now()) {
           seen: now,
           event: {
             id: String(event.id),
+            marketId: market.id,
             slug: event.slug,
             title: event.title,
             question,
@@ -153,6 +177,19 @@ export async function collect(env: Env, now = Date.now()) {
     catalog.cursor = (catalog.cursor + 1) % queries.length;
     // Rotate one query per minute; parsing discovery payloads dominates CPU.
     // Bound the catalog while every mapped event still refreshes each minute.
+    for (const [id, entry] of Object.entries(catalog.events)) {
+      entry.event.perps = entry.event.perps.filter((p) => {
+        const result = priceEligibility(
+          entry.event.question,
+          p.symbol,
+          marks[p.symbol],
+          entry.event.endsAt,
+        );
+        if (!result.eligible) exclude(result.reason);
+        return result.eligible;
+      });
+      if (!entry.event.perps.length) delete catalog.events[id];
+    }
     let events = Object.values(catalog.events)
       .filter((e) => now - e.seen < 4 * 3600_000)
       .sort((a, b) => b.event.volume - a.event.volume)
@@ -181,16 +218,20 @@ export async function collect(env: Env, now = Date.now()) {
     // Confirm closure before evicting it; missing prices alone are not proof.
     // Bound these extra lookups even during a widespread upstream outage.
     if (!oddsError) {
-      const missing = events.filter((e) => mids[e.yesTokenId!] == null).slice(0, 5);
+      const missing = events
+        .filter((e) => mids[e.yesTokenId!] == null)
+        .slice(0, 5);
       const closed = new Set<string>();
-      await Promise.allSettled(missing.map(async (event) => {
-        const current = await fetchGammaEvent(event.id);
-        const market = current?.markets?.find(
-          (m) => parseTokenIds(m).yes === event.yesTokenId,
-        );
-        if (current?.closed === true || market?.closed === true)
-          closed.add(event.id);
-      }));
+      await Promise.allSettled(
+        missing.map(async (event) => {
+          const current = await fetchGammaEvent(event.id);
+          const market = current?.markets?.find(
+            (m) => parseTokenIds(m).yes === event.yesTokenId,
+          );
+          if (current?.closed === true || market?.closed === true)
+            closed.add(event.id);
+        }),
+      );
       for (const id of closed) delete catalog.events[id];
       events = events.filter((event) => !closed.has(event.id));
     }
@@ -212,6 +253,7 @@ export async function collect(env: Env, now = Date.now()) {
     );
     const modelVersion = await fingerprintModel(events);
     const batch: HistoryBatch = {
+      schema: 2,
       volumes: Object.fromEntries(events.map((e) => [e.id, e.volume])),
       t: now,
       modelVersion,
@@ -228,7 +270,7 @@ export async function collect(env: Env, now = Date.now()) {
     for (const ticker of rawTickers) {
       if (!Number.isFinite(ticker.markPrice) || ticker.markPrice <= 0) continue;
       tickers[ticker.symbol] = { ...ticker, change1h: null };
-      if (ticker.timestamp <= now + 5000 && now - ticker.timestamp <= 90_000)
+      if (ticker.timestamp <= now && now - ticker.timestamp <= 90_000)
         batch.marks[ticker.symbol] = [ticker.timestamp, ticker.markPrice];
     }
     for (const e of events) {
@@ -244,14 +286,16 @@ export async function collect(env: Env, now = Date.now()) {
       WINDOWS.map((window) =>
         db
           .prepare(
-            "SELECT payload FROM snapshots WHERE t>=? AND t<=? ORDER BY ABS(t-?) LIMIT 1",
+            "SELECT payload FROM snapshots WHERE t>=? AND t<=? AND json_extract(payload,'$.t')<=? ORDER BY ABS(json_extract(payload,'$.t')-?) LIMIT 1",
           )
           .bind(
-            slot -
+            now -
+              60000 -
               WINDOW_MS[window] -
               Math.max(30_000, Math.min(600_000, WINDOW_MS[window] * 0.2)),
-            slot - WINDOW_MS[window],
-            slot - WINDOW_MS[window],
+            now - WINDOW_MS[window] + 12000,
+            now - WINDOW_MS[window] + 12000,
+            now - WINDOW_MS[window],
           ),
       ),
     );
@@ -293,7 +337,8 @@ export async function collect(env: Env, now = Date.now()) {
       ]),
     ) as ResearchSnapshot["windows"];
     const firstAt = earliest.results[0]?.t;
-    const snapshot: ResearchSnapshot = {
+    let snapshot: ResearchSnapshot = {
+      scoreVersion: SCORE_MODEL_VERSION,
       asOf: now,
       modelVersion,
       instruments,
@@ -312,8 +357,34 @@ export async function collect(env: Env, now = Date.now()) {
       coverage: {
         startedAt: typeof firstAt === "number" ? firstAt : now,
         cadenceMs: 60_000,
+        queryCount: queries.length,
+        discoveryCycleMs: queries.length * 60000,
+        catalogLimit: 60,
+        excluded,
       },
     };
+    if (options.enrich !== false) {
+      let recent: HistoryBatch[] = [];
+      try {
+        const r = await db
+          .prepare(RECENT_SQL)
+          .bind(slot - 60 * 60000, slot - 1)
+          .all<{ payload: string }>();
+        recent = r.results.map((r) => JSON.parse(r.payload) as HistoryBatch);
+      } catch {
+        /* No timing evidence is safer than failing ordinary collection. */
+      }
+      const evidence = await collectEvidence(snapshot);
+      batch.evidence = evidence;
+      batch.evaluatedAt = Date.now();
+      const all = new Map([...recent, ...batches, batch].map((b) => [b.t, b]));
+      snapshot = attachEvidence(
+        snapshot,
+        [...all.values()],
+        evidence,
+        batch.evaluatedAt,
+      );
+    }
     // Keep every gateway request small: skip the unchanged mapping archive
     // row and write the published snapshot last, after what it depends on.
     const writes = await db.batch([
@@ -337,9 +408,12 @@ export async function collect(env: Env, now = Date.now()) {
                 now,
                 JSON.stringify({
                   mappingRevision: MAP_REVISION,
+                  policy: SIGNAL_POLICY,
+                  annualVol: ANNUAL_VOL,
                   scoreVersion: SCORE_MODEL_VERSION,
                   events: events.map((e) => ({
                     id: e.id,
+                    marketId: e.marketId,
                     title: e.title,
                     question: e.question,
                     endsAt: e.endsAt ?? null,
@@ -371,7 +445,13 @@ export async function collect(env: Env, now = Date.now()) {
         )
         .bind(JSON.stringify(snapshot)),
     ]);
-    await evaluateRules(env, snapshot, now);
+    if (options.evaluateAlerts !== false)
+      await evaluateRules(
+        env,
+        snapshot,
+        now,
+        previous?.scoreVersion !== snapshot.scoreVersion,
+      );
     if (Math.floor(now / 60_000) % 60 === 0) await prune(env, now);
     const nextHealth = {
       status: snapshot.error ? "degraded" : "healthy",
@@ -429,22 +509,4 @@ export async function prune(env: Env, now: number) {
       new Date(now - 30 * 86400_000).toISOString().slice(0, 10),
     ),
   ]);
-}
-
-/** Six significant digits keeps every published value while trimming the stored payload. */
-function sig(value: number): number {
-  return Number.isFinite(value) ? Number(value.toPrecision(6)) : value;
-}
-
-export function compactRow(row: GapRow): GapRow {
-  return {
-    ...row,
-    oddsMove: sig(row.oddsMove),
-    perpMove: sig(row.perpMove),
-    signedBeta: sig(row.signedBeta),
-    gap: sig(row.gap),
-    expected: sig(row.expected),
-    actual: sig(row.actual),
-    catchup: row.catchup == null ? null : sig(row.catchup),
-  };
 }

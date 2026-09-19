@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/sheet";
 import { fmtPct } from "@/lib/format";
 import { deskHref, signalHref } from "@/lib/links";
+import { SignalEvidence } from "./SignalEvidence";
 import { isActionable } from "@/lib/score";
 import { mappingLabel, perpName, thesisLine } from "@/lib/signal";
 import { trackEvent } from "@/lib/track";
@@ -104,6 +105,7 @@ function SheetBody({ row }: { row: GapRow }) {
           <span className="text-[12px] text-subtle">Leadgap score</span>
           <DirectionChip bias={row.bias} className="ml-auto" />
         </div>
+        <SignalEvidence row={row} />
         <Link
           href={signalHref(row)}
           className="lg-focus mt-5 inline-flex items-center gap-1.5 text-[13px] text-subtle hover:text-text"

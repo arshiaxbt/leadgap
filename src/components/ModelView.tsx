@@ -26,7 +26,7 @@ const FACTORS: { key: keyof ScoreFactors; label: string; rule: string }[] = [
   },
   {
     key: "lead",
-    label: "Odds-first leadership",
+    label: "Implied-move magnitude",
     rule: "1 when the odds-implied move beats the perp’s by 25%, 0.42 in line, 0.12 when the perp led.",
   },
   {
@@ -63,7 +63,9 @@ function median(values: number[]): number | null {
   if (!values.length) return null;
   const sorted = [...values].sort((a, b) => a - b);
   const mid = Math.floor(sorted.length / 2);
-  return sorted.length % 2 ? sorted[mid]! : (sorted[mid - 1]! + sorted[mid]!) / 2;
+  return sorted.length % 2
+    ? sorted[mid]!
+    : (sorted[mid - 1]! + sorted[mid]!) / 2;
 }
 
 export function ModelView() {
@@ -79,7 +81,12 @@ export function ModelView() {
     const actionable = rows.filter(isActionable).length;
     const captured = median(
       rows
-        .filter((r) => r.leader === "odds" && r.catchup != null && Number.isFinite(r.catchup))
+        .filter(
+          (r) =>
+            r.leader === "odds" &&
+            r.catchup != null &&
+            Number.isFinite(r.catchup),
+        )
         .map((r) => Math.max(0, r.catchup!)),
     );
     const factors = FACTORS.map((f) => {
@@ -88,7 +95,9 @@ export function ModelView() {
       );
       return {
         ...f,
-        avg: values.length ? values.reduce((a, b) => a + b, 0) / values.length : null,
+        avg: values.length
+          ? values.reduce((a, b) => a + b, 0) / values.length
+          : null,
       };
     });
     const bands = BANDS.map((b) => ({
@@ -133,9 +142,12 @@ export function ModelView() {
         </div>
 
         <dl className="mt-4 grid grid-cols-2 gap-px overflow-hidden rounded-[10px] border border-line bg-line lg:grid-cols-4">
-          <Kpi label="Scored now" value={feed.isPending ? "—" : String(rows.length)} />
           <Kpi
-            label="Actionable rate"
+            label="Scored now"
+            value={feed.isPending ? "—" : String(rows.length)}
+          />
+          <Kpi
+            label="Candidate rate"
             tone="text-odds"
             value={
               feed.isPending || !rows.length
@@ -145,9 +157,17 @@ export function ModelView() {
           />
           <Kpi
             label="Median mark captured"
-            value={stats.captured == null ? "—" : `${Math.round(stats.captured * 100)}%`}
+            value={
+              stats.captured == null
+                ? "—"
+                : `${Math.round(stats.captured * 100)}%`
+            }
           />
-          <Kpi label="Model version" tone="text-mark" value={version.slice(0, 16)} />
+          <Kpi
+            label="Model version"
+            tone="text-mark"
+            value={version.slice(0, 16)}
+          />
         </dl>
 
         <div className="mt-6 grid gap-5 lg:grid-cols-2">
@@ -155,8 +175,8 @@ export function ModelView() {
             <h2 className="kicker">Score composition</h2>
             <p className="mt-2 text-[12px] leading-[1.6] text-subtle">
               Score = 100 × the product of six factors, each between 0 and 1.
-              Because they multiply, one weak factor pulls the whole score
-              down. Bars show each factor’s live average on the {window} window.
+              Because they multiply, one weak factor pulls the whole score down.
+              Bars show each factor’s live average on the {window} window.
             </p>
             <ul className="mt-4 flex flex-col gap-3.5">
               {stats.factors.map((f) => (
@@ -181,21 +201,25 @@ export function ModelView() {
           <section className="rounded-[10px] border border-line bg-surface p-5">
             <h2 className="kicker">Live signals by score band · {window}</h2>
             <p className="mt-2 text-[12px] leading-[1.6] text-subtle">
-              How today’s comparisons are distributed. Tradeable signals score
-              28 or more with a clear side and less than 85% of the move
-              already caught.
+              Candidates require a score of at least 28, a clear side, less than
+              85% catch-up, measured odds leadership and a gap above estimated
+              costs. Missing evidence cannot qualify.
             </p>
             <div className="mt-4 flex flex-col gap-2.5">
               {stats.bands.map((b) => (
                 <div key={b.label} className="flex items-center gap-2.5">
-                  <span className="num w-[52px] text-[11px] text-dim">{b.label}</span>
+                  <span className="num w-[52px] text-[11px] text-dim">
+                    {b.label}
+                  </span>
                   <div className="h-4 flex-1 overflow-hidden rounded-[3px] bg-line">
                     <span
                       className={cn("block h-4", b.tone)}
                       style={{ width: `${(b.count / maxBand) * 100}%` }}
                     />
                   </div>
-                  <span className="num w-[34px] text-right text-[11px]">{b.count}</span>
+                  <span className="num w-[34px] text-right text-[11px]">
+                    {b.count}
+                  </span>
                 </div>
               ))}
             </div>
@@ -214,8 +238,8 @@ export function ModelView() {
               <span className="text-text">Price-threshold markets</span> —
               “above $X on a date”, “reach $X by a date” — are options on the
               perp itself. With the strike fixed, a change in Yes probability
-              maps to the price move that would explain it, given time to
-              expiry and an assumed volatility (for a digital,{" "}
+              maps to the price move that would explain it, given time to expiry
+              and an assumed volatility (for a digital,{" "}
               <span className="num">ln S = ln K + σ√τ·Φ⁻¹(p)</span>). Odds that
               drift as expiry nears are not read as price moves. Markets priced
               below 5% or above 95%, or resolving within the window, are left
@@ -225,21 +249,17 @@ export function ModelView() {
               unsupported negations are left out.
             </p>
             <p>
-              <span className="text-text">Other events</span> are assumed to be
-              worth about one day’s typical move of the perp if they resolve
-              Yes rather than No (volatility ÷ √365; ~3% for ETH, ~2% for
-              oil). The mapping only sets the direction, flipped when the
-              question is bad news for the perp (recessions, delistings, “dip
-              to”). Ambiguous wording — negations, macro data prints — is left
-              out rather than guessed. The size is an assumption, not an
-              estimate.
+              <span className="text-text">Supported events only.</span> The
+              selected question must name the underlying and express a supported
+              price threshold with an expiry. News, mentions, macro outcomes and
+              relative-performance questions are excluded. The parent event
+              title cannot establish a link.
             </p>
             <p className="text-[12px] text-dim">
-              Model v4 (September 2026) adds explicit threshold negation and
-              versions question changes. v1 read every odds move one-for-one
-              as a price move (6 points became 6%, in oil or ETH alike), so
-              signals now score far lower and alert rules saved under v1 may
-              stop firing.
+              Model v5 adds strict eligibility, measured timing and quote
+              evidence. Saved alert settings remain intact; changing the model
+              does not create an alert crossing. Historical v4 replay remains
+              separate.
             </p>
           </div>
         </section>
@@ -248,12 +268,15 @@ export function ModelView() {
           <h2 className="text-[15px] font-medium">Known limitations</h2>
           <ul className="flex list-disc flex-col gap-2.5 pl-4 text-[13px] leading-[1.6] text-subtle marker:text-dim">
             <li>
-              Mapping from event to perp is heuristic — a named or clustered
-              relationship, not a verified economic link.
+              Volatility assumptions and the threshold pricing model can be
+              wrong. A supported price relationship does not establish
+              mispricing.
             </li>
             <li>
-              “Odds-led” is a magnitude comparison within the selected window.
-              It does not establish which market moved first in time.
+              Timing compares minute returns over up to 60 minutes at lags from
+              −5 to +5 minutes. It needs 12 pairs, 80% coverage, correlation ≥
+              0.4 and a 0.1 advantage over zero and opposite lags. The 1m and 5m
+              windows cannot qualify. Correlation does not establish causality.
             </li>
             <li>
               Upstream feeds can be delayed or interrupted. Observations older
@@ -261,8 +284,10 @@ export function ModelView() {
               thin out.
             </li>
             <li>
-              The residual ignores fees, funding and slippage. A large gap is
-              not a profit estimate.
+              The residual is gross. The separate $100 notional / 30-minute
+              benchmark estimates spread, depth, taker fees and adverse funding.
+              It is research evidence, not an executable order or profit
+              forecast.
             </li>
             <li>
               Any calibration will be measured on a small, evolving sample and
@@ -272,11 +297,17 @@ export function ModelView() {
         </section>
         <p className="mt-6 text-[12px] text-dim">
           New to the gap?{" "}
-          <Link href="/about" className="lg-focus text-subtle underline underline-offset-2 hover:text-text">
+          <Link
+            href="/about"
+            className="lg-focus text-subtle underline underline-offset-2 hover:text-text"
+          >
             Read the guide
           </Link>{" "}
           or{" "}
-          <Link href="/?tour=1" className="lg-focus text-subtle underline underline-offset-2 hover:text-text">
+          <Link
+            href="/?tour=1"
+            className="lg-focus text-subtle underline underline-offset-2 hover:text-text"
+          >
             take the Signals tour
           </Link>
           .

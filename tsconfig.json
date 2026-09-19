@@ -32,6 +32,7 @@
     "**/*.mts"
   ],
   "exclude": [
+    "artifacts",
     "node_modules",
     "workers/data/worker-configuration.d.ts",
     "workers/data/bindings-check.ts"

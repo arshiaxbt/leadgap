@@ -10,9 +10,26 @@ export async function generateMetadata({
 }: {
   params: Params;
 }): Promise<Metadata> {
-  const { symbol } = await params;
+  const { event, symbol } = await params;
+  const name = decodeURIComponent(symbol).replace("-USD", "").toUpperCase();
+  const title = `${name} signal`;
+  const description = `Polymarket odds against the ${name} perp, and the gap between them.`;
+  // Share images come from the colocated opengraph-image and twitter-image routes.
   return {
-    title: `${decodeURIComponent(symbol).replace("-USD", "").toUpperCase()} signal`,
+    title,
+    description,
+    openGraph: {
+      title: `${title} · Leadgap`,
+      description,
+      url: `/signals/${event}/${symbol}`,
+      siteName: "Leadgap",
+      type: "website",
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: `${title} · Leadgap`,
+      description,
+    },
   };
 }
 

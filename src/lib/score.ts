@@ -176,18 +176,6 @@ export function isActionable(
   return true;
 }
 
-export function scoreTone(score: number): "lead" | "warn" | "mute" {
-  if (score >= 55) return "lead";
-  if (score >= 28) return "warn";
-  return "mute";
-}
-
-export function scoreClass(score: number): string {
-  if (score >= 55) return "text-[var(--signal)]";
-  if (score >= 28) return "text-[var(--warn)]";
-  return "text-[var(--dim)]";
-}
-
 export function biasCopy(bias: Bias, symbol?: string): string {
   const name = symbol ? symbol.replace("-USD", "") : "";
   switch (bias) {

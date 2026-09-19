@@ -467,3 +467,25 @@ test("signal history explains unavailable data and renders compatible observatio
     }),
   ).toBeVisible({ timeout: 15000 });
 });
+
+test("signal pages advertise a generated share image", async ({
+  page,
+  request,
+}) => {
+  await page.goto("/signals/1/BTC-USD");
+  const og = await page
+    .locator('meta[property="og:image"]')
+    .getAttribute("content");
+  expect(og).toContain("/signals/1/BTC-USD/opengraph-image");
+  await expect(page.locator('meta[name="twitter:card"]')).toHaveAttribute(
+    "content",
+    "summary_large_image",
+  );
+  // Unknown or expired signals still get a branded card, never an error.
+  for (const route of ["opengraph-image", "twitter-image"]) {
+    const response = await request.get(`/signals/1/BTC-USD/${route}`);
+    expect(response.status()).toBe(200);
+    expect(response.headers()["content-type"]).toBe("image/png");
+    expect((await response.body()).length).toBeGreaterThan(10_000);
+  }
+});

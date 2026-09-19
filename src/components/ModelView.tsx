@@ -217,7 +217,10 @@ export function ModelView() {
               maps to the price move that would explain it, given time to
               expiry and an assumed volatility (for a digital,{" "}
               <span className="num">ln S = ln K + σ√τ·Φ⁻¹(p)</span>). Odds that
-              drift as expiry nears are not read as price moves.
+              drift as expiry nears are not read as price moves. Markets priced
+              below 5% or above 95%, or resolving within the window, are left
+              out: there a one-tick wobble or time decay would read as a large
+              move.
             </p>
             <p>
               <span className="text-text">Other events</span> keep the

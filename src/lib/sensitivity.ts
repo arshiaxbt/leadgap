@@ -246,6 +246,27 @@ export function linkModel(args: {
 
 const clampP = (p: number) => Math.min(0.99, Math.max(0.01, p));
 
+/** Odds this close to 0 or 1 are mostly tick noise for a threshold market. */
+export const TAIL_P = 0.05;
+
+/**
+ * Whether a threshold market can price a move over this window. Near 0 or 1
+ * the inverse normal turns a one-tick wobble into a large move, and when the
+ * market resolves within the window, time decay rather than price dominates.
+ * Such rows are left out rather than scored.
+ */
+export function informative(
+  model: Exclude<LinkModel, { kind: "drop" }>,
+  pThen: number,
+  pNow: number,
+  windowMs: number,
+  now: number,
+): boolean {
+  if (model.kind !== "threshold") return true;
+  if (model.endsAt - now < windowMs) return false;
+  return [pThen, pNow].every((p) => p >= TAIL_P && p <= 1 - TAIL_P);
+}
+
 /**
  * The perp return the odds imply between two observations. Threshold markets
  * use the exact strike-fixed form, including time decay, so odds drifting

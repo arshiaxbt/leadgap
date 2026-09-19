@@ -20,6 +20,7 @@ import {
 import { readJson } from "@/lib/http";
 import { deskHref, signalHref } from "@/lib/links";
 import { isActionable } from "@/lib/score";
+import { mappedBeta } from "@/lib/sensitivity";
 import { NEWS_LINK_HOSTS, safeHttpsUrl } from "@/lib/safe-url";
 import { mappingLabel, perpName } from "@/lib/signal";
 import type {
@@ -46,8 +47,9 @@ function shortReason(link: LinkedPerp, row?: GapRow): string {
   if (row?.betaSource === "threshold")
     return `Priced from the strike and expiry · sensitivity ${row.signedBeta >= 0 ? "+" : ""}${row.signedBeta.toFixed(2)} per unit of Yes.`;
   if (row?.betaSource === "direction")
-    return `Signed beta ${row.signedBeta.toFixed(2)} · the question is bearish for ${perpName(link.symbol)}.`;
-  const beta = `Signed beta ${link.signedBeta >= 0 ? "+" : ""}${link.signedBeta.toFixed(2)}`;
+    return `Sensitivity ${row.signedBeta.toFixed(3)} · the question is bearish for ${perpName(link.symbol)}; Yes is assumed worth about one day’s move.`;
+  const b = row?.signedBeta ?? mappedBeta(link);
+  const beta = `Sensitivity ${b >= 0 ? "+" : ""}${b.toFixed(3)}`;
   return link.mappingKind === "named"
     ? `${beta} · the event names ${perpName(link.symbol)} directly.`
     : `${beta} · ${mappingLabel(link).toLowerCase()} link, weaker than a direct name.`;

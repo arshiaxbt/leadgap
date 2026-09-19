@@ -8,6 +8,7 @@ import {
 import {
   bestMarket,
   fetchGammaEvent,
+  parseEndsAt,
   parseTokenIds,
   parseYesPrice,
   searchGammaEvents,
@@ -143,6 +144,7 @@ export async function collect(env: Env, now = Date.now()) {
             volume,
             liquidityScore: Math.min(1, Math.log10(Math.max(volume, 10)) / 6),
             perps,
+            endsAt: parseEndsAt(market, event) ?? old?.endsAt ?? null,
           },
         };
       }
@@ -191,6 +193,22 @@ export async function collect(env: Env, now = Date.now()) {
       for (const id of closed) delete catalog.events[id];
       events = events.filter((event) => !closed.has(event.id));
     }
+    // Threshold markets are priced from their expiry. Backfill it for events
+    // cataloged before end dates were recorded, a few per minute.
+    const undated = events.filter((e) => e.endsAt == null).slice(0, 3);
+    await Promise.allSettled(
+      undated.map(async (event) => {
+        const current = await fetchGammaEvent(event.id);
+        const market = current?.markets?.find(
+          (m) => parseTokenIds(m).yes === event.yesTokenId,
+        );
+        const endsAt = parseEndsAt(market, current);
+        if (endsAt == null) return;
+        event.endsAt = endsAt;
+        const entry = catalog.events[event.id];
+        if (entry) entry.event.endsAt = endsAt;
+      }),
+    );
     const modelBytes = new TextEncoder().encode(
       JSON.stringify([
         MAP_REVISION,
@@ -200,6 +218,7 @@ export async function collect(env: Env, now = Date.now()) {
           .map((e) => [
             e.id,
             e.yesTokenId,
+            e.endsAt ?? null,
             e.perps.map((p) => [
               p.symbol,
               p.signedBeta,
@@ -344,6 +363,8 @@ export async function collect(env: Env, now = Date.now()) {
                   events: events.map((e) => ({
                     id: e.id,
                     title: e.title,
+                    question: e.question,
+                    endsAt: e.endsAt ?? null,
                     volume: e.volume,
                     yesTokenId: e.yesTokenId,
                     perps: e.perps,

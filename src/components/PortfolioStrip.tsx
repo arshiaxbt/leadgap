@@ -264,7 +264,7 @@ export function PortfolioStrip() {
           type="button"
           disabled={busy}
           onClick={() => void approvePerps()}
-          className="lg-focus whitespace-nowrap border border-[color-mix(in_srgb,var(--signal)_45%,var(--line))] px-2 py-0.5 text-[11px] font-medium text-[var(--signal)] disabled:opacity-40"
+          className="lg-focus h-8 whitespace-nowrap rounded-[7px] border border-[color-mix(in_srgb,var(--signal)_45%,var(--line))] px-3 text-[12px] font-medium text-[var(--signal)] disabled:opacity-40"
         >
           {busy ? "…" : "Connect Perps"}
         </button>

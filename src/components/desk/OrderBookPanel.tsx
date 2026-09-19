@@ -3,7 +3,7 @@
 import { fmtPx } from "@/lib/format";
 import type { PerpsBook } from "@/lib/types";
 
-const LEVELS = 14;
+const LEVELS = 12;
 
 export function OrderBookPanel({
   book,
@@ -25,11 +25,8 @@ export function OrderBookPanel({
   const bidQty = bids.reduce((s, l) => s + l.quantity, 0);
   const askQty = asksRaw.reduce((s, l) => s + l.quantity, 0);
   const tot = bidQty + askQty || 1;
-  const maxCum = Math.max(
-    bids.reduce((s, l) => s + l.quantity, 0),
-    asksRaw.reduce((s, l) => s + l.quantity, 0),
-    0.0001,
-  );
+  const maxCum = Math.max(bidQty, askQty, 0.0001);
+  const tick = (10 ** -Math.max(0, decimals)).toFixed(Math.max(0, decimals));
 
   const askRows = asks.map((level, i) => ({
     ...level,
@@ -41,16 +38,22 @@ export function OrderBookPanel({
   }));
 
   return (
-    <div className="flex h-full min-h-0 flex-col bg-[var(--surface)] text-[11px] leading-4">
-      <h2 className="border-b border-[var(--line)] px-3 py-3 text-[13px] font-medium">
-        Order book
-      </h2>
-      <div className="grid grid-cols-3 px-2 py-1 text-[11px] text-[var(--dim)]">
-        <span>Price</span>
-        <span className="text-right">Size</span>
-        <span className="text-right">Sum</span>
+    <div className="flex h-full min-h-0 flex-col bg-side">
+      <div className="flex items-center justify-between border-b border-line px-3 py-[11px]">
+        <h2 className="kicker">Order book</h2>
+        <span className="num text-[10px] text-dim" title="Price increment">
+          {tick}
+        </span>
+      </div>
+      <div className="num grid grid-cols-3 px-3 py-1.5 text-[10px] text-dim">
+        <span>PRICE</span>
+        <span className="text-right">SIZE</span>
+        <span className="text-right">SUM</span>
       </div>
       <div className="min-h-0 flex-1 overflow-auto">
+        {book ? null : (
+          <p className="px-3 py-4 text-[12px] text-dim">Loading book…</p>
+        )}
         {askRows.map((level) => (
           <Row
             key={`a-${level.price}`}
@@ -61,12 +64,12 @@ export function OrderBookPanel({
             onPrice={onPrice}
           />
         ))}
-        <div className="flex items-center justify-between bg-[var(--elevated)] px-2 py-1">
-          <span className="num text-[12px] font-medium text-[var(--text)]">
+        <div className="my-[3px] flex items-baseline justify-between bg-elevated px-3 py-2">
+          <span className="num text-[14px] font-medium text-text">
             {mid != null ? fmtPx(mid, decimals) : "—"}
           </span>
-          <span className="text-[11px] text-[var(--dim)]">
-            Mid{spread != null ? ` · ${fmtPx(spread, decimals)}` : ""}
+          <span className="num text-[10px] text-dim">
+            SPREAD {spread != null ? fmtPx(spread, decimals) : "—"}
           </span>
         </div>
         {bidRows.map((level) => (
@@ -80,23 +83,15 @@ export function OrderBookPanel({
           />
         ))}
       </div>
-      <div className="flex h-1 overflow-hidden">
-        <div
-          className="bg-[var(--long)]"
-          style={{ width: `${(bidQty / tot) * 100}%` }}
-        />
-        <div
-          className="bg-[var(--short)]"
-          style={{ width: `${(askQty / tot) * 100}%` }}
-        />
-      </div>
-      <div className="flex justify-between px-2 py-0.5 text-[9px] text-[var(--dim)]">
-        <span className="text-[var(--long)]">
-          {((bidQty / tot) * 100).toFixed(0)}% bid
-        </span>
-        <span className="text-[var(--short)]">
-          {((askQty / tot) * 100).toFixed(0)}% ask
-        </span>
+      <div className="shrink-0 border-t border-line px-3 py-[9px]">
+        <div className="flex h-1 overflow-hidden rounded-[2px]" aria-hidden>
+          <span className="bg-long" style={{ width: `${(bidQty / tot) * 100}%` }} />
+          <span className="bg-short" style={{ width: `${(askQty / tot) * 100}%` }} />
+        </div>
+        <div className="num mt-1.5 flex justify-between text-[10px]">
+          <span className="text-long">{((bidQty / tot) * 100).toFixed(0)}% BID</span>
+          <span className="text-short">{((askQty / tot) * 100).toFixed(0)}% ASK</span>
+        </div>
       </div>
     </div>
   );
@@ -120,26 +115,25 @@ function Row({
     <button
       type="button"
       onClick={() => onPrice?.(level.price)}
-      className="lg-focus relative grid min-h-6 w-full grid-cols-3 px-3 text-left hover:bg-[var(--hover)]"
+      aria-label={`${side === "bid" ? "Bid" : "Ask"} ${fmtPx(level.price, decimals)}, size ${fmtPx(level.quantity, 4)}. Use as limit price`}
+      className="lg-focus num relative grid min-h-[22px] w-full grid-cols-3 items-center px-3 text-left text-[11px] hover:bg-raise"
     >
       <span
-        className="absolute inset-y-0 right-0 opacity-20"
+        aria-hidden
+        className="absolute inset-y-px right-0"
         style={{
           width: `${pct}%`,
-          background: side === "bid" ? "var(--long)" : "var(--short)",
+          background:
+            side === "bid" ? "rgba(79,212,160,0.16)" : "rgba(240,116,95,0.16)",
         }}
       />
-      <span className="num relative text-[var(--mark)]">
+      <span className={`relative ${side === "bid" ? "text-long" : "text-short"}`}>
         {fmtPx(level.price, decimals)}
       </span>
-      <span
-        className={`num relative text-right ${side === "bid" ? "text-[var(--long)]" : "text-[var(--short)]"}`}
-      >
+      <span className="relative text-right text-mark">
         {fmtPx(level.quantity, 4)}
       </span>
-      <span className="num relative text-right text-[var(--dim)]">
-        {fmtPx(level.cum, 3)}
-      </span>
+      <span className="relative text-right text-subtle">{fmtPx(level.cum, 3)}</span>
     </button>
   );
 }

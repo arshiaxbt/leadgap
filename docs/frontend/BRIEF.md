@@ -1,5 +1,7 @@
 # Leadgap redesign brief
 
+> The visual direction below (ice/stone, Geist) was superseded in September 2026 by the lime/bone identity in [DESIGN.md](../../DESIGN.md). The product cognition, journey and risks still apply.
+
 ## Project cognition and thinking gate
 
 - Stage: working product, with reliability and UX gaps. Surface: trading workbench and financial analytics.

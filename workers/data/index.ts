@@ -13,18 +13,40 @@ import {
 } from "../../src/lib/research";
 const json = (data: unknown, status = 200) =>
   Response.json(data, { status, headers: { "cache-control": "no-store" } });
+const encoder = new TextEncoder();
+/** Constant-time bearer check: compares fixed-length digests, never the raw strings. */
+async function bearerMatches(
+  header: string | null,
+  secret: string | undefined,
+): Promise<boolean> {
+  if (!secret || !header) return false;
+  const [given, expected] = await Promise.all([
+    crypto.subtle.digest("SHA-256", encoder.encode(header)),
+    crypto.subtle.digest("SHA-256", encoder.encode(`Bearer ${secret}`)),
+  ]);
+  const a = new Uint8Array(given),
+    b = new Uint8Array(expected);
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) diff |= a[i] ^ b[i];
+  return diff === 0;
+}
+/** Reads a preview deployment may make with DATA_READ_SECRET; nothing else. */
+const READ_ONLY_PATHS = new Set(["/snapshot", "/history", "/mapping", "/health"]);
 export async function handle(request: Request, env: Env): Promise<Response> {
   const url = new URL(request.url),
     path = url.pathname;
   if (path === "/internal/database") {
     if (
-      !env.COLLECTOR_SECRET ||
-      request.headers.get("authorization") !== `Bearer ${env.COLLECTOR_SECRET}`
+      !(await bearerMatches(
+        request.headers.get("authorization"),
+        env.COLLECTOR_SECRET,
+      ))
     )
       return json({ error: "Unauthorized" }, 401);
     if (request.method !== "POST")
       return json({ error: "Method not allowed" }, 405);
-    const body = JSON.parse(await readRequestText(request, 524_288)) as {
+    // The collector chunks writes to ~400 KB; the headroom covers one oversized statement.
+    const body = JSON.parse(await readRequestText(request, 1_572_864)) as {
       queries?: { sql: string; params: unknown[] }[];
     };
     if (
@@ -53,11 +75,13 @@ export async function handle(request: Request, env: Env): Promise<Response> {
       ),
     );
   }
-  if (
-    !env.DATA_SERVICE_SECRET ||
-    request.headers.get("authorization") !== `Bearer ${env.DATA_SERVICE_SECRET}`
-  )
-    return json({ error: "Unauthorized" }, 401);
+  const authorization = request.headers.get("authorization");
+  const allowed =
+    (await bearerMatches(authorization, env.DATA_SERVICE_SECRET)) ||
+    (request.method === "GET" &&
+      READ_ONLY_PATHS.has(path) &&
+      (await bearerMatches(authorization, env.DATA_READ_SECRET)));
+  if (!allowed) return json({ error: "Unauthorized" }, 401);
   if (request.method === "GET" && path === "/health")
     return json((await readMeta(env.DB, "health")) ?? { status: "warming" });
   if (request.method === "POST" && path === "/collect") {

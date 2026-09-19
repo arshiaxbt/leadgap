@@ -253,14 +253,15 @@ export function PairPicker({
           setQ("");
           setCat("all");
         }}
-        className="flex h-8 items-center gap-1.5 rounded-[6px] px-1.5 hover:bg-[var(--hover)] focus-visible:ring-2 focus-visible:ring-[color-mix(in_srgb,var(--odds)_40%,transparent)]"
+        className="lg-focus flex h-[34px] shrink-0 items-center gap-2 rounded-[7px] border border-line-strong px-[9px] transition-colors hover:border-[var(--faint)]"
         aria-expanded={open}
         aria-haspopup="listbox"
+        aria-label={`${base} perpetual. Change market`}
       >
-        <span className="text-[15px] font-medium tracking-wide text-[var(--text)]">
+        <span className="text-[16px] font-semibold tracking-[-0.01em] text-text">
           {base}
         </span>
-        <span className="text-[11px] text-[var(--dim)]">Perp</span>
+        <span className="num text-[10px] text-dim">PERP</span>
         <svg
           viewBox="0 0 12 12"
           className={`h-2 w-2 text-[var(--muted)] ${open ? "rotate-180" : ""}`}
@@ -276,7 +277,7 @@ export function PairPicker({
         <div
           ref={panel}
           style={{ top: box.top, left: box.left, width: box.width }}
-          className="fixed z-50 overflow-hidden rounded-[8px] border border-[var(--line)] bg-[var(--elevated)]"
+          className="fixed z-50 overflow-hidden rounded-[10px] border border-line-strong bg-surface shadow-[0_20px_40px_-12px_rgba(0,0,0,0.6)]"
         >
           <input
             ref={searchRef}
@@ -305,7 +306,7 @@ export function PairPicker({
                 onClick={() => setCat(c.id)}
                 className={`shrink-0 rounded-[4px] px-1.5 py-0.5 text-[11px] ${
                   cat === c.id
-                    ? "bg-[var(--hover)] text-[var(--text)]"
+                    ? "bg-active text-[var(--text)]"
                     : "text-[var(--muted)] hover:text-[var(--text)]"
                 }`}
               >
@@ -365,8 +366,8 @@ export function PairPicker({
                     onClick={() => go(item.symbol)}
                     className={`grid w-full ${COLS} items-center px-3 py-1.5 text-left text-[12px] ${
                       on || i === hi
-                        ? "bg-[var(--hover)]"
-                        : "hover:bg-[var(--hover)]"
+                        ? "bg-elevated"
+                        : "hover:bg-elevated"
                     }`}
                   >
                     <span className="flex min-w-0 items-center gap-1.5">
@@ -412,8 +413,8 @@ export function PairPicker({
                       onClick={() => go(item.symbol, item.id)}
                       className={`flex w-full items-center gap-2 px-3 py-1.5 text-left text-[12px] ${
                         idx === hi
-                          ? "bg-[var(--hover)]"
-                          : "hover:bg-[var(--hover)]"
+                          ? "bg-elevated"
+                          : "hover:bg-elevated"
                       }`}
                     >
                       <span className="min-w-0 flex-1 truncate text-[var(--text)]">

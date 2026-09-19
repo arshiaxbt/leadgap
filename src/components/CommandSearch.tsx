@@ -3,7 +3,6 @@
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import { SearchIcon } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import {
   Command,
   CommandEmpty,
@@ -19,15 +18,16 @@ import {
   DialogDescription,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Kbd } from "@/components/ui/kbd";
 import { fmtOdds } from "@/lib/format";
+import { perpName } from "@/lib/signal";
 import type { PerpsInstrument, ResolvedEvent } from "@/lib/types";
-import { cn } from "@/lib/utils";
 
 const DESTINATIONS = [
   { href: "/", label: "Signals", hint: "Ranked setups" },
   { href: "/markets", label: "Markets", hint: "Perp table" },
+  { href: "/watchlist", label: "Watchlist", hint: "Saved & alerts" },
   { href: "/portfolio", label: "Portfolio", hint: "Positions and equity" },
+  { href: "/model", label: "Model", hint: "How the score works" },
   { href: "/about", label: "Guide", hint: "How Leadgap works" },
 ] as const;
 
@@ -36,7 +36,7 @@ type EventHit = {
   id: string;
   title: string;
   question: string;
-  symbol: string;
+  symbols: string[];
   yesPrice: number;
 };
 
@@ -87,16 +87,13 @@ export function CommandSearch() {
         const hits: EventHit[] = [];
         const seen = new Set<string>();
         for (const event of eventPayload.events ?? []) {
-          const symbol = event.perps[0]?.symbol;
-          if (!symbol) continue;
-          const key = `${event.id}:${symbol}`;
-          if (seen.has(key)) continue;
-          seen.add(key);
+          if (!event.perps.length || seen.has(event.id)) continue;
+          seen.add(event.id);
           hits.push({
             id: event.id,
             title: event.title,
             question: event.question,
-            symbol,
+            symbols: [...new Set(event.perps.map((p) => p.symbol))],
             yesPrice: event.yesPrice,
           });
         }
@@ -113,36 +110,38 @@ export function CommandSearch() {
     router.push(href);
   }
 
+  const shortcut = mod === "⌘" ? "⌘K" : "Ctrl K";
+
   return (
     <>
-      <Button
+      <button
         type="button"
-        variant="ghost"
-        size="sm"
         onClick={() => setOpen(true)}
         aria-label="Search"
-        className="h-7 gap-2 px-2 text-[12px] text-[var(--muted)] hover:text-[var(--text)]"
+        aria-keyshortcuts="Meta+K Control+K"
+        className="lg-focus flex h-8 shrink-0 items-center gap-2 rounded-[7px] text-[13px] text-dim transition-colors hover:text-text md:border md:border-line-strong md:bg-surface md:px-2.5 xl:w-[260px]"
       >
-        <SearchIcon className="size-3.5" />
-        <span className="hidden md:inline">Search</span>
-        <Kbd className="hidden bg-[var(--elevated)] text-[10px] text-[var(--dim)] md:inline-flex">
-          {mod === "⌘" ? "⌘K" : "Ctrl+K"}
-        </Kbd>
-      </Button>
+        <SearchIcon className="size-[18px] text-subtle md:size-3.5 md:text-current" />
+        <span className="hidden flex-1 text-left xl:inline">
+          Events, markets, symbols
+        </span>
+        <span className="num hidden text-[10px] md:inline">{shortcut}</span>
+      </button>
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent
-          className="overflow-hidden p-0 sm:max-w-lg"
+          className="top-[18%] translate-y-0 gap-0 overflow-hidden rounded-xl border-line-strong bg-surface p-0 shadow-[0_20px_40px_-12px_rgba(0,0,0,0.6)] sm:top-1/2 sm:max-w-[540px] sm:translate-y-[-50%]"
           showCloseButton={false}
         >
           <DialogTitle className="sr-only">Search</DialogTitle>
           <DialogDescription className="sr-only">
-            Search events and markets, or jump to Signals, Markets, Portfolio,
-            or Guide.
+            Search events and markets, or jump to a section of Leadgap.
           </DialogDescription>
-          <Command className="rounded-none border-0">
-            <CommandInput placeholder="Search events and markets" />
-            <CommandList className="max-h-[min(70vh,420px)]">
-              <CommandEmpty>No matches.</CommandEmpty>
+          <Command className="rounded-none border-0 bg-transparent">
+            <CommandInput placeholder="Search events, markets, symbols" />
+            <CommandList className="max-h-[min(60vh,420px)] p-2">
+              <CommandEmpty className="py-6 text-center text-[13px] text-subtle">
+                No matches.
+              </CommandEmpty>
               <CommandGroup heading="Go">
                 {DESTINATIONS.map((item) => (
                   <CommandItem
@@ -151,14 +150,31 @@ export function CommandSearch() {
                     onSelect={() => go(item.href)}
                   >
                     <span>{item.label}</span>
-                    <span
-                      className={cn("ml-auto text-[11px] text-[var(--dim)]")}
-                    >
+                    <span className="ml-auto text-[11px] text-dim">
                       {item.hint}
                     </span>
                   </CommandItem>
                 ))}
               </CommandGroup>
+              {events.length > 0 ? (
+                <>
+                  <CommandSeparator />
+                  <CommandGroup heading="Events">
+                    {events.map((item) => (
+                      <CommandItem
+                        key={item.id}
+                        value={`${item.title} ${item.question} ${item.symbols.join(" ")} ${item.id} event`}
+                        onSelect={() => go(`/events/${encodeURIComponent(item.id)}`)}
+                      >
+                        <span className="min-w-0 truncate">{item.title}</span>
+                        <span className="num ml-auto shrink-0 text-[11px] text-odds">
+                          {perpName(item.symbols[0]!)} {fmtOdds(item.yesPrice)}
+                        </span>
+                      </CommandItem>
+                    ))}
+                  </CommandGroup>
+                </>
+              ) : null}
               {markets.length > 0 ? (
                 <>
                   <CommandSeparator />
@@ -167,33 +183,13 @@ export function CommandSearch() {
                       <CommandItem
                         key={item.symbol}
                         value={`${item.symbol} ${item.baseAsset} ${item.category} market`}
-                        onSelect={() => go(`/markets/${item.symbol}`)}
-                      >
-                        <span>{item.symbol}</span>
-                        <span className="ml-auto text-[11px] text-[var(--dim)]">
-                          {item.category}
-                        </span>
-                      </CommandItem>
-                    ))}
-                  </CommandGroup>
-                </>
-              ) : null}
-              {events.length > 0 ? (
-                <>
-                  <CommandSeparator />
-                  <CommandGroup heading="Events">
-                    {events.map((item) => (
-                      <CommandItem
-                        key={`${item.id}:${item.symbol}`}
-                        value={`${item.title} ${item.question} ${item.symbol} ${item.id} event`}
                         onSelect={() =>
-                          go(`/markets/${item.symbol}?event=${item.id}`)
+                          go(`/markets/${encodeURIComponent(item.symbol)}`)
                         }
                       >
-                        <span className="min-w-0 truncate">{item.title}</span>
-                        <span className="ml-auto shrink-0 text-[11px] text-[var(--dim)]">
-                          {item.symbol.replace("-USD", "")}{" "}
-                          {fmtOdds(item.yesPrice)}
+                        <span>{perpName(item.symbol)}</span>
+                        <span className="ml-auto text-[11px] capitalize text-dim">
+                          {item.category}
                         </span>
                       </CommandItem>
                     ))}

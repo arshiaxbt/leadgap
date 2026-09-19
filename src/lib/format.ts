@@ -29,20 +29,11 @@ export function fmtOdds(n: number): string {
   return `${(n * 100).toFixed(1)}%`;
 }
 
-export function fmtOddsRange(from: number, to: number): string {
-  return `${fmtOdds(from)} → ${fmtOdds(to)}`;
-}
-
 /** Absolute change in Yes probability, in percentage points. */
 export function fmtOddsDelta(n: number): string {
   if (!Number.isFinite(n)) return "—";
   const sign = n > 0 ? "+" : "";
   return `${sign}${(n * 100).toFixed(1)} pts`;
-}
-
-export function fmtScore(n: number): string {
-  if (!Number.isFinite(n)) return "—";
-  return String(Math.round(n));
 }
 
 export function fmtFunding(n: number): string {
@@ -108,21 +99,6 @@ export function fmtCompact(n: number): string {
   if (abs >= 1e6) return `${(n / 1e6).toFixed(1)}M`;
   if (abs >= 1e3) return `${(n / 1e3).toFixed(1)}K`;
   return fmtPx(n, 2);
-}
-
-export function leaderCopy(leader: "odds" | "perp" | "flat"): string {
-  switch (leader) {
-    case "odds":
-      return "Odds first";
-    case "perp":
-      return "Perp first";
-    case "flat":
-      return "In line";
-    default: {
-      const _never: never = leader;
-      return _never;
-    }
-  }
 }
 
 export function fmtUsd(n: string | number | undefined): string {

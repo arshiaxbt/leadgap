@@ -24,6 +24,8 @@ type Props = {
   instruments: PerpsInstrument[];
   events?: ResolvedEvent[];
   preview?: TicketPreview | null;
+  /** Data transport status, e.g. STREAMING or POLLING. */
+  status?: { label: string; warn: boolean };
 };
 export function TickerStrip(props: Props) {
   const mount = usePrivyMount();
@@ -45,6 +47,7 @@ function TickerStripView({
   preview,
   position,
   tpSl,
+  status,
 }: Props & { position: DeskPosition | null; tpSl: DeskTpSl }) {
   const change = ticker?.change1h ?? null;
   const digits = instrument.priceDecimals;
@@ -55,7 +58,7 @@ function TickerStripView({
   const sl = (position ? tpSl.sl : preview?.sl) || "";
 
   return (
-    <div className="flex min-h-20 flex-wrap items-center gap-x-6 gap-y-3 overflow-x-auto border-b border-[var(--line)] bg-[var(--bg)] px-5 py-4 text-[12px] xl:flex-nowrap">
+    <div className="flex min-h-[60px] shrink-0 flex-wrap items-center gap-x-[26px] gap-y-3 overflow-x-auto border-b border-line bg-chrome px-5 py-3 xl:flex-nowrap xl:py-0">
       <h1 className="sr-only">
         {instrument.symbol.replace("-USD", "")} trading desk
       </h1>
@@ -64,43 +67,72 @@ function TickerStripView({
         instruments={instruments}
         events={events}
       />
-      <span className="num text-[22px] font-medium leading-none text-[var(--text)]">
+      <span className="num text-[24px] leading-none font-medium tracking-[-0.02em] text-text">
         {ticker ? fmtPx(ticker.markPrice, digits) : "—"}
       </span>
-      <Stat
-        label="1h"
-        value={change != null ? fmtPct(change) : "—"}
-        className={change != null ? signedClass(change) : ""}
-      />
-      <Stat
-        hide="hidden md:inline"
-        label="Index"
-        value={ticker ? fmtPx(ticker.indexPrice, digits) : "—"}
-      />
-      <Stat
-        label="Funding"
-        value={
-          ticker
-            ? `${fmtFunding(ticker.fundingRate)} · ${fmtCountdown(ticker.nextFunding)}`
-            : "—"
-        }
-        className={ticker ? signedClass(ticker.fundingRate) : ""}
-      />
-      <Stat
-        hide="hidden lg:inline"
-        label="OI"
-        value={ticker ? fmtPx(ticker.openInterest, 2) : "—"}
-      />
-      {showRisk ? (
-        <>
-          <Stat label="Liq" value={liq != null ? fmtPx(liq, digits) : "—"} />
-          <Stat
-            label="Margin"
-            value={margin != null && margin > 0 ? fmtUsd(margin) : "—"}
+      <div className="flex items-center gap-6 text-[12px]">
+        <Stat
+          label="1H"
+          value={change != null ? fmtPct(change) : "—"}
+          className={change != null ? signedClass(change) : ""}
+        />
+        <Stat
+          hide="hidden md:flex"
+          label="INDEX"
+          value={ticker ? fmtPx(ticker.indexPrice, digits) : "—"}
+        />
+        <Stat
+          label={`FUNDING${ticker ? ` · ${fmtCountdown(ticker.nextFunding).toUpperCase()}` : ""}`}
+          value={ticker ? fmtFunding(ticker.fundingRate) : "—"}
+          className={ticker ? signedClass(ticker.fundingRate) : ""}
+        />
+        <Stat
+          hide="hidden lg:flex"
+          label="OPEN INTEREST"
+          value={ticker ? fmtPx(ticker.openInterest, 2) : "—"}
+        />
+        <Stat
+          hide="hidden lg:flex"
+          label="MAX LEV"
+          value={`${instrument.maxLeverage}×`}
+        />
+        {showRisk ? (
+          <>
+            <Stat
+              label="LIQ"
+              value={liq != null ? fmtPx(liq, digits) : "—"}
+              className="text-short"
+            />
+            <Stat
+              hide="hidden 2xl:flex"
+              label="MARGIN"
+              value={margin != null && margin > 0 ? fmtUsd(margin) : "—"}
+            />
+            <Stat
+              hide="hidden 2xl:flex"
+              label="TP"
+              value={tp ? fmtPx(Number(tp), digits) : "—"}
+            />
+            <Stat
+              hide="hidden 2xl:flex"
+              label="SL"
+              value={sl ? fmtPx(Number(sl), digits) : "—"}
+            />
+          </>
+        ) : null}
+      </div>
+      {status ? (
+        <span
+          role="status"
+          className={`feed-status ml-auto ${status.warn ? "text-warn" : ""}`}
+        >
+          <span
+            className="status-dot"
+            data-state={status.warn ? "stale" : "fresh"}
+            aria-hidden
           />
-          <Stat label="TP" value={tp ? fmtPx(Number(tp), digits) : "—"} />
-          <Stat label="SL" value={sl ? fmtPx(Number(sl), digits) : "—"} />
-        </>
+          {status.label}
+        </span>
       ) : null}
     </div>
   );
@@ -110,7 +142,7 @@ function Stat({
   label,
   value,
   className = "",
-  hide = "",
+  hide = "flex",
 }: {
   label: string;
   value: string;
@@ -118,9 +150,9 @@ function Stat({
   hide?: string;
 }) {
   return (
-    <span className={`shrink-0 text-[var(--dim)] ${hide}`}>
-      {label}{" "}
-      <span className={`num text-[var(--mark)] ${className}`}>{value}</span>
+    <span className={`shrink-0 flex-col gap-[3px] ${hide}`}>
+      <span className="num text-[10px] tracking-[0.08em] text-dim">{label}</span>
+      <span className={`num text-mark ${className}`}>{value}</span>
     </span>
   );
 }

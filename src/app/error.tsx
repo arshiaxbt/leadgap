@@ -7,20 +7,26 @@ export default function ErrorPage({
   reset: () => void;
 }) {
   return (
-    <div className="m-auto max-w-md p-8">
-      <h1 className="text-2xl font-medium">This view couldn’t load.</h1>
-      <p className="mt-3 leading-6 text-[var(--muted)]">
+    <div className="m-auto max-w-md p-8 text-center">
+      <p className="kicker">Something went wrong</p>
+      <h1 className="serif mt-3 text-[30px]">This view couldn’t load.</h1>
+      <p className="mt-3 text-[13px] leading-[1.65] text-subtle">
         Try again to reconnect. If the problem continues, return to Signals.
       </p>
-      <button
-        onClick={reset}
-        className="lg-focus mt-6 rounded-md border border-[var(--line-strong)] px-4 py-2"
-      >
-        Try again
-      </button>
-      <Link href="/" className="ml-5 underline">
-        Signals
-      </Link>
+      <div className="mt-6 flex justify-center gap-3">
+        <button
+          onClick={reset}
+          className="lg-focus h-9 rounded-[7px] bg-odds px-4 text-[13px] font-semibold text-on-odds"
+        >
+          Try again
+        </button>
+        <Link
+          href="/"
+          className="lg-focus inline-flex h-9 items-center rounded-[7px] border border-line-strong px-4 text-[13px] text-subtle hover:text-text"
+        >
+          Signals
+        </Link>
+      </div>
     </div>
   );
 }

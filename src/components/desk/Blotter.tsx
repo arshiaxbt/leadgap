@@ -84,24 +84,31 @@ export function Blotter({
   const mount = usePrivyMount();
   if (mount !== "ready") {
     return (
-      <div className="flex h-full min-h-0 flex-col bg-[var(--surface)]">
-        <div className="flex items-center gap-1 border-b border-[var(--line)] px-2">
-          <span className="px-2 py-1.5 text-[12px] text-[var(--muted)]">
+      <div className="flex h-full min-h-0 flex-col bg-side">
+        <div className="flex shrink-0 items-center gap-1 border-b border-line px-3">
+          <span className="px-2.5 py-[9px] text-[12px] font-medium text-text shadow-[inset_0_-2px_0_var(--odds)]">
             Positions
           </span>
           <Link
             href="/portfolio"
-            className="ml-auto px-2 py-1.5 text-[12px] text-[var(--muted)] hover:text-[var(--text)]"
+            className="lg-focus ml-auto text-[12px] text-subtle hover:text-text"
           >
-            Portfolio
+            Portfolio →
           </Link>
         </div>
-        <div className="flex flex-1 flex-col justify-center px-4 py-6 text-[12px]">
-          <p className="text-[var(--text)]">No open positions</p>
-          <p className="mt-1 text-[var(--muted)]">
-            {mount === "insecure"
-              ? "HTTPS required to log in."
-              : "Log in to see positions and orders."}
+        <div className="flex flex-1 items-center px-4 py-3">
+          <p className="text-[13px] text-subtle">
+            {mount === "insecure" ? (
+              "No open positions. HTTPS is required to log in."
+            ) : (
+              <>
+                No open positions.{" "}
+                <Link href="/portfolio" className="lg-focus text-odds underline underline-offset-2">
+                  Log in
+                </Link>{" "}
+                to see positions, orders and fills here.
+              </>
+            )}
           </p>
         </div>
       </div>
@@ -394,36 +401,37 @@ function BlotterSession({
   ];
 
   return (
-    <div className="flex h-full min-h-0 flex-col bg-[var(--surface)]">
-      <div className="flex items-center gap-1 overflow-x-auto border-b border-[var(--line)] px-2">
+    <div className="flex h-full min-h-0 flex-col bg-side">
+      <div className="flex shrink-0 items-center gap-1 overflow-x-auto border-b border-line px-3">
         {tabs.map((item) => (
           <button
             key={item.id}
             type="button"
+            aria-pressed={tab === item.id}
             onClick={() => setTab(item.id)}
-            className={`lg-focus border-b-2 px-2 py-1.5 text-[12px] ${
+            className={`lg-focus shrink-0 px-2.5 py-[9px] text-[12px] ${
               tab === item.id
-                ? "border-[var(--text)] text-[var(--text)]"
-                : "border-transparent text-[var(--muted)] hover:text-[var(--text)]"
+                ? "font-medium text-text shadow-[inset_0_-2px_0_var(--odds)]"
+                : "text-subtle hover:text-text"
             }`}
           >
             {item.label}
           </button>
         ))}
-        <Link
-          href="/portfolio"
-          className="lg-focus px-2 py-1.5 text-[12px] text-[var(--muted)] hover:text-[var(--text)]"
-        >
-          Portfolio
-        </Link>
         {note && !access ? (
-          <span className="ml-auto truncate text-[12px] text-[var(--dim)]">
+          <span className="ml-3 min-w-0 truncate text-[12px] text-dim">
             {note}
           </span>
         ) : null}
+        <Link
+          href="/portfolio"
+          className="lg-focus ml-auto shrink-0 pl-3 text-[12px] text-subtle hover:text-text"
+        >
+          Portfolio →
+        </Link>
       </div>
       {access ? <PerpsAccessAlert access={access} /> : null}
-      <div className="min-h-0 flex-1 overflow-auto px-2 py-1 text-[11px]">
+      <div className="min-h-0 flex-1 overflow-auto px-3 py-1 text-[11px]">
         {tab === "positions" ? (
           <table className="lg-table w-full min-w-[720px] text-left">
             <thead>

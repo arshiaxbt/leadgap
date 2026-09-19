@@ -64,9 +64,10 @@ Panels and cards 10px, controls 7px, segmented children 5px, chips 4px. Grouped 
 - `/signals/[event]/[symbol]` Signal detail — serif question, residual hero chart, narrative, why linked / score breakdown / gap history, sticky decision rail with Watch and Alert me.
 - `/markets` Markets — perp table with each instrument’s top live signal.
 - `/markets/[symbol]` Trade desk — instrument bar, driving-event gap bar, chart with residual pane, book, blotter, three-step ticket with sticky summary.
-- `/watchlist` Watchlist — saved signals and alert rules, stored in this browser; alerts are evaluated while Leadgap is open.
+- `/watchlist` Watchlist — saved signals and alert rules. Signed in (research on): synced to the account, checked every minute by the research service, with an alerts inbox. Signed out: stored in this browser and evaluated while Leadgap is open.
 - `/portfolio` Portfolio — connect card and labelled illustrative preview when signed out; equity, positions, orders, fills, exposure when signed in.
-- `/model` Model — live factor averages, score-band distribution, known limitations. No published calibration until the archive supports it.
+- `/model` Model — live factor averages, score-band distribution, how odds become a move (model v2: threshold markets priced from strike, expiry and assumed volatility; bearish wording flips the sign), known limitations. No published calibration until the archive supports it.
+- Share images — each signal has a generated 1200×630 card (question, odds, implied vs observed, gap band, direction) in the same palette; fonts are static TTFs in `src/assets/og`.
 - `/events/[id]` Event view — every mapped perp ranked by gap.
 - `/about` Guide.
 

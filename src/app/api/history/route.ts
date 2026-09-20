@@ -1,4 +1,5 @@
 import { readHistoryPages } from "@/lib/history-pages";
+import { publicCache } from "@/lib/http-cache";
 import { dataService } from "@/lib/data-service";
 export async function GET(req: Request) {
   if (process.env.ENABLE_DURABLE_DATA !== "true")
@@ -38,7 +39,7 @@ export async function GET(req: Request) {
     }));
     return Response.json(
       { ...data, batches },
-      { headers: { "cache-control": "public, max-age=30" } },
+      { headers: publicCache(60) },
     );
   } catch {
     return Response.json(

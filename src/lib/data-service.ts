@@ -1,3 +1,4 @@
+import { snapshotTtl } from "./http-cache";
 import { currentSnapshot } from "./snapshot-upgrade";
 import { decodeStoredSnapshot, type StoredSnapshot } from "./snapshot-storage";
 import {
@@ -49,7 +50,7 @@ export class DataServiceError extends Error {
 let cached: ResearchSnapshot | null = null,
   lastRead = 0;
 export async function researchSnapshot(): Promise<ResearchSnapshot> {
-  if (cached && Date.now() - lastRead < 10_000)
+  if (cached && Date.now() - lastRead < snapshotTtl(cached.asOf, lastRead))
     return freshResearchSnapshot(cached);
   try {
     cached = currentSnapshot(decodeStoredSnapshot(await dataService<ResearchSnapshot | StoredSnapshot>("/snapshot/raw?encoding=stored")));

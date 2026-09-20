@@ -51,7 +51,7 @@ const nextConfig: NextConfig = {
     "*.trycloudflare.com",
   ],
   async redirects() {
-    return [{ source: "/guide", destination: "/about", permanent: false }];
+    return [{ source: "/guide", destination: "/about", permanent: true }];
   },
   async headers() {
     return [

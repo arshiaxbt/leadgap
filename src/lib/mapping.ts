@@ -275,6 +275,11 @@ export function mapBySymbol(): Map<string, MapRow> {
   return new Map(ASSET_MAP.map((row) => [row.symbol, row]));
 }
 
+/** Perps with an event mapping: the desks worth indexing and listing in the sitemap. */
+export function marketSymbols(): string[] {
+  return ASSET_MAP.map((row) => row.symbol);
+}
+
 export function aliasesForSymbol(symbol: string): string[] {
   return mapBySymbol().get(symbol)?.aliases ?? [symbol.replace("-USD", "")];
 }

@@ -23,6 +23,11 @@ export function signalShareMetadata(
   });
   return {
     title, description,
+    // One canonical per signal: the window lives in the query string.
+    alternates: { canonical: path },
+    // Regenerated every minute and gone when the event resolves; still
+    // crawlable, because unfurlers fetch the card regardless of this.
+    robots: { index: false, follow: true },
     openGraph: {
       title: `${title} · Leadgap`, description,
       url: `${path}?window=${window}`,

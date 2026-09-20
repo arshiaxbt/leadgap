@@ -57,9 +57,8 @@ function needsMigration(userId: string): boolean {
 /** Account-backed watchlist and alerts when research is enabled and a user is signed in. */
 export function ResearchProvider({ children }: { children: ReactNode }) {
   const mount = usePrivyMount();
-  // "wait" is the server snapshot: it must render the same tree as "ready",
-  // or hydration would remount every page below this provider.
-  if (!ENABLED || mount === "off" || mount === "insecure") return children;
+  // Reads Privy, so it waits for the browser like the provider above it.
+  if (!ENABLED || mount !== "ready") return children;
   return <ResearchSession>{children}</ResearchSession>;
 }
 

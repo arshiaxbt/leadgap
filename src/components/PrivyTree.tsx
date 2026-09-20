@@ -13,17 +13,17 @@ import { getPrivyConfig, privyAppId } from "@/lib/privy";
 import { walletConfig } from "@/lib/wagmi";
 
 /**
- * Privy needs a browser-secure origin, which the server cannot know. Deciding
- * that during render changed the tree's shape between server and client, so
- * the whole app was excluded from server rendering to hide the mismatch.
- * Gate on the mount state instead: it reports "wait" on the server and "ready"
- * in the browser, both of which render the same tree, so the shape only
- * differs for "off"/"insecure" — settled by env before a render happens.
+ * The wallet stack mounts in the browser only. Privy needs a secure origin,
+ * which the server cannot know, and rendering it during a build prerender
+ * fails outright. Children render either way, so pages still ship their
+ * content as HTML; the provider appears once "ready" replaces the "wait"
+ * server snapshot. Providers emit no DOM, so the markup the browser hydrates
+ * is identical either way.
  */
 export function PrivyTree({ children }: { children: ReactNode }) {
   const appId = privyAppId();
   const mount = usePrivyMount();
-  if (!appId || mount === "off" || mount === "insecure") return children;
+  if (!appId || mount !== "ready") return children;
 
   return (
     <PrivyProvider appId={appId} config={getPrivyConfig()}>

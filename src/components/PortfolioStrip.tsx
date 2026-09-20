@@ -48,9 +48,8 @@ function num(v: string | number | undefined): number {
 
 export function PortfolioStripProvider({ children }: { children: ReactNode }) {
   const mount = usePrivyMount();
-  // Only the env-settled states may change the tree shape; "wait" is the
-  // server snapshot and must render what "ready" renders.
-  if (mount === "off" || mount === "insecure") return children;
+  // Reads Privy, so it waits for the browser like the provider above it.
+  if (mount !== "ready") return children;
   return <PortfolioStripSession>{children}</PortfolioStripSession>;
 }
 

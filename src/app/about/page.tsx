@@ -173,6 +173,30 @@ export default function AboutPage() {
           </div>
         </section>
 
+        <section className="guide-section">
+          <h2>06 · What Leadgap stores</h2>
+          <div>
+            <p>
+              Signed out, your watchlist and alert rules stay in this browser
+              and never reach a server. Signed in, they live in your account so
+              the research service can check alerts while Leadgap is closed,
+              and only that account can read them.
+            </p>
+            <p className="mt-3">
+              Login is handled by Privy; Leadgap sees the account identifier it
+              returns, plus any wallet you connect for trading. Usage counters
+              are per-day totals of a fixed set of product events — which
+              screens and actions get used — with no identifiers, addresses or
+              question text attached.
+            </p>
+            <p className="mt-3">
+              Market data, odds and prices come from Polymarket. Referral links
+              carry <span className="num">via=arshia</span> so Polymarket can
+              credit Leadgap; that is disclosed wherever the link appears.
+            </p>
+          </div>
+        </section>
+
         <SupportLeadgap />
 
         <footer className="mt-9 flex flex-wrap items-center justify-between gap-5 border-t border-line pt-6">

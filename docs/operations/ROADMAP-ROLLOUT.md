@@ -118,3 +118,10 @@ Vercel now gzips only the mutable latest snapshot before sending its versioned b
 Deploy codec-aware Worker code before the collector. For rollback, revert Vercel first and wait for its first successful collection to replace latest with plain JSON **before** reverting the Worker to a version without codec support. Keep the codec-aware Worker in place while compressed snapshots remain. No schema migration or billing change is needed. Restart the 72-hour soak after this follow-up reaches production; measure real collection writes again.
 
 Cold compatibility reads can still spend ~8.8 ms inflating/copying bytes. Current Vercel readers therefore request `/snapshot/raw?encoding=stored` and decode the stored envelope in Node, keeping Worker reads as bounded JSON forwarding. The omitted-query gzip response remains for existing clients. Its byte conversion uses a single indexed copy instead of per-character iterator allocations. Freshness filtering remains on every app read, after decoding.
+
+## 20 September 2026 — v5 in production
+
+Authoritative release record: `artifacts/release-v5-2026-09-20/RELEASE.json`; details and the quota review are in [GAP-V5](GAP-V5.md#release-status--20-september-2026). Production runs `heuristic-v5` from `7a60b9d`. The 24-hour shadow gate had not finished when the owner authorized activation, so it counts as an accepted deviation, not a passed gate. A shadow run (ends 20 September 22:50 UTC) and a fresh 72-hour soak (ends 23 September 08:54 UTC) are still running; both depend on this workspace staying alive and neither deploys anything.
+
+Free-tier position on v5 (three-hour read-only sample): Worker CPU p99 4.5 ms against the 8 ms gate and the 10 ms Workers Free limit; D1 at 3 % of the daily row-read allowance, 7 % of row writes and 0.8 % of storage; Worker requests about 17 % of the 100 K/day allowance. Rollback remains a Vercel rollback to the previous v4 deployment; the Worker and D1 stay compatible.
+

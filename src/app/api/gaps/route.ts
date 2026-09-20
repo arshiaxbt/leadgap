@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { publicCache } from "@/lib/http-cache";
 import { getGaps } from "@/lib/store";
 import type { GapWindow } from "@/lib/types";
 
@@ -11,5 +12,5 @@ export async function GET(req: Request) {
   const window = new URL(req.url).searchParams.get("window") ?? "15m";
   const w = WINDOWS.has(window as GapWindow) ? (window as GapWindow) : "15m";
   const data = await getGaps(w);
-  return NextResponse.json(data);
+  return NextResponse.json(data, { headers: publicCache(20) });
 }

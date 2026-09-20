@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { publicCache } from "@/lib/http-cache";
 import { getNews } from "@/lib/store";
 
 export const dynamic = "force-dynamic";
@@ -10,5 +11,5 @@ export async function GET(req: Request) {
     symbol: url.searchParams.get("symbol") ?? undefined,
     eventId: url.searchParams.get("eventId") ?? undefined,
   });
-  return NextResponse.json(data);
+  return NextResponse.json(data, { headers: publicCache(300) });
 }

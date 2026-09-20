@@ -36,8 +36,8 @@ export function gapsQuery(window: GapWindow) {
     queryKey: ["gaps", window],
     queryFn: ({ signal }) =>
       readJson<GapPayload>(`/api/gaps?window=${window}`, signal),
-    refetchInterval: 20_000,
-    staleTime: 10_000,
+    refetchInterval: 15_000,
+    staleTime: 5_000,
     retry: 1,
   });
 }
@@ -46,8 +46,8 @@ export const eventsQuery = queryOptions({
   queryKey: ["events"],
   queryFn: ({ signal }) =>
     readJson<{ events: FeedMappedEvent[] }>("/api/events", signal),
-  refetchInterval: 20_000,
-  staleTime: 10_000,
+  refetchInterval: 15_000,
+  staleTime: 5_000,
   retry: 1,
 });
 

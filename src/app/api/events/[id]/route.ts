@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { publicCache } from "@/lib/http-cache";
+import { liveCache } from "@/lib/http-cache";
 import { getEvent } from "@/lib/store";
 
 export const dynamic = "force-dynamic";
@@ -9,5 +9,5 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
   const { id } = await ctx.params;
   const data = await getEvent(id);
   if (!data) return NextResponse.json({ error: "not found" }, { status: 404 });
-  return NextResponse.json(data, { headers: publicCache(20) });
+  return NextResponse.json(data, { headers: liveCache(data.asOf, Date.now()) });
 }

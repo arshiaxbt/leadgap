@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { publicCache } from "@/lib/http-cache";
+import { liveCache } from "@/lib/http-cache";
 import { getAsset } from "@/lib/store";
 
 export const dynamic = "force-dynamic";
@@ -12,5 +12,5 @@ export async function GET(
   const { symbol } = await ctx.params;
   const data = await getAsset(symbol.toUpperCase());
   if (!data) return NextResponse.json({ error: "not found" }, { status: 404 });
-  return NextResponse.json(data, { headers: publicCache(20) });
+  return NextResponse.json(data, { headers: liveCache(data.asOf, Date.now()) });
 }

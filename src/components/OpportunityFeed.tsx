@@ -14,6 +14,7 @@ import {
   ageCopy,
   feedState,
   useNow,
+  FEED_ALERT_AFTER_MS,
 } from "@/components/signal/FeedStamp";
 import { RowTrace } from "@/components/signal/GapTrace";
 import { SignalSheet } from "@/components/signal/SignalSheet";
@@ -88,7 +89,9 @@ function SignalWorkspace({ params }: { params: ReadonlyURLSearchParams }) {
         };
   const now = useNow(5000);
   const state = feedState({ asOf, loading, error, now });
-  const degraded = state === "stale" || state === "error";
+  const interrupted =
+    Boolean(asOf) && now > 0 && now - asOf > FEED_ALERT_AFTER_MS;
+  const degraded = interrupted || state === "error";
 
   const shown = useMemo(
     () =>

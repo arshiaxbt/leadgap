@@ -2,6 +2,10 @@ import type { Metadata } from "next";
 import { Suspense } from "react";
 import { TradeDesk } from "@/components/desk/TradeDesk";
 
+// Reads search params below a Suspense boundary, which otherwise bails
+// out of server rendering entirely and ships an empty page.
+export const dynamic = "force-dynamic";
+
 export async function generateMetadata({
   params,
 }: {

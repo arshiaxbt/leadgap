@@ -7,13 +7,23 @@ import { useAccount } from "wagmi";
 import { PortfolioStripProvider } from "@/components/PortfolioStrip";
 import { ResearchProvider } from "@/components/ResearchProvider";
 import { preferredTradingWallet } from "@/lib/activeWallet";
+import { usePrivyMount } from "@/lib/usePrivyMount";
 import { forgetStoredPerpsSession } from "@/lib/perpsSession";
-import { getPrivyConfig, isSecureOrigin, privyAppId } from "@/lib/privy";
+import { getPrivyConfig, privyAppId } from "@/lib/privy";
 import { walletConfig } from "@/lib/wagmi";
 
+/**
+ * Privy needs a browser-secure origin, which the server cannot know. Deciding
+ * that during render changed the tree's shape between server and client, so
+ * the whole app was excluded from server rendering to hide the mismatch.
+ * Gate on the mount state instead: it reports "wait" on the server and "ready"
+ * in the browser, both of which render the same tree, so the shape only
+ * differs for "off"/"insecure" — settled by env before a render happens.
+ */
 export function PrivyTree({ children }: { children: ReactNode }) {
   const appId = privyAppId();
-  if (!appId || !isSecureOrigin()) return children;
+  const mount = usePrivyMount();
+  if (!appId || mount === "off" || mount === "insecure") return children;
 
   return (
     <PrivyProvider appId={appId} config={getPrivyConfig()}>

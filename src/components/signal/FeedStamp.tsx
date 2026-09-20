@@ -5,6 +5,16 @@ import { cn } from "@/lib/utils";
 
 export const STALE_AFTER_MS = 90_000;
 
+/**
+ * When to raise the interrupted alert, as opposed to the stamp going stale.
+ * Collection publishes once a minute, so an observation is routinely tens of
+ * seconds old; the stamp says so from 90s. Shouting at every overshoot trains
+ * people to ignore the warning, so the alert waits for more than two missed
+ * cycles. The data service's own "collection is delayed" error still raises it
+ * immediately, whatever the age.
+ */
+export const FEED_ALERT_AFTER_MS = 150_000;
+
 export type FeedState = "wait" | "fresh" | "stale" | "error";
 
 export function clockTime(ts: number): string {

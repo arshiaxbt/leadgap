@@ -17,6 +17,24 @@ export function publicCache(seconds: number): Record<string, string> {
 const COLLECTION_MS = 60_000;
 
 /**
+ * Cache a live feed only until the next collection is due, so a shared cache
+ * never hands out a snapshot that the next one has already replaced. A flat
+ * lifetime stacks on top of the collection interval and pushes the displayed
+ * age toward the staleness cutoff; this keeps the ceiling at one interval.
+ */
+export function liveCache(asOf: number, now: number): Record<string, string> {
+  const remaining =
+    Number.isFinite(asOf) && asOf > 0 ? asOf + COLLECTION_MS - now : 0;
+  const seconds = Math.round(
+    Math.min(20_000, Math.max(5_000, remaining)) / 1_000,
+  );
+  return {
+    "cache-control": `public, max-age=0, must-revalidate, s-maxage=${seconds}, stale-while-revalidate=5`,
+    "cdn-cache-control": `max-age=${seconds}, stale-while-revalidate=5`,
+  };
+}
+
+/**
  * How long a fetched snapshot may be reused in-process. A snapshot is only
  * replaced once a minute, so reuse it until the next one is due, with a floor
  * that keeps recovery quick when collection is late and a ceiling that keeps

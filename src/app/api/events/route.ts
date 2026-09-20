@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { publicCache } from "@/lib/http-cache";
+import { liveCache } from "@/lib/http-cache";
 import { getEvents } from "@/lib/store";
 
 export const dynamic = "force-dynamic";
@@ -7,5 +7,5 @@ export const maxDuration = 60;
 
 export async function GET() {
   const data = await getEvents();
-  return NextResponse.json(data, { headers: publicCache(30) });
+  return NextResponse.json(data, { headers: liveCache(data.asOf, Date.now()) });
 }

@@ -5,9 +5,9 @@ import dynamic from "next/dynamic";
 import { useState, type ReactNode } from "react";
 import { privyAppId } from "@/lib/privy";
 
-const PrivyTree = dynamic(() => import("./PrivyTree").then((m) => m.PrivyTree), {
-  ssr: false,
-});
+// Code-split so the wallet stack stays out of the first chunk, but server
+// rendered: with ssr:false here, every page below shipped an empty body.
+const PrivyTree = dynamic(() => import("./PrivyTree").then((m) => m.PrivyTree));
 
 export function Providers({ children }: { children: ReactNode }) {
   const [queryClient] = useState(() => new QueryClient());

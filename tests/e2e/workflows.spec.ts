@@ -3,10 +3,15 @@ import AxeBuilder from "@axe-core/playwright";
 import { mockFeeds, gaps } from "./fixtures";
 
 const browserErrors = new WeakMap<Page, string[]>();
+/** Server rendering is easy to lose silently, so fail on any hydration mismatch. */
+const HYDRATION = /hydrat|did not match|text content does not match/i;
 test.beforeEach(async ({ page }) => {
   const errors: string[] = [];
   browserErrors.set(page, errors);
   page.on("pageerror", (e) => errors.push(e.message));
+  page.on("console", (m) => {
+    if (m.type() === "error" && HYDRATION.test(m.text())) errors.push(m.text());
+  });
   // The first-visit walkthrough has its own test; keep it out of the others.
   await page.addInitScript(() =>
     window.localStorage.setItem("leadgap:tour", "done"),
@@ -191,6 +196,9 @@ test("interrupted signal feed keeps the last data and offers a retry", async ({
 test("all secondary surfaces stay usable at every supported width", async ({
   page,
 }) => {
+  // 28 navigations plus an accessibility scan each, now server-rendered: this
+  // runs close to the default budget on a warm machine and over it on a cold one.
+  test.slow();
   for (const width of [375, 768, 1024, 1440]) {
     await page.setViewportSize({ width, height: 900 });
     for (const path of [

@@ -57,6 +57,7 @@ function needsMigration(userId: string): boolean {
 /** Account-backed watchlist and alerts when research is enabled and a user is signed in. */
 export function ResearchProvider({ children }: { children: ReactNode }) {
   const mount = usePrivyMount();
+  // Reads Privy, so it waits for the browser like the provider above it.
   if (!ENABLED || mount !== "ready") return children;
   return <ResearchSession>{children}</ResearchSession>;
 }

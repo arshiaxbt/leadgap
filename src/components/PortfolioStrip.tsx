@@ -48,6 +48,7 @@ function num(v: string | number | undefined): number {
 
 export function PortfolioStripProvider({ children }: { children: ReactNode }) {
   const mount = usePrivyMount();
+  // Reads Privy, so it waits for the browser like the provider above it.
   if (mount !== "ready") return children;
   return <PortfolioStripSession>{children}</PortfolioStripSession>;
 }

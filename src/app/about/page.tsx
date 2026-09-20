@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { pageMetadata } from "@/lib/seo";
 import Link from "next/link";
 import { ArrowRight, ArrowUpRight } from "lucide-react";
 import { GapTrace } from "@/components/signal/GapTrace";
@@ -6,11 +7,12 @@ import { SocialLinks } from "@/components/SocialLinks";
 import { SupportLeadgap } from "@/components/SupportLeadgap";
 import { PERPS_INVITE_LABEL, PERPS_INVITE_URL } from "@/lib/brand";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
+  path: "/about",
   title: "Guide",
   description:
     "Understand event odds, mapped perpetual markets, and the Leadgap model.",
-};
+});
 
 const EXAMPLE = {
   implied: [

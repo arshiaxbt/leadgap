@@ -619,6 +619,22 @@ export async function getEvent(id: string) {
   };
 }
 
+/**
+ * What the store currently knows about. Used to tell "this symbol does not
+ * exist" from "the data service is having a moment": only the first should
+ * ever produce a 404.
+ */
+export async function catalogShape(): Promise<{
+  instruments: Set<string>;
+  events: number;
+}> {
+  const s = await ensureFresh();
+  return {
+    instruments: new Set(s.instruments.map((i) => i.symbol)),
+    events: s.events.length,
+  };
+}
+
 export async function getAsset(symbol: string) {
   const s = await ensureFresh();
   const instrument = s.instruments.find((i) => i.symbol === symbol);

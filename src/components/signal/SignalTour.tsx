@@ -45,7 +45,7 @@ const STEPS: Step[] = [
     hint: "0–100, heuristic",
     title: "The score ranks. It does not promise.",
     body: [
-      "Scores combine the residual, odds-first leadership, mapping confidence, odds movement and liquidity. Signals scoring 28 or more with a clear side are tradeable.",
+      "Scores combine the residual, relative move magnitude, mapping confidence, odds movement and liquidity. Candidates also need an observed odds lead, fresh quotes and a gap above estimated costs. These are research screens.",
       "A higher score is a cleaner setup, not a higher chance of profit.",
     ],
   },

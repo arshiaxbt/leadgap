@@ -1,7 +1,8 @@
+// Historical v4 regression corpus; v5 eligibility/evidence lives in signal-v5.test.ts.
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { ASSET_MAP, CLUSTER_RULES } from "../../src/lib/mapping";
-import { leadgapMetrics, scoreFactors } from "../../src/lib/score";
+import { leadgapMetrics, scoreFactors } from "../../src/lib/models/v4/score";
 import {
   ANNUAL_VOL,
   eventDirection,
@@ -14,8 +15,8 @@ import {
   localBeta,
   normInv,
   thresholdTerms,
-} from "../../src/lib/sensitivity";
-import { computeGaps, WINDOW_MS } from "../../src/lib/divergence";
+} from "../../src/lib/models/v4/sensitivity";
+import { computeGaps, WINDOW_MS } from "../../src/lib/models/v4/divergence";
 import type { ResolvedEvent } from "../../src/lib/types";
 
 const DAY = 86_400_000;

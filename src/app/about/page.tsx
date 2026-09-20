@@ -13,8 +13,12 @@ export const metadata: Metadata = {
 };
 
 const EXAMPLE = {
-  implied: [0, 0.002, 0.006, 0.01, 0.014, 0.018, 0.022, 0.025, 0.027, 0.029, 0.03],
-  observed: [0, 0, 0.001, 0.0015, 0.001, 0.002, 0.004, 0.006, 0.008, 0.009, 0.01],
+  implied: [
+    0, 0.002, 0.006, 0.01, 0.014, 0.018, 0.022, 0.025, 0.027, 0.029, 0.03,
+  ],
+  observed: [
+    0, 0, 0.001, 0.0015, 0.001, 0.002, 0.004, 0.006, 0.008, 0.009, 0.01,
+  ],
 };
 
 export default function AboutPage() {
@@ -51,15 +55,15 @@ export default function AboutPage() {
           <h2>01 · Find a signal</h2>
           <div>
             <p>
-              Choose a comparison window on Signals. Tradeable shows signals
-              that pass the model’s thresholds. Watching shows odds-led signals
-              below those thresholds. All includes comparisons where the perp
-              led or the moves are in line.
+              Choose a comparison window on Signals. Candidates shows signals
+              that pass eligibility, timing and estimated-cost checks.
+              Divergences shows supported comparisons below those thresholds.
+              All includes every supported comparison.
             </p>
             <p className="mt-3">
               Open a row for the full picture: the event question, Yes
-              probability, and the reasoning behind the mapping. Save it to
-              your watchlist or set an alert from there.
+              probability, and the reasoning behind the mapping. Save it to your
+              watchlist or set an alert from there.
             </p>
           </div>
         </section>
@@ -69,8 +73,8 @@ export default function AboutPage() {
           <div>
             <p>
               The model multiplies the change in Yes probability by a signed
-              sensitivity estimate — the implied move. It subtracts the
-              observed perp return. What’s left is the gap.
+              sensitivity estimate — the implied move. It subtracts the observed
+              perp return. What’s left is the gap.
             </p>
             <figure className="my-[22px] overflow-hidden rounded-[10px] border border-line bg-surface">
               <figcaption className="border-b border-line px-4 py-3 text-[11px] text-dim">
@@ -101,9 +105,12 @@ export default function AboutPage() {
             <p>
               A higher score reflects the residual, mapping confidence,
               movement, and liquidity. It is not a probability of success, and
-              “odds-first” does not establish which market moved first in time.
+              the separate timing estimate measures association at minute resolution, not causation.
               See the{" "}
-              <Link href="/model" className="lg-focus text-odds underline underline-offset-2">
+              <Link
+                href="/model"
+                className="lg-focus text-odds underline underline-offset-2"
+              >
                 Model
               </Link>{" "}
               page for the full breakdown.
@@ -169,7 +176,10 @@ export default function AboutPage() {
         <SupportLeadgap />
 
         <footer className="mt-9 flex flex-wrap items-center justify-between gap-5 border-t border-line pt-6">
-          <Link href="/markets" className="lg-focus text-[14px] hover:text-odds">
+          <Link
+            href="/markets"
+            className="lg-focus text-[14px] hover:text-odds"
+          >
             Browse all markets →
           </Link>
           <SocialLinks />

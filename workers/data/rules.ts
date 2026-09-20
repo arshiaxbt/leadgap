@@ -9,6 +9,7 @@ export async function evaluateRules(
   env: Env,
   snapshot: ResearchSnapshot,
   now: number,
+  resetModel = false,
 ) {
   const result = await env.DB.prepare(
     "SELECT i.owner,i.id,i.payload,COALESCE(s.matched,0) matched,COALESCE(s.last_fired,0) last_fired FROM account_items i LEFT JOIN alert_state s ON s.owner=i.owner AND s.id=i.id WHERE i.kind='rules'",
@@ -41,7 +42,9 @@ export async function evaluateRules(
     const row = snapshot.windows[rule.window]?.find(
       (r) => r.symbol === rule.symbol && r.eventId === rule.eventId,
     );
-    const { state, fire } = evaluateAlert(rule, prior, row, now, snapshot.asOf);
+    const result = evaluateAlert(rule, prior, row, now, snapshot.asOf);
+    const state = resetModel ? { ...result.state, matched: row ? result.state.matched : true, lastFired: prior.lastFired } : result.state;
+    const fire = !resetModel && result.fire;
     if (state.matched !== prior.matched || state.lastFired !== prior.lastFired)
       states.push({
         owner: entry.owner,

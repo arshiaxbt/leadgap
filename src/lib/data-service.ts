@@ -1,3 +1,4 @@
+import { currentSnapshot } from "./snapshot-upgrade";
 import { decodeStoredSnapshot, type StoredSnapshot } from "./snapshot-storage";
 import {
   WINDOWS,
@@ -51,7 +52,7 @@ export async function researchSnapshot(): Promise<ResearchSnapshot> {
   if (cached && Date.now() - lastRead < 10_000)
     return freshResearchSnapshot(cached);
   try {
-    cached = decodeStoredSnapshot(await dataService<ResearchSnapshot | StoredSnapshot>("/snapshot/raw?encoding=stored"));
+    cached = currentSnapshot(decodeStoredSnapshot(await dataService<ResearchSnapshot | StoredSnapshot>("/snapshot/raw?encoding=stored")));
     lastRead = Date.now();
     return freshResearchSnapshot(cached);
   } catch (error) {

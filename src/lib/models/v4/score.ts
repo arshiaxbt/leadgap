@@ -1,6 +1,7 @@
+// Frozen heuristic-v4 implementation for historical replay. Do not modify formulas.
 /** Increment when scoring coefficients or formula change. */
-export const SCORE_MODEL_VERSION = "heuristic-v5";
-import type { GapRow } from "./types";
+export const SCORE_MODEL_VERSION = "heuristic-v4";
+import type { GapRow } from "../../types";
 
 export type Bias = "long" | "short" | "none";
 
@@ -94,7 +95,7 @@ export function scoreFactors(args: ScoreInputs): ScoreFactors & {
 /**
  * Leadgap Score is 0–100.
  * Magnitude of residual (odds-implied perp move minus actual mark move),
- * scaled by relative move magnitude, mapping confidence, and event liquidity.
+ * scaled by odds-first leadership, mapping confidence, and event liquidity.
  * Perp-first prints are down-weighted — that is not this product's edge.
  */
 export function leadgapMetrics(args: ScoreInputs): LeadgapMetrics {
@@ -164,12 +165,8 @@ export function scoreBreakdown(
 }
 
 export function isActionable(
-  row: Pick<GapRow, "bias" | "score" | "catchup" | "gap" | "eligibility" | "timing" | "execution" | "scoreVersion">,
+  row: Pick<GapRow, "bias" | "score" | "catchup">,
 ): boolean {
-  if (row.scoreVersion !== SCORE_MODEL_VERSION || !Number.isFinite(row.score) || !Number.isFinite(row.gap) || !Number.isFinite(row.execution?.totalCost) || (row.execution?.totalCost ?? -1) < 0) return false;
-  if (row.eligibility?.status !== "eligible" || row.timing?.status !== "odds-leads" ||
-      row.execution?.status !== "pass" || row.execution.totalCost == null ||
-      Math.abs(row.gap) <= row.execution.totalCost) return false;
   if (row.bias === "none" || row.score < 28) return false;
   if (
     row.catchup != null &&
@@ -226,17 +223,17 @@ export function decisionLine(args: {
 }): string {
   const name = args.symbol.replace("-USD", "");
   if (args.leader === "perp") {
-    return `The ${name} observed move is larger than its implied move.`;
+    return `Perp already led. ${name} moved first — this is not a Leadgap setup.`;
   }
   if (args.bias === "none" || args.score < 12) {
-    return `Odds and ${name} are in line. The residual is small.`;
+    return `Odds and ${name} are in line. Gap is too small to act on.`;
   }
   const caught =
     args.catchup != null && Number.isFinite(args.catchup)
       ? ` Mark captured ${Math.round(Math.max(0, Math.min(1.8, args.catchup)) * 100)}% of the implied move.`
       : "";
   if (args.bias === "long") {
-    return `The model indicates a positive ${name} residual.${caught}`;
+    return `Odds imply LONG ${name}. Yes repriced; the mark has not fully followed.${caught}`;
   }
-  return `The model indicates a negative ${name} residual.${caught}`;
+  return `Odds imply SHORT ${name}. Yes repriced against the mapped beta; the mark has not fully followed.${caught}`;
 }

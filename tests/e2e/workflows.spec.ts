@@ -1,6 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
-import { mockFeeds } from "./fixtures";
+import { mockFeeds, gaps } from "./fixtures";
 
 const browserErrors = new WeakMap<Page, string[]>();
 test.beforeEach(async ({ page }) => {
@@ -393,6 +393,7 @@ test("a saved alert fires once when its signal crosses the thresholds", async ({
             minGap: 0.01,
             muted: false,
             createdAt: Date.now(),
+            scoreVersion: "heuristic-v5",
           },
         ],
         alerts: {},
@@ -508,4 +509,34 @@ test("signal pages advertise a generated share image", async ({
     expect(response.headers()["content-type"]).toBe("image/png");
     expect((await response.body()).length).toBeGreaterThan(10_000);
   }
+});
+
+test('unknown evidence stays in divergences and explains the empty candidate feed',async({page})=>{
+  await page.setViewportSize({width:375,height:850});
+  await page.route('**/api/gaps?*',route=>route.fulfill({json:{gaps:gaps.map(g=>({...g,timing:{status:'unknown',reason:'insufficient-history',lagMinutes:null,correlation:null,samples:0,coverage:0},execution:{status:'unknown',reasons:['missing-quote-history'],at:0,notional:100,horizonMs:1800000}})),summary:{actionable:0,oddsFirst:3,topScore:70},asOf:Date.now(),error:null}}));
+  await page.goto('/');
+  await expect(page.getByRole('heading',{name:'No research candidates right now.'})).toBeVisible();
+  await expect(page.getByText(/3 comparisons lack clear odds leadership/)).toBeVisible();
+  await page.getByRole('button',{name:'Divergences',exact:true}).click();
+  await expect(page.getByText('3 OF 3 SHOWN',{exact:true})).toBeVisible();
+  await expectAccessible(page);await expectNoOverflow(page);
+});
+
+test('a saved v4 alert is baselined on v5 without a manufactured notification',async({page})=>{
+  await page.addInitScript(()=>localStorage.setItem('leadgap:watchlist:v1',JSON.stringify({items:[],rules:[{id:'legacy',symbol:'BTC-USD',eventId:'1',window:'4h',minScore:60,minGap:.01,muted:false}],alerts:{legacy:{matched:false,lastFired:123}}})));
+  await page.goto('/');
+  await expect.poll(()=>page.evaluate(()=>JSON.parse(localStorage.getItem('leadgap:watchlist:v1')!).alerts.legacy.scoreVersion)).toBe('heuristic-v5');
+  const alert=await page.evaluate(()=>JSON.parse(localStorage.getItem('leadgap:watchlist:v1')!).alerts.legacy);
+  expect(alert.matched).toBe(true);expect(alert.lastFired).toBe(123);
+  await expect(page.getByText('BTC alert · score 70')).not.toBeVisible();
+});
+
+
+test('legacy browser rules without previous evaluation state also baseline',async({page})=>{
+  await page.addInitScript(()=>localStorage.setItem('leadgap:watchlist:v1',JSON.stringify({items:[],rules:[{id:'legacy',symbol:'BTC-USD',eventId:'1',window:'4h',minScore:60,minGap:.01,muted:false}],alerts:{}})));
+  await page.goto('/');
+  await expect.poll(()=>page.evaluate(()=>JSON.parse(localStorage.getItem('leadgap:watchlist:v1')!).alerts.legacy?.scoreVersion)).toBe('heuristic-v5');
+  const alert=await page.evaluate(()=>JSON.parse(localStorage.getItem('leadgap:watchlist:v1')!).alerts.legacy);
+  expect(alert.matched).toBe(true);expect(alert.lastFired).toBe(0);
+  await expect(page.getByText('BTC alert · score 70')).not.toBeVisible();
 });

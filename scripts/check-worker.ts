@@ -199,7 +199,7 @@ async function main() {
     assert.equal(first.batches.length, 100);
     assert.equal(first.nextCursor, 100);
     assert.deepEqual(first.batches[0], { ...makeBatch(0), marks: { "BTC-USD": [0, 90000] },
-      odds: { "1": [0, .4, "token1"] }, links: { "1": { "BTC-USD": 1 } }, volumes: { "1": 1000 } });
+      odds: { "1": [0, .4, "token1"] }, links: { "1": { "BTC-USD": 1 } }, volumes: { "1": 1000 }, evidence: { odds: {}, perps: {} } });
     const second = await readHistory("&cursor=100&eventId=1&symbol=BTC-USD");
     const last = await readHistory("&cursor=200&eventId=1&symbol=BTC-USD");
     assert.equal(last.nextCursor, null);

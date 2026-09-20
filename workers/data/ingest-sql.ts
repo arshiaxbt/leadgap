@@ -8,6 +8,7 @@ export const INGEST_SQL = new Set([
   "SELECT t FROM snapshots WHERE t=?",
   "SELECT MIN(t) AS t FROM snapshots",
   "SELECT payload FROM snapshots WHERE t>=? AND t<=? ORDER BY ABS(t-?) LIMIT 1",
+  "SELECT payload FROM snapshots WHERE t>=? AND t<=? AND json_extract(payload,'$.t')<=? ORDER BY ABS(json_extract(payload,'$.t')-?) LIMIT 1",
   "INSERT OR IGNORE INTO snapshots(t,model,payload) VALUES(?,?,?)",
   "INSERT OR IGNORE INTO mappings(id,created,payload) VALUES(?,?,?)",
   "INSERT INTO meta(key,value) VALUES('latest',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",

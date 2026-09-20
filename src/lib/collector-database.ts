@@ -1,7 +1,7 @@
 import { gzipSync } from "node:zlib";
 import { decodeStoredSnapshot } from "./snapshot-storage";
 import { SNAPSHOT_ENCODING } from "../../workers/data/snapshot-codec";
-import { PAYLOAD_MAX_BYTES, PAYLOAD_WRITES, STARTUP_SQL } from "../../workers/data/payloads";
+import { PAYLOAD_MAX_BYTES, PAYLOAD_WRITES, STARTUP_SQL, RECENT_SQL } from "../../workers/data/payloads";
 import type { Database, Result, Statement } from "../../workers/data/db";
 
 type Query = { sql: string; params: unknown[] };
@@ -76,6 +76,14 @@ export function collectorDatabase(origin: string, secret: string): Database {
       pending = [];
     }
     for (const query of queries) {
+      if(query.sql === RECENT_SQL) {
+        await flush();
+        const url=new URL('/internal/payload/recent',origin);
+        url.searchParams.set('from',String(query.params[0]));url.searchParams.set('to',String(query.params[1]));
+        const rows=await payload(url) as unknown[];
+        results.push({results:rows.map(value=>({payload:JSON.stringify(value)})),meta:{}});
+        continue;
+      }
       const operation = Object.entries(PAYLOAD_WRITES).find(([, sql]) => sql === query.sql)?.[0];
       if (!operation && query.sql !== STARTUP_SQL) { pending.push(query); continue; }
       await flush();

@@ -28,12 +28,12 @@ export const events: ResolvedEvent[] = instruments.map((inst, i) => ({
   title: [
     "Bitcoin above $100,000 this month?",
     "Ethereum above $4,000 this month?",
-    "Will Apple announce a new product?",
+    "Will Apple trade above $250?",
   ][i],
   question: [
     "Will Bitcoin exceed $100,000 before month end?",
     "Will Ethereum exceed $4,000 before month end?",
-    "Will Apple announce a new product before month end?",
+    "Will Apple trade above $250 before month end?",
   ][i],
   slug: `fixture-event-${i}`,
   volume: 120000,
@@ -53,6 +53,11 @@ export const events: ResolvedEvent[] = instruments.map((inst, i) => ({
   ],
 }));
 export const gaps: GapRow[] = events.map((e, i) => ({
+  scoreVersion: "heuristic-v5",
+  eligibility: { status: "eligible", rule: "own-price-threshold-v1" },
+  timing: { status: "odds-leads", lagMinutes: 2, correlation: .8, samples: 50, coverage: 1 },
+  execution: { status: "pass", reasons: [], at: Date.now(), notional:100, horizonMs:1800000, totalCost:.001 },
+  candidateReasons: [],
   eventId: e.id,
   title: e.title,
   question: e.question,

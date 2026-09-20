@@ -1,3 +1,4 @@
+import { eligibleMarket } from "./eligibility";
 import type { ResearchSnapshot } from "./research";
 import { durableEnabled, researchSnapshot } from "./data-service";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -21,7 +22,7 @@ import {
 } from "./divergence";
 import { isActionable } from "./score";
 import {
-  bestMarket,
+
   fetchOddsHistory,
   parseEndsAt,
   fetchYesMid,
@@ -210,13 +211,14 @@ async function mapPool<T, R>(
 }
 
 async function resolveEvents(): Promise<ResolvedEvent[]> {
+  const s = store();
   const queries = allGammaQueries();
   const byId = new Map<string, ResolvedEvent>();
 
   await mapPool(queries, 6, async (q) => {
     const found = await searchGammaEvents(q.query, 3);
     for (const raw of found) {
-      const market = bestMarket(raw);
+      const market = eligibleMarket(raw, ASSET_MAP.map(a=>a.symbol), Object.fromEntries(Object.values(s.tickers).map(t=>[t.symbol,t.markPrice])), Date.now());
       if (!market) continue;
       const yesPrice = parseYesPrice(market);
       if (yesPrice == null || yesPrice <= 0.02 || yesPrice >= 0.98) continue;
@@ -227,6 +229,7 @@ async function resolveEvents(): Promise<ResolvedEvent[]> {
       if (!event) {
         event = {
           id: String(raw.id),
+          marketId: market.id,
           slug: raw.slug,
           title: raw.title,
           question: market.question ?? raw.title,
@@ -524,7 +527,7 @@ export async function getGaps(window: GapWindow): Promise<{
     error: s.error,
     polling: true,
     summary: {
-      oddsFirst: gaps.filter((g) => g.leader === "odds" && !isActionable(g))
+      oddsFirst: gaps.filter((g) => !isActionable(g))
         .length,
       actionable: gaps.filter(isActionable).length,
       topScore: gaps[0]?.score ?? 0,

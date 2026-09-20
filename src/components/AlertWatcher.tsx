@@ -106,7 +106,15 @@ function LocalAlerts() {
       );
       const previous = state.alerts[rule.id] ?? { matched: false, lastFired: 0 };
       const result = evaluateAlert(rule, previous, row, now, feed.asOf);
+      // Baseline an existing rule once when score semantics change.
+      const version = row?.scoreVersion;
+      if (version && previous.scoreVersion !== version && (state.alerts[rule.id] || rule.scoreVersion !== version)) {
+        result.fire = false;
+        result.state.lastFired = previous.lastFired;
+      }
+      result.state = { ...result.state, scoreVersion: version ?? previous.scoreVersion };
       if (
+        result.state.scoreVersion !== previous.scoreVersion ||
         result.state.matched !== previous.matched ||
         result.state.lastFired !== previous.lastFired
       )

@@ -9,7 +9,12 @@ import {
 } from "next/navigation";
 import { ArrowRight, Search } from "lucide-react";
 import { DirectionChip } from "@/components/signal/DirectionChip";
-import { FeedStamp, ageCopy, feedState, useNow } from "@/components/signal/FeedStamp";
+import {
+  FeedStamp,
+  ageCopy,
+  feedState,
+  useNow,
+} from "@/components/signal/FeedStamp";
 import { RowTrace } from "@/components/signal/GapTrace";
 import { SignalSheet } from "@/components/signal/SignalSheet";
 import { SignalTour } from "@/components/signal/SignalTour";
@@ -28,8 +33,8 @@ type Filter = "actionable" | "odds" | "all";
 type Sort = "score" | "gap" | "move";
 
 const FILTERS: { id: Filter; label: string }[] = [
-  { id: "actionable", label: "Tradeable" },
-  { id: "odds", label: "Watching" },
+  { id: "actionable", label: "Candidates" },
+  { id: "odds", label: "Divergences" },
   { id: "all", label: "All" },
 ];
 const SORTS: { id: Sort; label: string }[] = [
@@ -39,8 +44,7 @@ const SORTS: { id: Sort; label: string }[] = [
 ];
 const MIN_SCORES = [0, 12, 28, 40, 55, 70];
 const LIMIT = 80;
-const GRID =
-  "lg:grid lg:grid-cols-[74px_minmax(0,1fr)_132px_236px_126px_48px]";
+const GRID = "lg:grid lg:grid-cols-[74px_minmax(0,1fr)_132px_236px_126px_48px]";
 
 const keyOf = (row: GapRow) => `${row.eventId}-${row.symbol}`;
 
@@ -91,8 +95,7 @@ function SignalWorkspace({ params }: { params: ReadonlyURLSearchParams }) {
       gaps
         .filter((row) => {
           if (filter === "actionable" && !isActionable(row)) return false;
-          if (filter === "odds" && !(row.leader === "odds" && !isActionable(row)))
-            return false;
+          if (filter === "odds" && isActionable(row)) return false;
           if (row.score < minScore) return false;
           return `${row.title} ${row.question} ${row.symbol}`
             .toLowerCase()
@@ -137,14 +140,14 @@ function SignalWorkspace({ params }: { params: ReadonlyURLSearchParams }) {
     <div className="flex min-h-0 flex-1 flex-col overflow-auto lg:overflow-hidden">
       <WorkspaceHeading
         title="Signals"
-        description="Events that repriced before the perp did. The band is what the market has not taken yet."
+        description="Supported price events compared with perpetual moves. Candidates require timing and quote evidence."
       >
         <FeedStamp asOf={asOf} loading={loading} error={error} retry={retry} />
       </WorkspaceHeading>
 
       <BookStrip
         loading={loading}
-        tradeable={summary.actionable}
+        candidates={summary.actionable}
         watching={summary.oddsFirst}
         events={events.length}
         instruments={instrumentCount}
@@ -226,7 +229,11 @@ function SignalWorkspace({ params }: { params: ReadonlyURLSearchParams }) {
 
       {degraded ? (
         <div role="alert" className="workspace-error shrink-0">
-          <span className="status-dot shrink-0" data-state="stale" aria-hidden />
+          <span
+            className="status-dot shrink-0"
+            data-state="stale"
+            aria-hidden
+          />
           <p className="min-w-0 flex-1">
             {asOf
               ? `Updates interrupted ${ageCopy(asOf, now)}. Showing the last comparable observation — gaps below may have moved.`
@@ -242,6 +249,23 @@ function SignalWorkspace({ params }: { params: ReadonlyURLSearchParams }) {
         </div>
       ) : null}
 
+      {!loading && (
+        <p
+          className="px-4 py-2 text-[11px] leading-relaxed text-dim md:px-6"
+          role="status"
+        >
+          {gaps.filter((r) => r.timing?.status !== "odds-leads").length}{" "}
+          comparisons lack clear odds leadership;{" "}
+          {gaps.filter((r) => r.execution?.status !== "pass").length} lack
+          passing quote evidence.
+          {gapWindow === "1m" || gapWindow === "5m"
+            ? " This window is too short to measure timing; try 15m or longer."
+            : ""}
+          {coverage?.queryCount
+            ? ` Discovery rotates ${coverage.queryCount} queries over ${Math.round((coverage.discoveryCycleMs ?? 0) / 60000)} minutes, with up to ${coverage.catalogLimit} events. Quotes cover at most 20 events and 12 instruments per update.`
+            : " Coverage is bounded; this is not a scan of every market."}
+        </p>
+      )}
       <section
         aria-label="Signal results"
         className="px-4 pb-6 md:px-6 lg:min-h-0 lg:flex-1 lg:overflow-auto"
@@ -264,11 +288,7 @@ function SignalWorkspace({ params }: { params: ReadonlyURLSearchParams }) {
           />
         ) : (
           <>
-            <div
-              role="table"
-              aria-label="Signals"
-              className="hidden lg:block"
-            >
+            <div role="table" aria-label="Signals" className="hidden lg:block">
               <div
                 role="row"
                 className={cn(GRID, "items-end border-b border-line pb-2.5")}
@@ -303,10 +323,7 @@ function SignalWorkspace({ params }: { params: ReadonlyURLSearchParams }) {
                 />
               ))}
             </div>
-            <ul
-              aria-label="Signals"
-              className="-mx-4 md:-mx-6 lg:hidden"
-            >
+            <ul aria-label="Signals" className="-mx-4 md:-mx-6 lg:hidden">
               {rows.map((row, i) => (
                 <SignalCard
                   key={keyOf(row)}
@@ -343,7 +360,11 @@ function SignalWorkspace({ params }: { params: ReadonlyURLSearchParams }) {
         )}
       </section>
 
-      <SignalSheet row={sheetRow} open={sheetOpen} onOpenChange={setSheetOpen} />
+      <SignalSheet
+        row={sheetRow}
+        open={sheetOpen}
+        onOpenChange={setSheetOpen}
+      />
       {!loading && rows.length > 0 ? <SignalTour /> : null}
     </div>
   );
@@ -351,7 +372,13 @@ function SignalWorkspace({ params }: { params: ReadonlyURLSearchParams }) {
 
 function Caret() {
   return (
-    <svg viewBox="0 0 12 12" width="8" height="8" aria-hidden className="shrink-0">
+    <svg
+      viewBox="0 0 12 12"
+      width="8"
+      height="8"
+      aria-hidden
+      className="shrink-0"
+    >
       <path fill="currentColor" d="M2.2 4.2 6 8l3.8-3.8-.9-.9L6 6.2 3.1 3.3z" />
     </svg>
   );
@@ -359,7 +386,7 @@ function Caret() {
 
 function BookStrip({
   loading,
-  tradeable,
+  candidates,
   watching,
   events,
   instruments,
@@ -367,24 +394,24 @@ function BookStrip({
   onWindow,
 }: {
   loading: boolean;
-  tradeable: number;
+  candidates: number;
   watching: number;
   events: number;
   instruments: number;
   window: GapWindow;
   onWindow: (w: GapWindow) => void;
 }) {
-  const total = tradeable + watching;
-  const lit = total ? Math.round((tradeable / total) * 5) : 0;
+  const total = candidates + watching;
+  const lit = total ? Math.round((candidates / total) * 5) : 0;
   const value = (n: number) => (loading ? "—" : n);
   return (
     <div className="mx-4 flex shrink-0 flex-wrap items-stretch gap-px overflow-hidden rounded-[10px] border border-line bg-line md:mx-6 lg:flex-nowrap">
       <div className="min-w-[45%] flex-1 bg-surface px-[18px] py-3.5 sm:min-w-0">
         <p className="flex items-baseline gap-2">
           <span className="num text-[26px] leading-none font-medium text-odds">
-            {value(tradeable)}
+            {value(candidates)}
           </span>
-          <span className="text-[12px] text-subtle">tradeable</span>
+          <span className="text-[12px] text-subtle">candidates</span>
         </p>
         <div className="mt-2.5 flex h-1 gap-[3px]" aria-hidden>
           {Array.from({ length: 5 }, (_, i) => (
@@ -400,9 +427,11 @@ function BookStrip({
           <span className="num text-[26px] leading-none font-medium">
             {value(watching)}
           </span>
-          <span className="text-[12px] text-subtle">watching</span>
+          <span className="text-[12px] text-subtle">divergences</span>
         </p>
-        <p className="mt-2.5 text-[11px] text-dim">Odds-led, under threshold</p>
+        <p className="mt-2.5 text-[11px] text-dim">
+          Supported comparisons, not candidates
+        </p>
       </div>
       <div className="hidden flex-1 bg-surface px-[18px] py-3.5 sm:block">
         <p className="flex items-baseline gap-2">
@@ -471,7 +500,11 @@ function SignalRow({
         "group cursor-pointer items-start border-b border-line-soft py-[18px] transition-colors hover:bg-[color-mix(in_srgb,var(--surface)_60%,transparent)]",
       )}
     >
-      <div role="cell" className="flex items-baseline gap-2" data-tour={first ? "score" : undefined}>
+      <div
+        role="cell"
+        className="flex items-baseline gap-2"
+        data-tour={first ? "score" : undefined}
+      >
         <span
           aria-hidden
           className={cn(
@@ -488,7 +521,11 @@ function SignalRow({
           {row.score}
         </span>
       </div>
-      <div role="cell" className="min-w-0 px-4" data-tour={first ? "event" : undefined}>
+      <div
+        role="cell"
+        className="min-w-0 px-4"
+        data-tour={first ? "event" : undefined}
+      >
         <Link
           id={`signal-${keyOf(row)}`}
           href={href}
@@ -547,7 +584,11 @@ function SignalRow({
           </div>
         </div>
       </div>
-      <div role="cell" className="px-4" data-tour={first ? "direction" : undefined}>
+      <div
+        role="cell"
+        className="px-4"
+        data-tour={first ? "direction" : undefined}
+      >
         <DirectionChip bias={row.bias} muted={muted} />
         <div className="mt-[7px] text-[11px] text-dim">
           {leaderLabel(row.leader)}
@@ -601,7 +642,9 @@ function SignalCard({
             {row.score}
           </span>
         </span>
-        <span className="mt-2 block text-[14px] leading-[1.4]">{row.title}</span>
+        <span className="mt-2 block text-[14px] leading-[1.4]">
+          {row.title}
+        </span>
         <RowTrace
           row={row}
           width={320}
@@ -653,7 +696,9 @@ function Legend() {
 function SkeletonRows() {
   return (
     <div aria-busy="true" aria-label="Loading signals" className="pt-1">
-      <div className={cn(GRID, "hidden gap-4 border-b border-line pb-2.5 lg:grid")}>
+      <div
+        className={cn(GRID, "hidden gap-4 border-b border-line pb-2.5 lg:grid")}
+      >
         {Array.from({ length: 5 }, (_, i) => (
           <span key={i} className="h-2 rounded-[2px] bg-line" />
         ))}
@@ -706,9 +751,9 @@ function EmptyState({
     : searching
       ? "No matching signals"
       : filter === "actionable"
-        ? "No gap worth trading right now."
+        ? "No research candidates right now."
         : filter === "odds"
-          ? "Nothing building under the threshold."
+          ? "No supported divergences in this view."
           : "No comparable observations yet.";
   const body = error
     ? "The signal feed did not respond. Retry to fetch the latest comparisons."
@@ -717,14 +762,30 @@ function EmptyState({
       : filter === "actionable"
         ? `Nothing passes the model’s thresholds across ${events} mapped event${events === 1 ? "" : "s"} on the ${window} window. That’s a normal state, not an error.`
         : filter === "odds"
-          ? `No odds-led signals are forming below the threshold on the ${window} window.`
+          ? `No supported non-candidate comparisons are available on the ${window} window.`
           : `Signals appear once both the event odds and the perp have fresh data across the full ${window} window.`;
   return (
     <div className="flex flex-col items-center justify-center px-6 py-14 text-center">
-      <svg viewBox="0 0 120 44" width="120" height="44" aria-hidden className="opacity-50">
+      <svg
+        viewBox="0 0 120 44"
+        width="120"
+        height="44"
+        aria-hidden
+        className="opacity-50"
+      >
         <line x1="0" y1="34" x2="120" y2="34" stroke="var(--line-strong)" />
-        <path d="M0 34 L30 33 L60 34 L90 33 L120 34" fill="none" stroke="var(--mark)" strokeWidth="1.6" />
-        <path d="M0 33 L30 32 L60 33 L90 32 L120 33" fill="none" stroke="var(--odds)" strokeWidth="1.8" />
+        <path
+          d="M0 34 L30 33 L60 34 L90 33 L120 34"
+          fill="none"
+          stroke="var(--mark)"
+          strokeWidth="1.6"
+        />
+        <path
+          d="M0 33 L30 32 L60 33 L90 32 L120 33"
+          fill="none"
+          stroke="var(--odds)"
+          strokeWidth="1.8"
+        />
       </svg>
       <h2 className="serif mt-[18px] text-[26px]">{title}</h2>
       <p className="mt-2.5 max-w-[46ch] text-[13px] leading-[1.65] text-subtle">
@@ -762,7 +823,10 @@ function EmptyState({
           </>
         )}
       </div>
-      <Link href="/markets" className="lg-focus mt-4 text-[12px] text-dim hover:text-text">
+      <Link
+        href="/markets"
+        className="lg-focus mt-4 text-[12px] text-dim hover:text-text"
+      >
         Browse markets →
       </Link>
     </div>

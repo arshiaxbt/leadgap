@@ -113,8 +113,8 @@ test("model score is bounded and breakdown sums to the published score", () => {
       result.score,
     );
   }
-  assert.equal(isActionable({ bias: "none", score: 90, catchup: 0 }), false);
-  assert.equal(isActionable({ bias: "long", score: 90, catchup: 0.9 }), false);
+  assert.equal(isActionable({ gap: 0.03, bias: "none", score: 90, catchup: 0 }), false);
+  assert.equal(isActionable({ gap: 0.03, bias: "long", score: 90, catchup: 0.9 }), false);
 });
 test("Vercel geo decisions ignore untrusted Cloudflare headers", () => {
   const previous = process.env.VERCEL;

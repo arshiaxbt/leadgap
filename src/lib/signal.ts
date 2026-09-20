@@ -20,7 +20,7 @@ export function thesisLine(
     case "perp":
       return `The ${name} move is larger than the odds change in this window.`;
     case "flat":
-      return `Odds and ${name} are in line. Gap is too small to act on.`;
+      return `Odds and ${name} are in line. The residual is small.`;
     case "odds": {
       const caught =
         row.catchup != null && Number.isFinite(row.catchup)
@@ -30,7 +30,7 @@ export function thesisLine(
         return `The model indicates a positive ${name} residual.${caught}`;
       if (row.bias === "short")
         return `The model indicates a negative ${name} residual.${caught}`;
-      return `The odds change is larger, but the residual does not meet the trade threshold.${caught}`;
+      return `The odds change is larger, but the residual does not meet the score threshold.${caught}`;
     }
     default: {
       const _never: never = row.leader;
@@ -52,10 +52,10 @@ export function catalystImpact(
         ? `Yes probability fell ${pts}`
         : "Yes probability little changed";
   if (gap.leader === "perp")
-    return `${odds}. ${name} already moved — not a Leadgap edge.`;
+    return `${odds}. The ${name} observed move is larger than the implied move.`;
   const bias = biasCopy(gap.bias, gap.symbol);
-  if (gap.bias === "none") return `${odds}. No ${name} edge yet.`;
-  return `${odds}. ${bias} while the mark lags.`;
+  if (gap.bias === "none") return `${odds}. No clear ${name} residual.`;
+  return `${odds}. Residual bias: ${bias}.`;
 }
 
 export function confidencePct(confidence: number): string {
@@ -72,7 +72,7 @@ export function chartStory(leader: GapRow["leader"]): string {
     case "odds":
       return "Compare the odds change with the observed perp move.";
     case "perp":
-      return "Perp already led. This is not a Leadgap setup.";
+      return "The perpetual move is larger than the implied move.";
     case "flat":
       return "Odds and mark are in line.";
     default: {
@@ -180,9 +180,9 @@ export function mappingExplanation(
 export function leaderLabel(leader: GapRow["leader"]): string {
   switch (leader) {
     case "odds":
-      return "Odds led";
+      return "Larger implied move";
     case "perp":
-      return "Perp led";
+      return "Larger perp move";
     case "flat":
       return "In line";
     default: {

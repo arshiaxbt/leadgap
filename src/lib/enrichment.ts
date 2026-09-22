@@ -9,13 +9,46 @@ import {
 import { linkModel } from "./sensitivity";
 import { WINDOW_MS } from "./divergence";
 import type { HistoryBatch, ResearchSnapshot } from "./research";
-import type { PerpsBook } from "./types";
+import type { PerpsBook, PerpsInstrument } from "./types";
 
 type Fees = {
   instrument_type: string;
   category: string;
   taker_fee_rate: string;
 };
+
+/**
+ * The venue's published taker rate for an instrument.
+ *
+ * Its fee schedule currently carries a single row (`perpetual`/`equity`), so
+ * matching on category as well left every crypto, index and commodity perp
+ * with no fee — 50 of 89 instruments, none of which could then be costed at
+ * all. Fall back to the base tier published for the same instrument type,
+ * which is the rate the venue documents for perpetuals generally. Still null
+ * when the schedule says nothing about this instrument type, so a genuinely
+ * unpublished fee stays unknown rather than assumed.
+ */
+export function takerFeeRate(
+  fees: Fees[],
+  instrument: Pick<PerpsInstrument, "instrumentType" | "category">,
+): number | null {
+  const rate = (f: Fees | undefined) => {
+    const value = f ? Number(f.taker_fee_rate) : Number.NaN;
+    return Number.isFinite(value) && value >= 0 ? value : null;
+  };
+  const exact = fees.find(
+    (f) =>
+      f.instrument_type === instrument.instrumentType &&
+      f.category === instrument.category,
+  );
+  if (rate(exact) != null) return rate(exact);
+  // Base tier for the type: the highest published rate, never a cheaper guess.
+  const sameType = fees
+    .filter((f) => f.instrument_type === instrument.instrumentType)
+    .map((f) => rate(f))
+    .filter((r): r is number => r != null);
+  return sameType.length ? Math.max(...sameType) : null;
+}
 /** Public data only. One shared deadline; missing enrichment never fails collection. */
 export async function collectEvidence(
   s: ResearchSnapshot,
@@ -86,11 +119,6 @@ export async function collectEvidence(
         `https://api.perpetuals.polymarket.com/v1/info/book?instrument_id=${instrument.instrumentId}&depth=100`,
       );
       await feeTask;
-      const fee = fees.find(
-        (f) =>
-          f.instrument_type === instrument.instrumentType &&
-          f.category === instrument.category,
-      );
       const book: PerpsBook = {
         instrumentId: instrument.instrumentId,
         timestamp: Number(b.timestamp),
@@ -107,7 +135,7 @@ export async function collectEvidence(
         book,
         instrument,
         ticker,
-        fee ? Number(fee.taker_fee_rate) : null,
+        takerFeeRate(fees, instrument),
         Date.now(),
       );
     }),

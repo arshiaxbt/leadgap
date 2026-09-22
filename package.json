@@ -22,6 +22,7 @@
     "research:export": "tsx scripts/research-export.ts",
     "research:calibrate": "tsx scripts/calibrate.ts",
     "research:soak": "tsx scripts/soak.ts",
+    "research:lead-lag": "tsx scripts/lead-lag-probe.ts",
     "test:worker": "tsx scripts/check-worker.ts"
   },
   "dependencies": {

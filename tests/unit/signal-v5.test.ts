@@ -428,7 +428,7 @@ test("a model transition baselines server alerts without changing saved rules or
   }
 });
 
-test("quote enrichment uses supported public depth and never borrows another category’s fee", async () => {
+test("quote enrichment uses supported public depth and the published base tier for an omitted category", async () => {
   const { collectEvidence } = await import("../../src/lib/enrichment");
   const original = globalThis.fetch,
     at = Date.now();
@@ -479,7 +479,11 @@ test("quote enrichment uses supported public depth and never borrows another cat
     const evidence = await collectEvidence(s);
     assert.equal(bookCalls, 1);
     assert.equal(evidence.perps[instrument.symbol].valid, true);
-    assert.equal(evidence.perps[instrument.symbol].takerFee, null);
+    // The venue publishes one row (perpetual/equity) and documents 0.04% as
+    // the base taker tier for perpetuals, so a crypto perp inherits it rather
+    // than being left uncostable. Borrowing across instrument *types*, or
+    // picking a cheaper tier, is still refused — see the takerFeeRate test.
+    assert.equal(evidence.perps[instrument.symbol].takerFee, 0.0004);
   } finally {
     globalThis.fetch = original;
   }
@@ -524,4 +528,32 @@ test('quote evidence expires independently of fresh mark and midpoint data',asyn
   const expired=freshResearchSnapshot(s,now+11000).windows['4h'][0];
   assert.equal(expired.execution?.status,'unknown');assert.equal(isActionable(expired),false);
   assert.equal(s.windows['4h'][0].execution?.status,'pass');
+});
+
+test("the venue's base taker tier covers instruments its schedule omits", async () => {
+  const { takerFeeRate } = await import("../../src/lib/enrichment");
+  // What the venue actually publishes: one row, for equities.
+  const published = [
+    { instrument_type: "perpetual", category: "equity", taker_fee_rate: "0.0004" },
+  ];
+  const crypto = { instrumentType: "perpetual", category: "crypto" } as const;
+  const equity = { instrumentType: "perpetual", category: "equity" } as const;
+  // Used to be null, which left 50 of 89 instruments impossible to cost.
+  assert.equal(takerFeeRate(published, crypto), 0.0004);
+  assert.equal(takerFeeRate(published, equity), 0.0004);
+  // An exact category match still wins, and the fallback never picks a cheaper rate.
+  const tiered = [
+    ...published,
+    { instrument_type: "perpetual", category: "crypto", taker_fee_rate: "0.0006" },
+    { instrument_type: "perpetual", category: "index", taker_fee_rate: "0.0002" },
+  ];
+  assert.equal(takerFeeRate(tiered, crypto), 0.0006);
+  assert.equal(takerFeeRate(tiered, { instrumentType: "perpetual", category: "commodity" }), 0.0006);
+  // Nothing published for the type stays unknown rather than assumed.
+  assert.equal(takerFeeRate(published, { instrumentType: "future", category: "crypto" }), null);
+  assert.equal(takerFeeRate([], crypto), null);
+  assert.equal(
+    takerFeeRate([{ instrument_type: "perpetual", category: "equity", taker_fee_rate: "oops" }], crypto),
+    null,
+  );
 });
